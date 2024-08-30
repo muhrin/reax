@@ -105,9 +105,9 @@ class Std(Aggregation):
         if values.ndim == 0:
             values = values[None]
         if mask is None:
-            mask = jnp.ones(values.shape[0], dtype=jnp.int32)
+            mask = jnp.ones(values.shape[0], dtype=jnp.bool)
 
-        mask = utils.prepare_mask(mask, values)
+        mask = utils.prepare_mask(values, mask)
         return cls(
             total=values.sum(),
             sum_of_squares=jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
@@ -123,9 +123,9 @@ class Std(Aggregation):
         if values.ndim == 0:
             values = values[None]
         if mask is None:
-            mask = jnp.ones(values.shape[0], dtype=jnp.int32)
+            mask = jnp.ones(values.shape[0], dtype=jnp.bool)
 
-        mask = utils.prepare_mask(mask, values)
+        mask = utils.prepare_mask(values, mask)
         return type(self)(
             total=self.total + values.sum(),
             sum_of_squares=self.sum_of_squares

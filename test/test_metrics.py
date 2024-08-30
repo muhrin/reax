@@ -61,10 +61,23 @@ def test_from_fn(rng_key):
     values = random.uniform(rng_key, (n_batches, 10))
 
     # Let's create a fake function, where we calculate the mean of the squares
-    metric = metrics.from_fun(lambda values: metrics.Average().update(values**2))()
+    metric = metrics.Average.from_fun(lambda values: values**2)()
     mean = jnp.mean(values**2)
 
     for batch in values:
         metric = metric.update(batch)
 
     assert jnp.isclose(metric.compute(), mean)
+
+
+def test_stats_evaluator(rng_key):
+    n_batches = 4
+    values = random.uniform(rng_key, (n_batches, 10))
+
+    eval = metrics.StatsEvaluator(
+        {"avg": metrics.Average, "min": metrics.Min, "max": metrics.Max, "std": metrics.Std}, values
+    )
+    results = eval.run()
+
+    assert isinstance(results, dict)
+    assert results["avg"] == values.mean()

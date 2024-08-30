@@ -1,4 +1,4 @@
-from typing import Callable, ClassVar, Optional, Protocol, TypeVar
+from typing import ClassVar, Optional, Protocol, TypeVar
 
 import beartype
 import clu.internal.utils
@@ -9,7 +9,7 @@ import jaxtyping as jt
 
 from .metric import Metric
 
-__all__ = ("from_fun",)
+__all__ = tuple()
 
 M = TypeVar("M", bound=Metric)
 
@@ -159,36 +159,3 @@ class WithAccumulatorAndCount(WithAccumulator):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def compute(self) -> jax.Array:
         return self.accumulator / self.count
-
-
-def from_fun(fn: Callable[..., M]) -> type[Metric]:
-    class FromFun(Metric):
-        _metric: Optional[M] = None
-
-        @classmethod
-        def create(cls, *args, **kwargs) -> "FromFun":
-            """Create the metric from data"""
-            return FromFun(_metric=fn(*args, **kwargs))
-
-        def update(self, *args, **kwargs) -> "FromFun":
-            """Update the metric from new data and return a new instance"""
-            new = type(self).create(*args, **kwargs)
-            if self._metric is None:
-                return new
-
-            return self.merge(new)
-
-        def merge(self, other: "FromFun") -> "FromFun":
-            """Merge the metric with data from another metric instance of the same type"""
-            if self._metric is None:
-                return other
-
-            return FromFun(
-                _metric=self._metric.merge(other._metric)  # pylint: disable=protected-access
-            )
-
-        def compute(self):
-            """Compute the metric"""
-            return self._metric.compute()
-
-    return FromFun

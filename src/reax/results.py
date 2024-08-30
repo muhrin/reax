@@ -1,10 +1,13 @@
 import dataclasses
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import jax
 import jax.numpy as jnp
 
-from . import metrics
+from .metrics import metric as metric_
+
+if TYPE_CHECKING:
+    import reax
 
 
 @dataclasses.dataclass
@@ -15,11 +18,11 @@ class Metadata:
     prog_bar: bool
     on_step: bool
     on_epoch: bool
-    last_value: Optional[metrics.Metric] = None
+    last_value: Optional["reax.Metric"] = None
 
 
 # @dataclasses.dataclass
-class ArrayResultMetric(metrics.Metric[jax.Array]):
+class ArrayResultMetric(metric_.Metric[jax.Array]):
     value: jax.Array = 0  # Redefine here so the typing hinting works
     cumulated_batch_size: int = 0
 
@@ -54,7 +57,7 @@ class ArrayResultMetric(metrics.Metric[jax.Array]):
 
 
 class ResultEntry:
-    def __init__(self, meta: Metadata, metric: metrics.Metric, last_value=None):
+    def __init__(self, meta: Metadata, metric: "reax.Metric", last_value=None):
         self._meta = meta  # Readonly
         self.metric = metric
         self.last_value = last_value
@@ -75,7 +78,7 @@ class ResultCollection(dict[str, ResultEntry]):
         self,
         fx: str,
         name: str,
-        value: Union[jax.typing.ArrayLike, metrics.Metric],
+        value: Union[jax.typing.ArrayLike, "reax.Metric"],
         batch_idx: int,
         prog_bar: bool = False,
         on_step: bool = False,
@@ -86,11 +89,11 @@ class ResultCollection(dict[str, ResultEntry]):
 
         if isinstance(value, jax.typing.ArrayLike):
             metric = ArrayResultMetric.create(value, batch_size)
-        elif isinstance(value, metrics.Metric):
+        elif isinstance(value, metric_.Metric):
             metric = value
         else:
             raise TypeError(
-                f"Value must be a `metrics.Metric` or a raw value, got {type(value).__name__}"
+                f"Value must be a `reax.Metric` or a raw value, got {type(value).__name__}"
             )
 
         meta = Metadata(

@@ -1,17 +1,22 @@
 import abc
 import dataclasses
 import itertools
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
 
-from . import data, modules
+import jax
+
+from . import data
 from . import optimizers as optimizers_
 from . import results
 from .utils import events
 
+if TYPE_CHECKING:
+    import reax
+
 
 @dataclasses.dataclass
 class MetricResult:
-    meta: results.Metadata
+    meta: "reax.results.Metadata"
     value: Any
 
 
@@ -60,13 +65,11 @@ class Stage(metaclass=abc.ABCMeta):
     def __init__(
         self,
         name: str,
-        module: modules.Module,
         min_steps: Optional[int] = None,
         max_steps: int = -1,
         parent: "Stage" = None,
     ):
         self._name = name
-        self._module = module
         self._min_steps = min_steps
         self._max_steps = max_steps
         self._parent = parent
@@ -163,27 +166,28 @@ class Stage(metaclass=abc.ABCMeta):
 
 
 class EpochStage(Stage):
+    """Stage that runs one complete epoch from a dataloader at a time"""
+
     def __init__(
         self,
         name: str,
-        module,
-        dataloader,
+        dataloader: data.DataLoader,
         min_steps: Optional[int] = None,
         max_steps: int = -1,
         parent: "Stage" = None,
     ):
-        super().__init__(name, module, min_steps=min_steps, max_steps=max_steps, parent=parent)
+        super().__init__(name, min_steps=min_steps, max_steps=max_steps, parent=parent)
         if dataloader is None:
             raise ValueError(f"Stage {name} requires a data loader, got `None`")
 
         self._dataloader = dataloader
         self._iterator = None
         self._batch = None
-        self._metrics: Optional[results.ResultCollection] = None
+        self._metrics: Optional["reax.results.ResultCollection"] = None
         self._results: Optional[MetricResults] = None
 
     @property
-    def metrics(self) -> results.ResultCollection:
+    def metrics(self) -> "reax.results.ResultCollection":
         return self._metrics
 
     @property
@@ -203,7 +207,7 @@ class EpochStage(Stage):
     def log(
         self,
         name: str,
-        value,
+        value: Union[jax.typing.ArrayLike, "reax.Metric"],
         batch_size: Optional[int] = None,
         prog_bar: bool = False,
         on_step=True,
@@ -267,8 +271,15 @@ class EpochStage(Stage):
 
 
 class Train(EpochStage):
-    def __init__(self, module, dataloader, optimizers: list[optimizers_.Optimizer], parent=None):
-        super().__init__("training", module, dataloader, parent=parent)
+    def __init__(
+        self,
+        module: "reax.Module",
+        dataloader: "reax.DataLoader",
+        optimizers: list[optimizers_.Optimizer],
+        parent=None,
+    ):
+        super().__init__("training", dataloader, parent=parent)
+        self._module = module
         self._optimizers = optimizers
 
     def run(self) -> list[optimizers_.Optimizer]:
@@ -288,8 +299,9 @@ class Train(EpochStage):
 
 
 class Validate(EpochStage):
-    def __init__(self, module, dataloader, parent: Stage = None):
-        super().__init__("validation", module, dataloader, parent=parent)
+    def __init__(self, module: "reax.Module", dataloader: "reax.DataLoader", parent: Stage = None):
+        super().__init__("validation", dataloader, parent=parent)
+        self._module = module
 
     def _next(self) -> MetricResults:
         self._module.validation_step(self.batch, self._step)
@@ -297,8 +309,9 @@ class Validate(EpochStage):
 
 
 class Test(EpochStage):
-    def __init__(self, module, dataloader, parent: Stage = None):
-        super().__init__("test", module, dataloader, parent=parent)
+    def __init__(self, module: "reax.Module", dataloader, parent: Stage = None):
+        super().__init__("test", dataloader, parent=parent)
+        self._module = module
 
     def _next(self) -> MetricResults:
         self._module.test_step(self.batch, self._step)
@@ -315,7 +328,6 @@ class MultiStage(Stage):
     def __init__(
         self,
         name: str,
-        module,
         children: list[EpochStage],
         min_steps: Optional[int] = None,
         max_steps: int = -1,
@@ -323,7 +335,6 @@ class MultiStage(Stage):
     ):
         super().__init__(
             name=name,
-            module=module,
             min_steps=min_steps,
             max_steps=max_steps,
         )
@@ -375,7 +386,7 @@ class MultiStage(Stage):
 class Fit(MultiStage):
     def __init__(
         self,
-        module,
+        module: "reax.Module",
         train_dataloaders,
         val_dataloaders: Optional,
         optimizers: list[optimizers_.Optimizer],
@@ -397,7 +408,6 @@ class Fit(MultiStage):
 
         super().__init__(
             "fit",
-            module,
             children,
             min_steps=min_steps,
             max_steps=max_steps,

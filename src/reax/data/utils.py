@@ -14,6 +14,8 @@ T = TypeVar("T", bound=type)
 
 
 class BatchSizer:
+    """Tool for extracting batch sizes from dataset"""
+
     def __init__(self):
         self._registry = containers.TypeRegistry[Extractor]()
 
@@ -29,8 +31,8 @@ class BatchSizer:
         extractor = self._registry.find(batch)
         if extractor is not None:
             yield from extractor(batch)
-
-        yield from self._fallback_extractor(batch)
+        else:
+            yield from self._fallback_extractor(batch)
 
     def _fallback_extractor(self, batch) -> Iterable[int]:
         if isinstance(batch, (Iterable, Mapping)):
