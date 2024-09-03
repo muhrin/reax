@@ -75,7 +75,7 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
                 raise ValueError("Size mismatch between tensors")
             first_array = arrays[0]
         else:
-            if not isinstance(arrays, jax.typing.ArrayLike):
+            if not isinstance(arrays, (jax.Array, np.ndarray)):
                 raise TypeError(f"Expected array or tuple of arrays, got {type(arrays).__name__}")
             first_array = arrays
         self._arrays = arrays

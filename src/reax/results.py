@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from .metrics import metric as metric_
 
@@ -87,7 +88,7 @@ class ResultCollection(dict[str, ResultEntry]):
     ):
         key = f"{fx}.{name}"
 
-        if isinstance(value, jax.typing.ArrayLike):
+        if isinstance(value, (jax.Array, np.ndarray)):
             metric = ArrayResultMetric.create(value, batch_size)
         elif isinstance(value, metric_.Metric):
             metric = value
