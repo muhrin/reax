@@ -1,9 +1,12 @@
 from typing import Any
 
+import beartype
 import equinox
+import jaxtyping as jt
 import optax
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 class Optimizer(equinox.Module):
     optimizer: optax.GradientTransformation
     state: optax.OptState

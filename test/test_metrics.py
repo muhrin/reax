@@ -1,8 +1,10 @@
+import jax
 from jax import random
 import jax.numpy as jnp
 import optax
 
 from reax import metrics
+import reax.data
 
 
 def test_aggregation(rng_key):
@@ -23,7 +25,7 @@ def test_mean_square_error(rng_key):
 
     assert jnp.isclose(mse.compute(), optax.squared_error(values, targets).mean())
     # Check the convenience function gives us the right type
-    assert metrics.get("mse") is metrics.MeanSquaredError
+    assert isinstance(metrics.get("mse"), metrics.MeanSquaredError)
 
 
 def test_root_mean_square_error(rng_key):
@@ -38,7 +40,7 @@ def test_root_mean_square_error(rng_key):
 
     assert jnp.isclose(mse.compute(), jnp.sqrt(optax.squared_error(predictions, targets).mean()))
     # Check the convenience function gives us the right type
-    assert metrics.get("rmse") is metrics.RootMeanSquareError
+    assert isinstance(metrics.get("rmse"), metrics.RootMeanSquareError)
 
 
 def test_mae(rng_key):
@@ -53,7 +55,7 @@ def test_mae(rng_key):
 
     assert jnp.isclose(mse.compute(), jnp.abs(predictions - targets).mean())
     # Check the convenience function gives us the right type
-    assert metrics.get("mae") is metrics.MeanAbsoluteError
+    assert isinstance(metrics.get("mae"), metrics.MeanAbsoluteError)
 
 
 def test_from_fn(rng_key):
@@ -71,13 +73,63 @@ def test_from_fn(rng_key):
 
 
 def test_stats_evaluator(rng_key):
-    n_batches = 4
-    values = random.uniform(rng_key, (n_batches, 10))
+    batch_size = 10
+    values = random.uniform(rng_key, (40,))
+    stats = {
+        "avg": metrics.Average(),
+        "min": metrics.Min(),
+        "max": metrics.Max(),
+        "std": metrics.Std(),
+    }
 
-    eval = metrics.StatsEvaluator(
-        {"avg": metrics.Average, "min": metrics.Min, "max": metrics.Max, "std": metrics.Std}, values
-    )
+    eval = metrics.StatsEvaluator(stats, reax.data.ArrayLoader(values, batch_size=batch_size))
     results = eval.run()
 
     assert isinstance(results, dict)
-    assert results["avg"] == values.mean()
+    assert jnp.isclose(results["avg"], values.mean())
+    assert jnp.isclose(results["min"], values.min())
+    assert jnp.isclose(results["max"], values.max())
+    assert jnp.isclose(results["std"], values.flatten().std())
+
+    # Check that `evaluate_stats` produces the same result
+    evaluated = metrics.evaluate_stats(stats, values)
+
+    comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
+    assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))
+
+
+def test_num_unique(rng_key):
+    batch_size = 9
+    values = random.randint(rng_key, (40,), minval=0, maxval=9)
+    res = metrics.evaluate_stats(
+        metrics.NumUnique(), reax.data.ArrayLoader(values, batch_size=batch_size)
+    )
+    assert res["NumUnique"] == len(jnp.unique(values))
+
+    # Test the masking functionality
+    mask = values == 2
+    res = metrics.evaluate_stats(
+        metrics.NumUnique(), reax.data.ArrayLoader((values, mask), batch_size=batch_size)
+    )
+    assert res["NumUnique"] == len(jnp.unique(values[mask]))
+
+
+def test_metric_collection(rng_key):
+    batch_size = 9
+    collection = reax.metrics.MetricCollection(
+        dict(mean=reax.metrics.Average(), std=reax.metrics.Std())
+    )
+
+    values = random.uniform(rng_key, (40,))
+    loader = reax.data.ArrayLoader(values, batch_size=batch_size)
+
+    accumulator = collection.empty()
+    for batch in loader:
+        accumulator = accumulator.update(batch)
+    res = accumulator.compute()
+
+    assert "mean" in res
+    assert jnp.isclose(res["mean"], values.mean())
+
+    assert "std" in res
+    assert jnp.isclose(res["std"], values.std())

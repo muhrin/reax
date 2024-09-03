@@ -8,13 +8,13 @@ from . import collections, metric
 if TYPE_CHECKING:
     import reax
 
-__all__ = ("StatsEvaluator",)
+__all__ = ("StatsEvaluator", "evaluate_stats")
 
 
 class StatsEvaluator(stages.EpochStage):
     def __init__(
         self,
-        stats: Union[metric.Metric, Sequence[metric.Metric], dict[str, metric.Metric]],
+        stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
         dataloader: "reax.DataLoader",
     ):
         super().__init__("metrics-evaluator", dataloader)
@@ -27,4 +27,14 @@ class StatsEvaluator(stages.EpochStage):
     def _next(self) -> Any:
         # Calculate the log all the stats
         for name, stat in self._stats.items():
-            self.log(name, stat.create(self.batch))
+            if isinstance(self.batch, tuple):
+                self.log(name, stat.create(*self.batch), on_step=False, on_epoch=True)
+            else:
+                self.log(name, stat.create(self.batch), on_step=False, on_epoch=True)
+
+
+def evaluate_stats(
+    stats: Union[metric.Metric, Sequence[metric.Metric], dict[str, metric.Metric]],
+    dataloader: "reax.DataLoader",
+):
+    return StatsEvaluator(stats, dataloader).run()

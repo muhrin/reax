@@ -4,6 +4,7 @@ from typing import Optional, TypeVar, Union
 import beartype
 import jax
 import jaxtyping as jt
+import numpy as np
 
 from . import _types, collate, fetchers, samplers
 
@@ -65,23 +66,32 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        *arrays: jax.typing.ArrayLike,
+        arrays: ArrayOrArrayTuple,
         batch_size: int = 1,
         shuffle=False,
     ):
-        if not all(arrays[0].shape[0] == array.shape[0] for array in arrays):
-            raise ValueError("Size mismatch between tensors")
-
+        if isinstance(arrays, tuple):
+            if not all(arrays[0].shape[0] == array.shape[0] for array in arrays):
+                raise ValueError("Size mismatch between tensors")
+            first_array = arrays[0]
+        else:
+            if not isinstance(arrays, jax.typing.ArrayLike):
+                raise TypeError(f"Expected array or tuple of arrays, got {type(arrays).__name__}")
+            first_array = arrays
         self._arrays = arrays
+
         self._sampler: _types.Sampler[list[int]] = samplers.create_sequence_sampler(
-            arrays[0], batch_size=batch_size, shuffle=shuffle
+            first_array, batch_size=batch_size, shuffle=shuffle
         )
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __iter__(self) -> Iterator[ArrayOrArrayTuple]:
         for idx in self._sampler:
-            value = tuple(array[idx] for array in self._arrays)
-            yield _single_or_value(value, self._arrays)
+            idx = np.asarray(idx)
+            if isinstance(self._arrays, tuple):
+                yield tuple(array.take(idx) for array in self._arrays)
+            else:
+                yield self._arrays.take(idx)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __len__(self) -> int:

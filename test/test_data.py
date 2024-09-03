@@ -19,7 +19,7 @@ def test_array_loader(dataset_size, batch_size):
     assert isinstance(batches[0], type(inputs))
     assert np.allclose(batches[0], inputs[:batch_size])  # Check the first batch
 
-    batches = tuple(data.ArrayLoader(inputs, outputs, batch_size=batch_size))
+    batches = tuple(data.ArrayLoader((inputs, outputs), batch_size=batch_size))
     assert isinstance(batches[0], tuple)
     assert isinstance(batches[0][0], type(inputs))
     assert len(batches) == num_batches

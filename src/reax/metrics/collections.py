@@ -1,48 +1,32 @@
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 import beartype
 import equinox
 import flax.core
 import jaxtyping as jt
 
-from .metric import Metric
+from . import metric as metric_
 
-__all__ = ("MetricCollection",)
+if TYPE_CHECKING:
+    import reax
 
+__all__ = ("MetricCollection", "combine")
 
-MetricType = Union[type[Metric], Metric]
+MetricType = Union[type[metric_.Metric], metric_.Metric]
 
 
 class MetricCollection(equinox.Module):
     """A collection of metrics that can be created/updated/merged using a single call"""
 
-    _metrics: flax.core.FrozenDict[str, Metric]
+    _metrics: flax.core.FrozenDict[str, "reax.Metric"]
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def __init__(self, metrics: Union[MetricType, Sequence[MetricType], dict[str, MetricType]]):
+    def __init__(
+        self, metrics: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]]
+    ):
         super().__init__()
-        if isinstance(metrics, Metric):
-            metrics = [metrics]
-        if isinstance(metrics, Sequence):
-            metrics = {type(metric).__name__: metric for metric in metrics}
-
-        if not isinstance(metrics, dict):
-            raise ValueError(
-                f"Must pass in a metric, sequence of metrics or a dictionary of metrics, "
-                f"got {type(metrics).__name__}"
-            )
-
-        metric_instances = {}
-        for name, metric in metrics.items():
-            if isinstance(metric, Metric):
-                metric_instances[name] = metric
-            elif issubclass(metric, Metric):
-                metric_instances[name] = metric()
-            else:
-                raise TypeError(f"Expected a metric class or instance, got {type(metric).__name__}")
-
-        self._metrics = flax.core.FrozenDict(metrics)
+        self._metrics = flax.core.FrozenDict(_metrics_dict(metrics))
 
     def items(self):
         return self._metrics.items()
@@ -86,3 +70,27 @@ class MetricCollection(equinox.Module):
 
     def compute(self) -> dict[str, Any]:
         return {name: metric.compute() for name, metric in self._metrics.items()}
+
+
+def _metrics_dict(
+    metrics: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]]
+) -> dict[str, metric_.Metric]:
+    if isinstance(metrics, dict):
+        return {name: _ensure_metric(metric) for name, metric in metrics.items()}
+
+    if isinstance(metrics, Sequence):
+        return {type(metric).__name__: metric for metric in map(_ensure_metric, metrics)}
+
+    # Assume we have a single metric
+    metric = _ensure_metric(metrics)
+    return {type(metric).__name__: metric}
+
+
+def _ensure_metric(metric: "reax.Metric") -> metric_.Metric:
+    return metric
+
+
+def combine(*metric: metric_.Metric) -> MetricCollection:
+    """Combine multiple metrics with the same signature into a collection that can be used to
+    calculate multiple metrics at once"""
+    return MetricCollection(metric)

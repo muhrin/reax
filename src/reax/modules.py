@@ -2,6 +2,7 @@ import abc
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, Union
 
+import beartype
 import jax
 import jaxtyping as jt
 import optax
@@ -35,7 +36,7 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
         self._automatic_optimization = automatic_optimization
 
     @property
-    def trainer(self):
+    def trainer(self) -> "reax.Trainer":
         return self._trainer
 
     @trainer.setter
@@ -69,6 +70,9 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
         # Multiple optimisers
         return optimizers
 
+    def setup(self, stage: str):
+        """Called at the beginning of each stage.  A change to perform some setup on the module"""
+
     @abc.abstractmethod
     def training_step(self, batch: BatchT, batch_idx: int) -> Optional[tuple[jax.Array, jax.Array]]:
         """Train step"""
@@ -81,9 +85,10 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
     def test_step(self, batch: BatchT, batch_idx: int):
         """Test step"""
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def configure_optimizers(
         self,
-    ) -> Union[optax.GradientTransformation, Sequence[optax.GradientTransformation], None]:
+    ) -> Optional[Union[optax.GradientTransformation, Sequence[optax.GradientTransformation]]]:
         """Create the optimizer(s) to use during training"""
         return None
 

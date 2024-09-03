@@ -18,10 +18,9 @@ class Aggregation(Metric[jax.Array], metaclass=abc.ABCMeta):
 
     Self = TypeVar("Self", bound="Aggregation")
 
-    @classmethod
     @abc.abstractmethod
     def create(  # pylint: disable=arguments-differ
-        cls,
+        self,
         values: jax.typing.ArrayLike,
         mask: Optional[jax.typing.ArrayLike] = None,
     ) -> Self:
@@ -57,7 +56,7 @@ class Unique(utils.WithAccumulator, Aggregation):
 
     @staticmethod
     def reduce_fn(values, where=None):
-        return jnp.unique(values[where] if where else values)
+        return jnp.unique(values[where] if where is not None else values)
 
 
 class NumUnique(utils.WithAccumulator, Aggregation):
@@ -68,7 +67,7 @@ class NumUnique(utils.WithAccumulator, Aggregation):
 
     @staticmethod
     def reduce_fn(values, where=None):
-        return jnp.unique(values[where] if where else values)
+        return jnp.unique(values[where] if where is not None else values)
 
     def compute(self) -> jax.Array:
         return jnp.asarray(jnp.size(self.accumulator))
@@ -95,9 +94,8 @@ class Std(Aggregation):
         self.sum_of_squares = sum_of_squares or jnp.array(0, jnp.float32)
         self.count = count or jnp.array(0, jnp.int32)
 
-    @classmethod
     def create(
-        cls,
+        self,
         values: jax.typing.ArrayLike,
         mask: Optional[jax.typing.ArrayLike] = None,
     ) -> "Std":
@@ -108,7 +106,7 @@ class Std(Aggregation):
             mask = jnp.ones(values.shape[0], dtype=jnp.bool)
 
         mask = utils.prepare_mask(values, mask)
-        return cls(
+        return type(self)(
             total=values.sum(),
             sum_of_squares=jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
             count=mask.sum(),

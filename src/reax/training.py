@@ -1,13 +1,16 @@
 import contextlib
 import signal
 import sys
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 
 import jax
 
 from . import hooks, listeners, modules, stages
 from .optimizers import Optimizer
 from .utils import events
+
+if TYPE_CHECKING:
+    import reax
 
 __all__ = ("Trainer",)
 
@@ -42,6 +45,13 @@ class Trainer(stages.StageListener):
 
         if enable_progress_bar:
             self.events.add_listener(listeners.TqdmProgressBar())
+
+    @property
+    def train_dataloader(self) -> Optional["reax.DataLoader"]:
+        if isinstance(self._stage, stages.Fit):
+            return self._stage.train.dataloader
+
+        return None
 
     @property
     def current_epoch(self) -> Optional[int]:
@@ -92,9 +102,9 @@ class Trainer(stages.StageListener):
     def fit(
         # pylint: disable=unused-argument
         self,
-        train_dataloaders=None,
-        val_dataloaders=None,
-        datamodule=None,
+        train_dataloaders: "reax.DataLoader" = None,
+        val_dataloaders: "reax.DataLoader" = None,
+        datamodule: "reax.DataModule" = None,
         ckpt_path=None,
         max_epochs: int = 1_000,
         min_epochs: Optional[int] = None,
@@ -109,10 +119,6 @@ class Trainer(stages.StageListener):
                 )
             train_dataloaders = datamodule.train_dataloader()
             val_dataloaders = datamodule.val_dataloader()
-
-        if self._module.parameters() is None:
-            batch = next(iter(train_dataloaders))
-            self._module.configure_model(batch)
 
         self._configure_optimizers(self._module)
 
@@ -161,7 +167,7 @@ class Trainer(stages.StageListener):
         finally:
             self._stage = None
 
-    def _configure_optimizers(self, module):
+    def _configure_optimizers(self, module: "reax.Module"):
         opts = module.configure_optimizers()
         if not isinstance(opts, list):
             opts = [opts]
@@ -173,6 +179,8 @@ class Trainer(stages.StageListener):
 
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(hooks.TrainerListener.on_epoch_starting, self, stage)
+
+        self._module.setup(stage.name)
 
     def on_stage_step_start(self, stage: "stages.Stage", step: int):
         if isinstance(stage, stages.EpochStage):

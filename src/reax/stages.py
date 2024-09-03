@@ -187,6 +187,10 @@ class EpochStage(Stage):
         self._results: Optional[MetricResults] = None
 
     @property
+    def dataloader(self) -> "reax.DataLoader":
+        return self._dataloader
+
+    @property
     def metrics(self) -> "reax.results.ResultCollection":
         return self._metrics
 
@@ -412,3 +416,15 @@ class Fit(MultiStage):
             min_steps=min_steps,
             max_steps=max_steps,
         )
+
+    @property
+    def train(self) -> Train:
+        train_stage = self._children[0].stage
+        assert isinstance(train_stage, Train)
+        return train_stage
+
+    @property
+    def validate(self) -> Validate:
+        validate_stage = self._children[1].stage
+        assert isinstance(validate_stage, Validate)
+        return validate_stage
