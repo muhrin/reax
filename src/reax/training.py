@@ -22,6 +22,7 @@ class Trainer(stages.StageListener):
         log_every_n_steps: int = 50,
         check_val_every_n_epoch: int = 1,
         enable_progress_bar: bool = True,
+        rng_key: jax.Array = None,
     ):
         self._accelerator = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
@@ -29,6 +30,7 @@ class Trainer(stages.StageListener):
         self._strategy = strategies.SingleDevice(self._accelerator)
         self._log_every_n_steps = log_every_n_steps
         self.check_val_every_n_epoch = check_val_every_n_epoch
+        self._rng_key = rng_key if rng_key is None else jax.random.key(0)
 
         self._automatic_optimization = True
         self._optimizers = []
@@ -72,6 +74,11 @@ class Trainer(stages.StageListener):
     @should_stop.setter
     def should_stop(self, stop: bool):
         self._stage.should_stop = stop
+
+    def rng_key(self, num=1) -> jax.Array:
+        """Get a new RNG key.  This will update the state in the `Trainer`"""
+        self._rng_key, subkey = jax.random.split(self._rng_key, num=num + 1)
+        return subkey
 
     def log(
         # pylint: disable=unused-argument

@@ -22,7 +22,7 @@ OptimizerData = tuple[optax.GradientTransformation, Any]
 
 class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
     def __init__(self, rng_key: jax.Array = None):
-        self._trainer = None
+        self._trainer: Optional["reax.Trainer"] = None
         self._rng_key = rng_key or jax.random.key(0)
         self._parameters = None
         self._automatic_optimization = True
@@ -53,8 +53,7 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
         self._parameters = params
 
     def rng_key(self, num=1) -> jax.Array:
-        self._rng_key, subkey = jax.random.split(self._rng_key, num=num + 1)
-        return subkey
+        return self._trainer.rng_key(num=num)
 
     def optimizers(self) -> Union["reax.Optimizer", list["reax.Optimizer"]]:
         optimizers = self.trainer.optimizers
