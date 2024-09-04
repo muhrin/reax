@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 __all__ = ("Module",)
 
 MetricType = Union["reax.Metric", jax.typing.ArrayLike]
-
 OutputT_co = TypeVar("OutputT_co", covariant=True)
 BatchT = TypeVar("BatchT")
+OptimizerData = tuple[optax.GradientTransformation, Any]
 
 
 class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
@@ -56,7 +56,7 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
         self._rng_key, subkey = jax.random.split(self._rng_key, num=num + 1)
         return subkey
 
-    def optimizers(self) -> Union[optax.GradientTransformation, list[optax.GradientTransformation]]:
+    def optimizers(self) -> Union["reax.Optimizer", list["reax.Optimizer"]]:
         optimizers = self.trainer.optimizers
 
         # Check for a single optimiser

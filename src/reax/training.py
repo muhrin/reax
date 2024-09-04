@@ -120,8 +120,6 @@ class Trainer(stages.StageListener):
             train_dataloaders = datamodule.train_dataloader()
             val_dataloaders = datamodule.val_dataloader()
 
-        self._configure_optimizers(self._module)
-
         fit = stages.Fit(
             self._module,
             train_dataloaders,
@@ -167,20 +165,15 @@ class Trainer(stages.StageListener):
         finally:
             self._stage = None
 
-    def _configure_optimizers(self, module: "reax.Module"):
-        opts = module.configure_optimizers()
-        if not isinstance(opts, list):
-            opts = [opts]
-        self.optimizers = list(map(lambda opt: Optimizer(*opt), opts))
-
     def on_stage_starting(self, stage: "stages.Stage") -> None:
         """The stage is about to start"""
+        if not self._optimizers and isinstance(stage, stages.Train):
+            self._optimizers = stage.optimizers
+
         self.events.fire_event(hooks.TrainerListener.on_stage_starting, self, stage)
 
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(hooks.TrainerListener.on_epoch_starting, self, stage)
-
-        self._module.setup(stage.name)
 
     def on_stage_step_start(self, stage: "stages.Stage", step: int):
         if isinstance(stage, stages.EpochStage):

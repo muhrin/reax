@@ -286,9 +286,25 @@ class Train(EpochStage):
         self._module = module
         self._optimizers = optimizers
 
-    def run(self) -> list[optimizers_.Optimizer]:
+    @property
+    def optimizers(self) -> Optional[list["reax.Optimizer"]]:
+        return self._optimizers
+
+    def run(self) -> list["reax.Optimizer"]:
         super().run()
         return self._optimizers
+
+    def _on_starting(self):
+        self._module.setup(self.name)
+
+        if not self._optimizers:
+            opts = self._module.configure_optimizers()
+            if not isinstance(opts, list):
+                opts = [opts]
+            # Create the `Optimizer` instances
+            self._optimizers = list(map(lambda opt: optimizers_.Optimizer(*opt), opts))
+
+        super()._on_starting()
 
     def _next(self) -> MetricResults:
         res = self._module.training_step(self.batch, self._step)
@@ -307,6 +323,10 @@ class Validate(EpochStage):
         super().__init__("validation", dataloader, parent=parent)
         self._module = module
 
+    def _on_starting(self):
+        self._module.setup(self.name)
+        super()._on_starting()
+
     def _next(self) -> MetricResults:
         self._module.validation_step(self.batch, self._step)
         return self._get_iteration_results()
@@ -316,6 +336,10 @@ class Test(EpochStage):
     def __init__(self, module: "reax.Module", dataloader, parent: Stage = None):
         super().__init__("test", dataloader, parent=parent)
         self._module = module
+
+    def _on_starting(self):
+        self._module.setup(self.name)
+        super()._on_starting()
 
     def _next(self) -> MetricResults:
         self._module.test_step(self.batch, self._step)
@@ -329,6 +353,8 @@ class StageInfo:
 
 
 class MultiStage(Stage):
+    """A stage that can have one or more children e.g. fit which has train + validate"""
+
     def __init__(
         self,
         name: str,

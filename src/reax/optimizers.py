@@ -5,6 +5,8 @@ import equinox
 import jaxtyping as jt
 import optax
 
+__all__ = ("Optimizer",)
+
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 class Optimizer(equinox.Module):
