@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any, Literal, Union
 
 import jax
 
@@ -18,9 +18,11 @@ class StatsEvaluator(stages.EpochStage):
         self,
         stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
         dataloader: "reax.DataLoader",
+        accelerator: Literal["auto", "cpu", "gpu"] = "auto",
         strategy: "reax.Strategy" = None,
     ):
-        strategy = strategy or strategies.SingleDevice(jax.devices()[0])
+        accelerator = jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
+        strategy = strategy or strategies.SingleDevice(accelerator)
         super().__init__("metrics-evaluator", dataloader, strategy)
         self._stats = collections.MetricCollection(stats)
 
