@@ -1,7 +1,9 @@
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Union
 
-from reax import stages
+import jax
+
+from reax import stages, strategies
 
 from . import collections, metric
 
@@ -16,8 +18,10 @@ class StatsEvaluator(stages.EpochStage):
         self,
         stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
         dataloader: "reax.DataLoader",
+        strategy: "reax.Strategy" = None,
     ):
-        super().__init__("metrics-evaluator", dataloader)
+        strategy = strategy or strategies.SingleDevice(jax.devices()[0])
+        super().__init__("metrics-evaluator", dataloader, strategy)
         self._stats = collections.MetricCollection(stats)
 
     def run(self) -> dict[str, Any]:

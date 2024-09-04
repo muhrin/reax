@@ -5,8 +5,7 @@ from typing import TYPE_CHECKING, Literal, Optional
 
 import jax
 
-from . import hooks, listeners, modules, stages
-from .optimizers import Optimizer
+from . import hooks, listeners, modules, stages, strategies
 from .utils import events
 
 if TYPE_CHECKING:
@@ -27,6 +26,7 @@ class Trainer(stages.StageListener):
         self._accelerator = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         )
+        self._strategy = strategies.SingleDevice(self._accelerator)
         self._log_every_n_steps = log_every_n_steps
         self.check_val_every_n_epoch = check_val_every_n_epoch
 
@@ -58,11 +58,11 @@ class Trainer(stages.StageListener):
         return self._current_epoch
 
     @property
-    def optimizers(self) -> list[Optimizer]:
+    def optimizers(self) -> list["reax.Optimizer"]:
         return self._optimizers
 
     @optimizers.setter
-    def optimizers(self, opts: list[Optimizer]) -> None:
+    def optimizers(self, opts: list["reax.Optimizer"]) -> None:
         self._optimizers = opts
 
     @property
@@ -125,6 +125,7 @@ class Trainer(stages.StageListener):
             train_dataloaders,
             val_dataloaders,
             optimizers=self.optimizers,
+            strategy=self._strategy,
             min_steps=min_epochs,
             max_steps=max_epochs,
             check_val_every_n_epoch=self.check_val_every_n_epoch,

@@ -65,11 +65,13 @@ class Stage(metaclass=abc.ABCMeta):
     def __init__(
         self,
         name: str,
+        strategy: "reax.Strategy",
         min_steps: Optional[int] = None,
         max_steps: int = -1,
         parent: "Stage" = None,
     ):
         self._name = name
+        self._strategy = strategy
         self._min_steps = min_steps
         self._max_steps = max_steps
         self._parent = parent
@@ -172,11 +174,12 @@ class EpochStage(Stage):
         self,
         name: str,
         dataloader: data.DataLoader,
+        strategy: "reax.Strategy",
         min_steps: Optional[int] = None,
         max_steps: int = -1,
         parent: "Stage" = None,
     ):
-        super().__init__(name, min_steps=min_steps, max_steps=max_steps, parent=parent)
+        super().__init__(name, strategy, min_steps=min_steps, max_steps=max_steps, parent=parent)
         if dataloader is None:
             raise ValueError(f"Stage {name} requires a data loader, got `None`")
 
@@ -239,7 +242,9 @@ class EpochStage(Stage):
         super()._on_starting()
 
     def _on_iteration_starting(self):
-        self._batch = next(self._iterator)
+        batch = next(self._iterator)
+        self._strategy.to_device(batch)
+        self._batch = batch
         super()._on_iteration_starting()
 
     @abc.abstractmethod
@@ -279,10 +284,11 @@ class Train(EpochStage):
         self,
         module: "reax.Module",
         dataloader: "reax.DataLoader",
-        optimizers: list[optimizers_.Optimizer],
+        strategy: "reax.Strategy",
+        optimizers: list["reax.Optimizer"],
         parent=None,
     ):
-        super().__init__("training", dataloader, parent=parent)
+        super().__init__("training", dataloader, strategy, parent=parent)
         self._module = module
         self._optimizers = optimizers
 
@@ -296,11 +302,17 @@ class Train(EpochStage):
 
     def _on_starting(self):
         self._module.setup(self.name)
+        params = self._strategy.to_device(self._module.parameters())
+        self._module.set_parameters(params)
 
         if not self._optimizers:
             opts = self._module.configure_optimizers()
             if not isinstance(opts, list):
                 opts = [opts]
+
+            # Move optimizer parameters to device
+            opts = [(opt, self._strategy.to_device(state)) for opt, state in opts]
+
             # Create the `Optimizer` instances
             self._optimizers = list(map(lambda opt: optimizers_.Optimizer(*opt), opts))
 
@@ -319,12 +331,20 @@ class Train(EpochStage):
 
 
 class Validate(EpochStage):
-    def __init__(self, module: "reax.Module", dataloader: "reax.DataLoader", parent: Stage = None):
-        super().__init__("validation", dataloader, parent=parent)
+    def __init__(
+        self,
+        module: "reax.Module",
+        dataloader: "reax.DataLoader",
+        strategy: "reax.Strategy",
+        parent: Stage = None,
+    ):
+        super().__init__("validation", dataloader, strategy, parent=parent)
         self._module = module
 
     def _on_starting(self):
         self._module.setup(self.name)
+        params = self._strategy.to_device(self._module.parameters())
+        self._module.set_parameters(params)
         super()._on_starting()
 
     def _next(self) -> MetricResults:
@@ -333,12 +353,16 @@ class Validate(EpochStage):
 
 
 class Test(EpochStage):
-    def __init__(self, module: "reax.Module", dataloader, parent: Stage = None):
-        super().__init__("test", dataloader, parent=parent)
+    def __init__(
+        self, module: "reax.Module", dataloader, strategy: "reax.Strategy", parent: Stage = None
+    ):
+        super().__init__("test", dataloader, strategy, parent=parent)
         self._module = module
 
     def _on_starting(self):
         self._module.setup(self.name)
+        params = self._strategy.to_device(self._module.parameters())
+        self._module.set_parameters(params)
         super()._on_starting()
 
     def _next(self) -> MetricResults:
@@ -359,12 +383,14 @@ class MultiStage(Stage):
         self,
         name: str,
         children: list[EpochStage],
+        strategy: "reax.Strategy",
         min_steps: Optional[int] = None,
         max_steps: int = -1,
         passthrough_listeners=True,
     ):
         super().__init__(
-            name=name,
+            name,
+            strategy,
             min_steps=min_steps,
             max_steps=max_steps,
         )
@@ -417,21 +443,30 @@ class Fit(MultiStage):
     def __init__(
         self,
         module: "reax.Module",
-        train_dataloaders,
-        val_dataloaders: Optional,
-        optimizers: list[optimizers_.Optimizer],
+        train_dataloaders: "reax.DataLoader",
+        val_dataloaders: Optional["reax.DataLoader"],
+        optimizers: list["reax.Optimizer"],
+        strategy: "reax.Strategy",
         min_steps: Optional[int] = None,
         max_steps: int = -1,
         check_val_every_n_epoch: int = 1,
     ):
         children = [
-            Train(module=module, dataloader=train_dataloaders, optimizers=optimizers, parent=self)
+            Train(
+                module=module,
+                dataloader=train_dataloaders,
+                optimizers=optimizers,
+                strategy=strategy,
+                parent=self,
+            )
         ]
         if val_dataloaders is not None:
             # Add the validation stage to fitting
             children.append(
                 StageInfo(
-                    Validate(module=module, dataloader=val_dataloaders, parent=self),
+                    Validate(
+                        module=module, dataloader=val_dataloaders, strategy=strategy, parent=self
+                    ),
                     run_every_n=check_val_every_n_epoch,
                 )
             )
@@ -439,6 +474,7 @@ class Fit(MultiStage):
         super().__init__(
             "fit",
             children,
+            strategy,
             min_steps=min_steps,
             max_steps=max_steps,
         )

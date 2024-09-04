@@ -7,16 +7,18 @@ import jax
 
 jax.config.update("jax_platform_name", "cpu")
 
-from . import data, listeners, metrics, modules, optimizers, stages, training
+from . import data, listeners, metrics, modules, optimizers, stages, strategies, training
 from .data import DataLoader, DataModule, ReaxDataLoader
 from .metrics import Metric
 from .modules import *
 from .optimizers import *
+from .strategies import *
 from .training import *
 
 __all__ = (
     modules.__all__
     + optimizers.__all__
+    + strategies.__all__
     + training.__all__
     + data.__all__
     # Modules
@@ -25,6 +27,7 @@ __all__ = (
         "stages",
         "listeners",
         "metrics",
+        "strategies",
     )
     # Classes/functions/variables
     + (
