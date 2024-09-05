@@ -72,15 +72,12 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
     def setup(self, stage: str):
         """Called at the beginning of each stage.  A change to perform some setup on the module"""
 
-    @abc.abstractmethod
     def training_step(self, batch: BatchT, batch_idx: int) -> Optional[tuple[jax.Array, jax.Array]]:
         """Train step"""
 
-    @abc.abstractmethod
     def validation_step(self, batch: BatchT, batch_idx: int):
         """Validate step"""
 
-    @abc.abstractmethod
     def test_step(self, batch: BatchT, batch_idx: int):
         """Test step"""
 
