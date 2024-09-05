@@ -3,13 +3,12 @@ from typing import Callable, ClassVar, Generic, Optional, TypeVar
 
 import equinox
 
-__all__ = ("Metric",)
+__all__ = ("Metric", "FromFun")
 
 OutT = TypeVar("OutT")
 
 
 class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
-
     @classmethod
     def from_fun(cls, function: Callable) -> type["FromFun[OutT]"]:
         """
