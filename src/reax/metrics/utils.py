@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 
-from .metric import Metric
+from ._metric import Metric
 
 __all__ = tuple()
 

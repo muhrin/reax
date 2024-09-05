@@ -5,7 +5,7 @@ import jax
 
 from reax import stages, strategies
 
-from . import collections, metric
+from . import collections
 
 if TYPE_CHECKING:
     import reax
@@ -40,7 +40,7 @@ class StatsEvaluator(stages.EpochStage):
 
 
 def evaluate_stats(
-    stats: Union[metric.Metric, Sequence[metric.Metric], dict[str, metric.Metric]],
+    stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
     dataloader: "reax.DataLoader",
 ):
     return StatsEvaluator(stats, dataloader).run()

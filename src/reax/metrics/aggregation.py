@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from . import _registry, utils
-from .metric import Metric
+from ._metric import Metric
 
 __all__ = ("Average", "Std", "Min", "Max", "Unique", "NumUnique")
 

@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from . import _registry, aggregation
-from .metric import Metric
+from ._metric import Metric
 
 __all__ = "MeanSquaredError", "RootMeanSquareError", "MeanAbsoluteError", "LeastSquaresEstimate"
 

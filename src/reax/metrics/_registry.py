@@ -1,9 +1,9 @@
 from typing import Union
 
-from . import metric as metric_
+from . import _metric as metric_
 from ..utils import containers
 
-__all__ = ("Registry", "get_registry", "set_registry", "get")
+__all__ = ("Registry", "get_registry", "set_registry")
 
 
 class Registry(containers.Registry[metric_.Metric]):

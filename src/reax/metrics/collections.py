@@ -6,7 +6,7 @@ import equinox
 import flax.core
 import jaxtyping as jt
 
-from . import metric as metric_
+from . import _metric as metric_
 
 if TYPE_CHECKING:
     import reax

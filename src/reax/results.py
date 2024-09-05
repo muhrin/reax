@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .metrics import metric as metric_
+from .metrics import _metric as metric_
 
 if TYPE_CHECKING:
     import reax
