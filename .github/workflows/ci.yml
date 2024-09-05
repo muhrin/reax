@@ -71,8 +71,8 @@ jobs:
         run: coverage xml
 
       - name: Upload coverage to Codecov
-        if: github.repository == 'muhrin/tensorial'
+        if: github.repository == 'muhrin/reax'
         uses: codecov/codecov-action@v2
         with:
           file: ./coverage.xml
-          name: tensorial
+          name: reax
