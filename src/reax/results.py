@@ -1,11 +1,12 @@
 import dataclasses
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .metrics import _metric as metric_
+# from . import metrics as metrics_
+from .metrics import _metric
 
 if TYPE_CHECKING:
     import reax
@@ -17,13 +18,13 @@ class Metadata:
     name: str
     batch_idx: int
     prog_bar: bool
+    logger: bool
     on_step: bool
     on_epoch: bool
-    last_value: Optional["reax.Metric"] = None
 
 
 # @dataclasses.dataclass
-class ArrayResultMetric(metric_.Metric[jax.Array]):
+class ArrayResultMetric(_metric.Metric[jax.Array]):
     value: jax.Array = 0  # Redefine here so the typing hinting works
     cumulated_batch_size: int = 0
 
@@ -58,14 +59,24 @@ class ArrayResultMetric(metric_.Metric[jax.Array]):
 
 
 class ResultEntry:
-    def __init__(self, meta: Metadata, metric: "reax.Metric", last_value=None):
+    def __init__(
+        self, meta: Metadata, metric: "reax.Metric", last_value: Optional["reax.Metric"] = None
+    ):
         self._meta = meta  # Readonly
         self.metric = metric
-        self.last_value = last_value
+        self._last_value = last_value
 
     @property
     def meta(self) -> Metadata:
         return self._meta
+
+    @property
+    def last_value(self) -> Any:
+        if isinstance(self._last_value, _metric.Metric):
+            # Lazily compute the metric as it has now been requested
+            self._last_value = self._last_value.compute()
+
+        return self._last_value
 
 
 class ResultCollection(dict[str, ResultEntry]):
@@ -82,6 +93,7 @@ class ResultCollection(dict[str, ResultEntry]):
         value: Union[jax.typing.ArrayLike, "reax.Metric"],
         batch_idx: int,
         prog_bar: bool = False,
+        logger: bool = False,
         on_step: bool = False,
         on_epoch: bool = True,
         batch_size: Optional[int] = None,
@@ -90,7 +102,7 @@ class ResultCollection(dict[str, ResultEntry]):
 
         if isinstance(value, (jax.Array, np.ndarray)):
             metric = ArrayResultMetric.create(value, batch_size)
-        elif isinstance(value, metric_.Metric):
+        elif isinstance(value, _metric.Metric):
             metric = value
         else:
             raise TypeError(
@@ -102,12 +114,14 @@ class ResultCollection(dict[str, ResultEntry]):
             name=name,
             batch_idx=batch_idx,
             prog_bar=prog_bar,
+            logger=logger,
             on_step=on_step,
             on_epoch=on_epoch,
         )
-        last_value = metric.compute() if on_step else None
+        last_value = metric
 
         if key in self:
+            # Merge with existing metric to propagate results
             metric = self[key].metric.merge(metric)
 
         self[key] = ResultEntry(meta, metric, last_value=last_value)

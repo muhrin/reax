@@ -1,11 +1,16 @@
 import contextlib
+import os
 import signal
 import sys
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Iterable, Literal, Optional, Union
 
+import beartype
 import jax
+import jaxtyping as jt
 
-from . import hooks, listeners, modules, stages, strategies
+from . import hooks, listeners
+from . import loggers as loggers_
+from . import modules, stages, strategies
 from .utils import events
 
 if TYPE_CHECKING:
@@ -14,15 +19,22 @@ if TYPE_CHECKING:
 __all__ = ("Trainer",)
 
 
+LOG = "log"
+PBAR = "pbar"
+CALLBACK = "callback"
+
+
 class Trainer(stages.StageListener):
     def __init__(
         self,
         module: modules.Module,
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
+        logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = None,
         log_every_n_steps: int = 50,
         check_val_every_n_epoch: int = 1,
         enable_progress_bar: bool = True,
         rng_key: jax.Array = None,
+        default_root_dir: Optional[os.PathLike] = None,
     ):
         self._accelerator = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
@@ -31,6 +43,7 @@ class Trainer(stages.StageListener):
         self._log_every_n_steps = log_every_n_steps
         self.check_val_every_n_epoch = check_val_every_n_epoch
         self._rng_key = rng_key if rng_key is None else jax.random.key(0)
+        self._default_root_dir = os.fspath(default_root_dir) or os.getcwd()
 
         self._automatic_optimization = True
         self._optimizers = []
@@ -39,11 +52,11 @@ class Trainer(stages.StageListener):
 
         self.events = events.EventGenerator[hooks.TrainerListener]()
 
-        self._num_batches = None
-
         # Attach the trainer to the module
         self._module = module
         module.trainer = self
+
+        self._loggers = _init_loggers(logger, self.default_root_dir)
 
         if enable_progress_bar:
             self.events.add_listener(listeners.TqdmProgressBar())
@@ -68,12 +81,34 @@ class Trainer(stages.StageListener):
         self._optimizers = opts
 
     @property
-    def should_stop(self):
+    def should_stop(self) -> bool:
         return self._stage.should_stop
 
     @should_stop.setter
     def should_stop(self, stop: bool):
         self._stage.should_stop = stop
+
+    @property
+    def default_root_dir(self) -> str:
+        """
+        Get the fallback directory used for loggers and other components when not explicitly
+        specified
+        """
+        return os.path.normpath(os.path.expanduser(self._default_root_dir))
+
+    @property
+    def logger(self) -> "reax.Logger":
+        """Get the first (and main) logger"""
+        return self._loggers[0]
+
+    @property
+    def loggers(self) -> list["reax.Logger"]:
+        """Get all the loggers"""
+        return self._loggers
+
+    @loggers.setter
+    def loggers(self, loggers: Optional[list["reax.Logger"]]) -> None:
+        self._loggers = loggers if loggers else []
 
     def rng_key(self, num=1) -> jax.Array:
         """Get a new RNG key.  This will update the state in the `Trainer`"""
@@ -94,7 +129,7 @@ class Trainer(stages.StageListener):
         if self._stage is None:
             raise RuntimeError(
                 "Logging is only supported during one of the train/validate/test stages. "
-                "There is currently not stage running."
+                "There is currently no stage running."
             )
 
         self._stage.log(
@@ -189,6 +224,19 @@ class Trainer(stages.StageListener):
 
     def on_stage_step_end(self, stage: "stages.Stage", step: int, metrics: dict):
         if isinstance(stage, stages.EpochStage):
+            metrics = {PBAR: {}, LOG: {}, CALLBACK: {}}
+            for name, entry in stage.metrics.items():
+                if entry.meta.on_epoch:
+                    if entry.meta.logger:
+                        metrics[LOG][name] = entry.last_value
+                    if entry.meta.prog_bar:
+                        metrics[PBAR][name] = entry.last_value
+
+            # Convert tensors to python scalars
+            metrics = jax.tree_map(lambda entry: entry.item(), metrics)
+            for logger in self.loggers:
+                logger.log_metrics(metrics[LOG], step)
+
             self.events.fire_event(
                 hooks.TrainerListener.on_batch_ending,
                 self,
@@ -203,5 +251,34 @@ class Trainer(stages.StageListener):
             self.events.fire_event(
                 hooks.TrainerListener.on_epoch_ending, self, stage, stage.results
             )
+            metrics = {PBAR: {}, LOG: {}, CALLBACK: {}}
+            for name, entry in stage.metrics.items():
+                if entry.meta.on_epoch:
+                    if entry.meta.logger:
+                        metrics[LOG][name] = entry.metric.compute()
+                    if entry.meta.prog_bar:
+                        metrics[PBAR][name] = entry.metric.compute()
+
+            # Convert tensors to python scalars
+            metrics = jax.tree_map(lambda entry: entry.item(), metrics)
+            for logger in self.loggers:
+                logger.log_metrics(metrics[LOG])
 
         self.events.fire_event(hooks.TrainerListener.on_stage_ending, self, stage)
+
+
+@jt.jaxtyped(typechecker=beartype.beartype)
+def _init_loggers(
+    logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]],
+    default_root_dir: str,
+) -> list["reax.Logger"]:
+    if isinstance(logger, loggers_.Logger):
+        return [logger]
+
+    if isinstance(logger, (bool, type(None))):
+        if logger:
+            return [loggers_.TensorBoardLogger(default_root_dir)]
+
+        return []
+
+    return list(logger)

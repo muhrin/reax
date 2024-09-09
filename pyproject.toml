@@ -24,15 +24,19 @@ requires-python = '>=3.9'
 dependencies = [
     'beartype',
     "clu",
+    "flax",
+    'fsspec',
     'jax',
     'jaxlib',
     'jaxtyping',
+    'lightning-utilities>=0.10.0',
     "optax",
     'orbax-checkpoint',
     'pytray',
     "equinox",
     "tensorboardX",
     "tqdm",
+    "typing-extensions",
 ]
 
 [project.urls]
@@ -49,14 +53,15 @@ docs = [
     'sphinx-autobuild',
 ]
 dev = [
+    'black',
     'flit',
     'ipython',
+    'pandas',
     'pytest',
     'pytest-cov',
     'pytest-env',
     'pre-commit',
     'pylint',
-    'black',
 ]
 examples = [
     "lightning",
@@ -86,15 +91,11 @@ include_trailing_comma = true
 line_length = 100
 multi_line_output = 3
 
+[tool.pylint.MASTER]
+ignore-paths = '^src/reax/lightning/.*$'  # These are copy-paste from lightning, so don't lint
+
 [tool.pylint.format]
 max-line-length = 100
-
-[tool.bandit]
-exclude_dirs = ["test/"]
-skips = ["B101"]
-
-[tool.black]
-line-length = 100
 
 [tool.pylint.messages_control]
 disable = [
@@ -116,6 +117,13 @@ disable = [
 max-locals = 20
 max-branches = 14
 max-returns = 8
+
+[tool.bandit]
+exclude_dirs = ["test/"]
+skips = ["B101"]
+
+[tool.black]
+line-length = 100
 
 [pytest]
 log_cli = "True"

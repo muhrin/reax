@@ -173,7 +173,7 @@ class EpochStage(Stage):
     def __init__(
         self,
         name: str,
-        dataloader: data.DataLoader,
+        dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
         min_steps: Optional[int] = None,
         max_steps: int = -1,

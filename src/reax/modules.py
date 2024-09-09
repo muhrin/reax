@@ -4,9 +4,10 @@ from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, Union
 import beartype
 import jax
 import jaxtyping as jt
+from lightning_utilities.core import rank_zero
 import optax
 
-from . import hooks, rank_zero
+from . import hooks
 
 if TYPE_CHECKING:
     import reax
@@ -107,14 +108,14 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
         trainer = self._trainer
         if trainer is None:
             # not an error to support testing the `*_step` methods without a `Trainer` reference
-            rank_zero.warn(
+            rank_zero.rank_zero_warn(
                 "`self.log()` was called before `self.trainer` was set. "
                 "Probably, the model was not passed to `Trainer`"
             )
             return
 
         if logger and trainer.logger is None:
-            rank_zero.warn(
+            rank_zero.rank_zero_warn(
                 f"You called `self.log({name!r}, ..., logger=True)` but have no logger configured. "
                 f"You can enable one by using `Trainer(logger=ALogger(...))`"
             )
