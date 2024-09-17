@@ -9,12 +9,8 @@ import jax.typing
 def convert_params(params: Optional[Union[dict[str, Any], argparse.Namespace]]) -> dict[str, Any]:
     """Ensure parameters are a dict or convert to dict if necessary.
 
-    Args:
-        params: Target to be converted to a dictionary
 
-    Returns:
-        params as a dictionary
-
+    :param params: Object to be converted to `dict`
     """
     # in case converting from namespace
     if isinstance(params, argparse.Namespace):
@@ -42,14 +38,11 @@ def flatten_dict(
 ) -> dict[str, Any]:
     """Flatten hierarchical dict, e.g. ``{'a': {'b': 'c'}} -> {'a/b': 'c'}``.
 
-    Args:
-        params: Dictionary containing the hyperparameters
-        delimiter: Delimiter to express the hierarchy. Defaults to ``'/'``.
-
-    Returns:
-        Flattened dict.
+    :param params: the mapping containing hyperparameters
+    :param delimiter: the delimiter to express hierarchy
 
     Examples:
+
         >>> flatten_dict({'a': {'b': 'c'}})
         {'a/b': 'c'}
         >>> flatten_dict({'a': {'b': 123}})

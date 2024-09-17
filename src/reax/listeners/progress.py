@@ -38,14 +38,13 @@ class TqdmProgressBar(hooks.TrainerListener):
         trainer: "reax.Trainer",
         stage: "reax.stages.EpochStage",
         batch_idx: int,
-        metrics: "reax.stages.MetricResults",
+        metrics: dict,
     ) -> None:
         self._bar.n = batch_idx + 1
         postfix = {}
-        if metrics:
-            for _name, result in metrics.items():
-                if result.meta.prog_bar:
-                    postfix[result.meta.name] = result.value
+        if metrics and "pbar" in metrics:
+            postfix.update(metrics["pbar"])
+
         if postfix:
             self._bar.set_postfix(postfix)
 

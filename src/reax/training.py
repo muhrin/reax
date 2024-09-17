@@ -10,7 +10,7 @@ import jaxtyping as jt
 
 from . import hooks, listeners
 from . import loggers as loggers_
-from . import modules, stages, strategies
+from . import modules, stages, strategies, typing
 from .utils import events
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ class Trainer(stages.StageListener):
         check_val_every_n_epoch: int = 1,
         enable_progress_bar: bool = True,
         rng_key: jax.Array = None,
-        default_root_dir: Optional[os.PathLike] = None,
+        default_root_dir: Optional[typing.Path] = None,
     ):
         self._accelerator = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
@@ -42,8 +42,10 @@ class Trainer(stages.StageListener):
         self._strategy = strategies.SingleDevice(self._accelerator)
         self._log_every_n_steps = log_every_n_steps
         self.check_val_every_n_epoch = check_val_every_n_epoch
-        self._rng_key = rng_key if rng_key is None else jax.random.key(0)
-        self._default_root_dir = os.fspath(default_root_dir) or os.getcwd()
+        self._rng_key = rng_key if rng_key is not None else jax.random.key(0)
+        self._default_root_dir = (
+            os.fspath(default_root_dir) if default_root_dir is not None else os.getcwd()
+        )
 
         self._automatic_optimization = True
         self._optimizers = []
@@ -110,6 +112,28 @@ class Trainer(stages.StageListener):
     def loggers(self, loggers: Optional[list["reax.Logger"]]) -> None:
         self._loggers = loggers if loggers else []
 
+    @property
+    def log_dir(self) -> Optional[str]:
+        """The directory for the current experiment. Use this to save images to, etc...
+
+        .. note:: You must call this on all processes. Failing to do so will cause your program to
+            stall forever.
+
+         .. code-block:: python
+
+             def training_step(self, batch, batch_idx):
+                 img = ...
+                 save_img(img, self.trainer.log_dir)
+
+        """
+        if len(self.loggers) > 0:
+            dirpath = self.loggers[0].log_dir
+        else:
+            dirpath = self.default_root_dir
+
+        # dirpath = self.strategy.broadcast(dirpath)
+        return dirpath
+
     def rng_key(self, num=1) -> jax.Array:
         """Get a new RNG key.  This will update the state in the `Trainer`"""
         self._rng_key, subkey = jax.random.split(self._rng_key, num=num + 1)
@@ -136,6 +160,7 @@ class Trainer(stages.StageListener):
             name,
             value,
             prog_bar=prog_bar,
+            logger=logger,
             batch_size=batch_size,
             on_step=on_step,
             on_epoch=on_epoch,
@@ -151,7 +176,6 @@ class Trainer(stages.StageListener):
         max_epochs: int = 1_000,
         min_epochs: Optional[int] = None,
     ):
-
         # Must choose either a datamodule or train/val dataloaders
         if datamodule is not None:
             if train_dataloaders is not None or val_dataloaders is not None:
@@ -161,6 +185,13 @@ class Trainer(stages.StageListener):
                 )
             train_dataloaders = datamodule.train_dataloader()
             val_dataloaders = datamodule.val_dataloader()
+
+        # Fallbacks
+        if train_dataloaders is None:
+            train_dataloaders = self._module.train_dataloader()
+
+        if val_dataloaders is None:
+            val_dataloaders = self._module.val_dataloader()
 
         fit = stages.Fit(
             self._module,
@@ -186,7 +217,7 @@ class Trainer(stages.StageListener):
 
             dataloaders = datamodule.test_dataloader()
 
-        self._run_stage(stages.Test(self._module, dataloaders))
+        self._run_stage(stages.Test(self._module, dataloaders, self._strategy))
 
     def _run_stage(self, stage: stages.Stage) -> stages.Stage:
         try:

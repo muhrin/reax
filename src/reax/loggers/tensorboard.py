@@ -2,10 +2,19 @@ import argparse
 import os
 from typing import Any, Callable, Final, Mapping, Optional, Union
 
+import fsspec
 import jax.typing
-import omegaconf
+import numpy as np
 import tensorboardX
 from typing_extensions import override
+
+try:
+    import omegaconf
+except ImportError:
+    omegaconf = None
+
+from reax import typing
+from reax.lightning import rank_zero
 
 from . import _utils, logger
 
@@ -18,24 +27,24 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
     def __init__(
         self,
-        root_dir: os.PathLike,
+        log_dir: typing.Path,
         name: Optional[str] = "reax_logs",
         version: Optional[Union[int, str]] = None,
         log_graph: bool = False,
         default_hp_metric: bool = True,
         prefix: str = "",
-        sub_dir: Optional[os.PathLike] = None,
+        sub_dir: Optional[typing.Path] = None,
         **kwargs: Any,
     ):
         super().__init__()
-        self._root_dir = os.fspath(root_dir)
+        self._root_dir = os.fspath(log_dir)
         self._name = name or ""
         self._version = version
         self._sub_dir = None if sub_dir is None else os.fspath(sub_dir)
 
         self._default_hp_metric = default_hp_metric
         self._prefix = prefix
-        # self._fs = get_filesystem(root_dir)
+        self._fs: fsspec.AbstractFileSystem = fsspec.url_to_fs(log_dir)[0]
 
         self._exp: Optional["tensorboardX.SummaryWriter"] = None
         self._kwargs = kwargs
@@ -67,8 +76,8 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         log_dir = os.path.join(self.root_dir, version)
         if isinstance(self.sub_dir, str):
             log_dir = os.path.join(log_dir, self.sub_dir)
+
         log_dir = os.path.expandvars(log_dir)
-        log_dir = os.path.expanduser(log_dir)
         return log_dir
 
     @property
@@ -88,18 +97,22 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         if self._exp is not None:
             return self._exp
 
+        assert rank_zero.rank_zero_only.rank == 0, "tried to init log dirs in non global_rank=0"
+
         if self.root_dir:
-            os.makedirs(self.root_dir, exist_ok=True)
+            self._fs.makedirs(self.root_dir, exist_ok=True)
 
         self._exp = tensorboardX.SummaryWriter(log_dir=self.log_dir, **self._kwargs)
         return self._exp
 
-    # @override
-    def _log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
+    @override
+    def _log_metrics(
+        self, metrics: Mapping[str, jax.typing.ArrayLike], step: Optional[int] = None
+    ) -> None:
         metrics = _utils.add_prefix(metrics, self._prefix, self.LOGGER_JOIN_CHAR)
 
         for key, val in metrics.items():
-            if isinstance(val, jax.typing.ArrayLike):
+            if isinstance(val, (jax.Array, np.ndarray)):
                 val = val.item()
 
             if isinstance(val, dict):
@@ -113,7 +126,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
                         f"Use `dict`, scalar or array"
                     ) from ex
 
-    # @override
+    @override
     def _log_hyperparams(
         # pylint: disable=arguments-differ
         self,
@@ -122,8 +135,8 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     ) -> None:
         params = _utils.convert_params(params)
 
-        # store params to output
-        if isinstance(params, omegaconf.Container):
+        if omegaconf is not None and isinstance(params, omegaconf.Container):
+            # store params to output
             self.hparams = omegaconf.OmegaConf.merge(self.hparams, params)
         else:
             self.hparams.update(params)
@@ -158,14 +171,6 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     @override
     def _save(self) -> None:
         self.experiment.flush()
-        # dir_path = self.log_dir
-        #
-        # # prepare the file path
-        # hparams_file = os.path.join(dir_path, self.NAME_HPARAMS_FILE)
-        #
-        # # save the metatags file if it doesn't exist and the log directory exists
-        # if os.path.isdir(dir_path) and not os.path.isfile(hparams_file):
-        #     save_hparams_to_yaml(hparams_file, self.hparams)
 
     @override
     def _finalize(self, status: str) -> None:
@@ -177,18 +182,17 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
             self.experiment.flush()
             self.experiment.close()
 
-    # @override
     def _get_next_version(self) -> int:
         root_dir = self.root_dir
 
         try:
-            listdir_info = os.listdir(root_dir)
+            listdir_info = self._fs.listdir(root_dir)
         except OSError:
             return 0
 
         existing_versions = []
-        for listing in listdir_info:
-            name = listing["name"]
+        for info in listdir_info:
+            name = info["name"]
             basename = os.path.basename(name)
             if os.path.isdir(name) and basename.startswith("version_"):
                 dir_ver = basename.split("_")[1].replace("/", "")

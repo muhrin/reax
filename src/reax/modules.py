@@ -84,7 +84,7 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def configure_optimizers(
         self,
-    ) -> Optional[Union[optax.GradientTransformation, Sequence[optax.GradientTransformation]]]:
+    ) -> Optional[Union[OptimizerData, Sequence[OptimizerData]]]:
         """Create the optimizer(s) to use during training"""
         return None
 

@@ -128,6 +128,7 @@ class Stage(metaclass=abc.ABCMeta):
         value,
         batch_size: Optional[int] = None,
         prog_bar: bool = False,
+        logger: bool = False,
         on_step=True,
         on_epoch=True,
     ) -> None:
@@ -217,6 +218,7 @@ class EpochStage(Stage):
         value: Union[jax.typing.ArrayLike, "reax.Metric"],
         batch_size: Optional[int] = None,
         prog_bar: bool = False,
+        logger: bool = False,
         on_step=True,
         on_epoch=True,
     ) -> None:
@@ -229,6 +231,7 @@ class EpochStage(Stage):
             name,
             value,
             prog_bar=prog_bar,
+            logger=logger,
             batch_size=batch_size,
             batch_idx=self._step,
             on_step=on_step,
@@ -432,11 +435,14 @@ class MultiStage(Stage):
         value,
         batch_size: Optional[int] = None,
         prog_bar: bool = False,
+        logger: bool = False,
         on_step=True,
         on_epoch=True,
     ) -> None:
         """Pass logging onto the currently running stage"""
-        self._running.log(name, value, batch_size, prog_bar, on_step=on_step, on_epoch=on_epoch)
+        self._running.log(
+            name, value, batch_size, prog_bar, logger=logger, on_step=on_step, on_epoch=on_epoch
+        )
 
 
 class Fit(MultiStage):
