@@ -1,5 +1,5 @@
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypedDict, TypeVar, Union
 
 import beartype
 import jax
@@ -19,8 +19,14 @@ OutputT_co = TypeVar("OutputT_co", covariant=True)
 BatchT = TypeVar("BatchT")
 OptimizerData = tuple[optax.GradientTransformation, Any]
 
+LossAndGradDict = TypedDict("LossAndGradDict", {"loss": jax.Array, "grad": jt.PyTree}, total=False)
+LossAndGrad = tuple[jax.Array, jax.Array]
+TrainOutput = Union[LossAndGrad, LossAndGradDict]
+
 
 class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
+    example_input_array: Optional[BatchT]
+
     def __init__(self, rng_key: jax.Array = None):
         self._trainer: Optional["reax.Trainer"] = None
         self._rng_key = rng_key or jax.random.key(0)
@@ -72,7 +78,7 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
     def setup(self, stage: str):
         """Called at the beginning of each stage.  A change to perform some setup on the module"""
 
-    def training_step(self, batch: BatchT, batch_idx: int) -> Optional[tuple[jax.Array, jax.Array]]:
+    def training_step(self, batch: BatchT, batch_idx: int) -> Optional[TrainOutput]:
         """Train step"""
 
     def validation_step(self, batch: BatchT, batch_idx: int):
@@ -95,8 +101,8 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
         prog_bar: bool = False,
         batch_size: Optional[int] = None,
         logger: Optional[bool] = None,
-        on_step=True,  # pylint: disable=unused-argument
-        on_epoch=True,  # pylint: disable=unused-argument
+        on_step=True,
+        on_epoch=True,
     ) -> None:
         """Log a key, value pair.
 
@@ -131,8 +137,8 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
             prog_bar=prog_bar,
             batch_size=batch_size,
             logger=logger,
-            on_step=True,
-            on_epoch=True,
+            on_step=on_step,
+            on_epoch=on_epoch,
         )
 
 

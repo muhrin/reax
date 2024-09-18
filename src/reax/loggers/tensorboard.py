@@ -48,7 +48,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
         self._exp: Optional["tensorboardX.SummaryWriter"] = None
         self._kwargs = kwargs
-        self._log_graph = log_graph
+        self._should_log_graph = log_graph
         self.hparams: Union[dict[str, Any], argparse.Namespace] = {}
 
     @property
@@ -90,7 +90,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         return self._root_dir
 
     @property
-    def _experiment(self) -> "tensorboardX.SummaryWriter":
+    def _experiment(self) -> Optional["tensorboardX.SummaryWriter"]:
         """
         Get the tensorboard object.
         """
@@ -161,12 +161,27 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
             writer.add_summary(sei)
 
     @override
-    def _log_graph(self, model: Callable, *args, **kwargs) -> None:  # type: ignore[override]
-        if not self._log_graph:
+    def _log_graph(
+        # pylint: disable=unused-variable
+        self,
+        model: Callable,
+        *inputs,
+    ) -> None:
+        if not self._should_log_graph:
             return
 
-        # TODO: Check this
-        self.experiment.add_graph(model, *args, **kwargs)
+        input_array = model.example_input_array if not inputs else inputs
+
+        if input_array is None:
+            rank_zero.rank_zero_warn(
+                "Could not log computational graph to TensorBoard: The `model.example_input_array` "
+                "attribute is not set or `input_array` was not given."
+            )
+        else:
+            comp = jax.jit(model).lower(inputs).compiler_ir("hlo")
+
+            # TODO: Complete this
+            # self.experiment.file_writer.add_graph
 
     @override
     def _save(self) -> None:

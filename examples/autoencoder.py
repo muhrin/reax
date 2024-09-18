@@ -26,6 +26,7 @@ class Autoencoder(linen.Module):
 
     def setup(self):
         super().__init__()
+        # pylint: disable=attribute-defined-outside-init
         self.encoder = linen.Sequential([linen.Dense(self.hidden_dim), linen.relu, linen.Dense(3)])
         self.decoder = linen.Sequential(
             [linen.Dense(self.hidden_dim), linen.relu, linen.Dense(28 * 28)]
@@ -170,5 +171,5 @@ if __name__ == "__main__":
     autoencoder = LitAutoEncoder()
 
     trainer = reax.Trainer(autoencoder)
-    trainer.fit(datamodule=datamodule, max_epochs=2)
+    trainer.fit(datamodule=datamodule, max_epochs=10)
     trainer.test(datamodule=datamodule)

@@ -3,11 +3,9 @@ import os
 from unittest import mock
 
 import jax.numpy as jnp
-
-# from lightning.pytorch import Trainer
-from lightning.pytorch.demos.boring_classes import BoringModel
 import numpy as np
 import pytest
+import tensorboardX
 import yaml
 
 import reax
@@ -31,7 +29,7 @@ def test_tensorboard_hparams_reload(tmp_path):
     )
     assert trainer.log_dir == trainer.logger.log_dir
     trainer.fit(
-        # max_steps=1,
+        # max_steps=1,  # todo: enable this
     )
 
     assert trainer.log_dir == trainer.logger.log_dir
@@ -105,49 +103,48 @@ def test_tensorboard_no_name(tmp_path, name):
     assert os.listdir(tmp_path / "version_0")
 
 
-#
-# def test_tensorboard_log_sub_dir(tmp_path):
-#     class TestLogger(loggers.tensorboard.TensorBoardLogger):
-#         # for reproducibility
-#         @property
-#         def version(self):
-#             return "version"
-#
-#         @property
-#         def name(self):
-#             return "name"
-#
-#     trainer_args = {"default_root_dir": tmp_path}
-#
-#     # no sub_dir specified
-#     save_dir = tmp_path / "logs"
-#     logger = TestLogger(save_dir)
-#     trainer = reax.Trainer(**trainer_args, logger=logger)
-#     assert trainer.logger.log_dir == os.path.join(save_dir, "name", "version")
-#
-#     # sub_dir specified
-#     logger = TestLogger(save_dir, sub_dir="sub_dir")
-#     trainer = reax.Trainer(**trainer_args, logger=logger)
-#     assert trainer.logger.log_dir == os.path.join(save_dir, "name", "version", "sub_dir")
-#
-#     # test home dir (`~`) handling
-#     save_dir = "~/tmp"
-#     explicit_save_dir = os.path.expanduser(save_dir)
-#     logger = TestLogger(save_dir, sub_dir="sub_dir")
-#     trainer = reax.Trainer(**trainer_args, logger=logger)
-#     assert trainer.logger.log_dir == os.path.join(explicit_save_dir, "name", "version", "sub_dir")
-#
-#     with mock.patch.dict(os.environ, {}):
-#         # test env var (`$`) handling
-#         test_env_dir = "some_directory"
-#         os.environ["TEST_ENV_DIR"] = test_env_dir
-#         save_dir = "$TEST_ENV_DIR/tmp"
-#         explicit_save_dir = f"{test_env_dir}/tmp"
-#         logger = TestLogger(save_dir, sub_dir="sub_dir")
-#         trainer = reax.Trainer(**trainer_args, logger=logger)
-#         assert trainer.logger.log_dir == os.path.join(
-#             explicit_save_dir, "name", "version", "sub_dir"
-#         )
+def test_tensorboard_log_sub_dir(tmp_path):
+    class TestLogger(loggers.tensorboard.TensorBoardLogger):
+        # for reproducibility
+        @property
+        def version(self):
+            return "version"
+
+        @property
+        def name(self):
+            return "name"
+
+    trainer_args = {"default_root_dir": tmp_path}
+
+    # no sub_dir specified
+    save_dir = tmp_path / "logs"
+    logger = TestLogger(save_dir)
+    trainer = reax.Trainer(**trainer_args, logger=logger)
+    assert trainer.logger.log_dir == os.path.join(save_dir, "name", "version")
+
+    # sub_dir specified
+    logger = TestLogger(save_dir, sub_dir="sub_dir")
+    trainer = reax.Trainer(**trainer_args, logger=logger)
+    assert trainer.logger.log_dir == os.path.join(save_dir, "name", "version", "sub_dir")
+
+    # test home dir (`~`) handling
+    save_dir = "~/tmp"
+    explicit_save_dir = os.path.expanduser(save_dir)
+    logger = TestLogger(save_dir, sub_dir="sub_dir")
+    trainer = reax.Trainer(**trainer_args, logger=logger)
+    assert trainer.logger.log_dir == os.path.join(explicit_save_dir, "name", "version", "sub_dir")
+
+    with mock.patch.dict(os.environ, {}):
+        # test env var (`$`) handling
+        test_env_dir = "some_directory"
+        os.environ["TEST_ENV_DIR"] = test_env_dir
+        save_dir = "$TEST_ENV_DIR/tmp"
+        explicit_save_dir = f"{test_env_dir}/tmp"
+        logger = TestLogger(save_dir, sub_dir="sub_dir")
+        trainer = reax.Trainer(**trainer_args, logger=logger)
+        assert trainer.logger.log_dir == os.path.join(
+            explicit_save_dir, "name", "version", "sub_dir"
+        )
 
 
 @pytest.mark.parametrize("step_idx", [10, None])
@@ -214,121 +211,118 @@ def test_tensorboard_log_omegaconf_hparams_and_metrics(tmp_path):
     logger.log_hyperparams(hparams, metrics)
 
 
-# @pytest.mark.parametrize("example_input_array", [None, np.random.rand(2, 32)])
-# def test_tensorboard_log_graph(tmp_path, example_input_array):
-#     """Test that log graph works with both model.example_input_array and if array is passed externally."""
-#     model = BoringModel()
-#     if example_input_array is not None:
-#         model.example_input_array = None
-#
-#     logger = loggers.tensorboard.TensorBoardLogger(tmp_path, log_graph=True)
-#     logger.log_graph(model, example_input_array)
+@pytest.mark.parametrize("example_input_array", [None, np.random.rand(2, 32)])
+def test_tensorboard_log_graph(tmp_path, example_input_array):
+    """
+    Test that log graph works with both model.example_input_array and if array is passed externally.
+    """
+    model = demos.BoringModel()
+    if example_input_array is not None:
+        model.example_input_array = None
+
+    logger = loggers.tensorboard.TensorBoardLogger(tmp_path, log_graph=True)
+    logger.log_graph(model, example_input_array)
 
 
-# @pytest.mark.skipif(not _TENSORBOARD_AVAILABLE, reason=str(_TENSORBOARD_AVAILABLE))
-# def test_tensorboard_log_graph_warning_no_example_input_array(tmp_path):
-#     """Test that log graph throws warning if model.example_input_array is None."""
-#     model = BoringModel()
-#     model.example_input_array = None
-#     logger = TensorBoardLogger(tmp_path, log_graph=True)
-#     with pytest.warns(
-#         UserWarning,
-#         match="Could not log computational graph to TensorBoard: The `model.example_input_array` .* was not given",
-#     ):
-#         logger.log_graph(model)
-#
-#     model.example_input_array = {"x": 1, "y": 2}
-#     with pytest.warns(
-#         UserWarning,
-#         match="Could not log computational graph to TensorBoard: .* can't be traced by TensorBoard",
-#     ):
-#         logger.log_graph(model)
-#
-#
-# @mock.patch("lightning.pytorch.loggers.TensorBoardLogger.log_metrics")
-# def test_tensorboard_with_accummulated_gradients(mock_log_metrics, tmp_path):
-#     """Tests to ensure that tensorboard log properly when accumulated_gradients > 1."""
-#
-#     class TestModel(BoringModel):
-#         def __init__(self):
-#             super().__init__()
-#             self.indexes = []
-#
-#         def training_step(self, *args):
-#             self.log("foo", 1, on_step=True, on_epoch=True)
-#             if (
-#                 not self.trainer.fit_loop._should_accumulate()
-#                 and self.trainer._logger_connector.should_update_logs
-#             ):
-#                 self.indexes.append(self.trainer.global_step)
-#             return super().training_step(*args)
-#
-#     model = TestModel()
-#     logger_0 = TensorBoardLogger(tmp_path, default_hp_metric=False)
-#     trainer = Trainer(
-#         default_root_dir=tmp_path,
-#         limit_train_batches=12,
-#         limit_val_batches=0,
-#         max_epochs=3,
-#         accumulate_grad_batches=2,
-#         logger=[logger_0],
-#         log_every_n_steps=3,
-#     )
-#     trainer.fit(model)
-#
-#     calls = [m[2] for m in mock_log_metrics.mock_calls]
-#     count_epochs = [c["step"] for c in calls if "foo_epoch" in c["metrics"]]
-#     assert count_epochs == [5, 11, 17]
-#
-#     count_steps = [c["step"] for c in calls if "foo_step" in c["metrics"]]
-#     assert count_steps == model.indexes
-#
-#
-# def test_tensorboard_finalize(monkeypatch, tmp_path):
-#     """Test that the SummaryWriter closes in finalize."""
-#     if _TENSORBOARD_AVAILABLE:
-#         import torch.utils.tensorboard as tb
-#     else:
-#         import tensorboardX as tb
-#
-#     monkeypatch.setattr(tb, "SummaryWriter", Mock())
-#     logger = TensorBoardLogger(save_dir=tmp_path)
-#     assert logger._experiment is None
-#     logger.finalize("any")
-#
-#     # no log calls, no experiment created -> nothing to flush
-#     logger.experiment.assert_not_called()
-#
-#     logger = TensorBoardLogger(save_dir=tmp_path)
-#     logger.log_metrics({"flush_me": 11.1})  # trigger creation of an experiment
-#     logger.finalize("any")
-#
-#     # finalize flushes to experiment directory
-#     logger.experiment.flush.assert_called()
-#     logger.experiment.close.assert_called()
-#
-#
-# def test_tensorboard_save_hparams_to_yaml_once(tmp_path):
-#     model = BoringModel()
-#     logger = TensorBoardLogger(save_dir=tmp_path, default_hp_metric=False)
-#     trainer = Trainer(max_steps=1, default_root_dir=tmp_path, logger=logger)
-#     assert trainer.log_dir == trainer.logger.log_dir
-#     trainer.fit(model)
-#
-#     hparams_file = "hparams.yaml"
-#     assert os.path.isfile(os.path.join(trainer.log_dir, hparams_file))
-#     assert not os.path.isfile(os.path.join(tmp_path, hparams_file))
-#
-#
-# def test_tensorboard_with_symlink(tmp_path, monkeypatch):
-#     """Tests a specific failure case when tensorboard logger is used with empty name, symbolic link ``save_dir``, and
-#     relative paths."""
-#     monkeypatch.chdir(tmp_path)  # need to use relative paths
-#     source = os.path.join(".", "lightning_logs")
-#     dest = os.path.join(".", "sym_lightning_logs")
-#
-#     os.makedirs(source, exist_ok=True)
-#     os.symlink(source, dest)
-#
-#     logger = TensorBoardLogger(save_dir=dest, name="")
-#     _ = logger.version
+def test_tensorboard_log_graph_warning_no_example_input_array(tmp_path):
+    """Test that log graph throws warning if model.example_input_array is None."""
+    model = demos.BoringModel()
+    model.example_input_array = None
+    logger = loggers.tensorboard.TensorBoardLogger(tmp_path, log_graph=True)
+    with pytest.warns(
+        UserWarning,
+        match="Could not log computational graph to TensorBoard: The `model.example_input_array` .* was not given",
+    ):
+        logger.log_graph(model)
+
+    model.example_input_array = {"x": 1, "y": 2}
+    with pytest.warns(
+        UserWarning,
+        match="Could not log computational graph to TensorBoard: .* can't be traced by TensorBoard",
+    ):
+        logger.log_graph(model)
+
+
+@mock.patch("reax.loggers.tensorboard.TensorBoardLogger.log_metrics")
+def test_tensorboard_with_accummulated_gradients(mock_log_metrics, tmp_path):
+    """Tests to ensure that tensorboard log properly when accumulated_gradients > 1."""
+
+    class TestModel(demos.BoringModel):
+        def __init__(self):
+            super().__init__()
+            self.indexes = []
+
+        def training_step(self, *args):
+            self.log("foo", 1, on_step=True, on_epoch=True)
+            if (
+                not self.trainer.fit_loop._should_accumulate()
+                and self.trainer._logger_connector.should_update_logs
+            ):
+                self.indexes.append(self.trainer.global_step)
+            return super().training_step(*args)
+
+    model = TestModel()
+    logger_0 = loggers.tensorboard.TensorBoardLogger(tmp_path, default_hp_metric=False)
+    trainer = reax.Trainer(
+        model,
+        default_root_dir=tmp_path,
+        limit_train_batches=12,
+        limit_val_batches=0,
+        accumulate_grad_batches=2,
+        logger=[logger_0],
+        log_every_n_steps=3,
+    )
+    trainer.fit(max_epochs=3)
+
+    calls = [m[2] for m in mock_log_metrics.mock_calls]
+    count_epochs = [c["step"] for c in calls if "foo_epoch" in c["metrics"]]
+    assert count_epochs == [5, 11, 17]
+
+    count_steps = [c["step"] for c in calls if "foo_step" in c["metrics"]]
+    assert count_steps == model.indexes
+
+
+def test_tensorboard_finalize(monkeypatch, tmp_path):
+    """Test that the SummaryWriter closes in finalize."""
+    monkeypatch.setattr(tensorboardX, "SummaryWriter", mock.Mock())
+    logger = loggers.tensorboard.TensorBoardLogger(log_dir=tmp_path)
+    assert logger._exp is None
+    logger.finalize("any")
+
+    # no log calls, no experiment created -> nothing to flush
+    logger.experiment.assert_not_called()
+
+    logger = loggers.tensorboard.TensorBoardLogger(save_dir=tmp_path)
+    logger.log_metrics({"flush_me": 11.1})  # trigger creation of an experiment
+    logger.finalize("any")
+
+    # finalize flushes to experiment directory
+    logger.experiment.flush.assert_called()
+    logger.experiment.close.assert_called()
+
+
+def test_tensorboard_save_hparams_to_yaml_once(tmp_path):
+    model = demos.BoringModel()
+    logger = loggers.tensorboard.TensorBoardLogger(log_dir=tmp_path, default_hp_metric=False)
+    trainer = reax.Trainer(model, default_root_dir=tmp_path, logger=logger)
+    assert trainer.log_dir == trainer.logger.log_dir
+    trainer.fit(
+        # max_steps=1,  # TODO: Make this work
+    )
+
+    hparams_file = "hparams.yaml"
+    assert os.path.isfile(os.path.join(trainer.log_dir, hparams_file))
+    assert not os.path.isfile(os.path.join(tmp_path, hparams_file))
+
+
+def test_tensorboard_with_symlink(tmp_path, monkeypatch):
+    """Tests a specific failure case when tensorboard logger is used with empty name, symbolic link ``save_dir``, and
+    relative paths."""
+    monkeypatch.chdir(tmp_path)  # need to use relative paths
+    source = os.path.join(".", "lightning_logs")
+    dest = os.path.join(".", "sym_lightning_logs")
+
+    os.symlink(source, dest)
+
+    logger = loggers.tensorboard.TensorBoardLogger(log_dir=dest, name="")
+    _ = logger.version

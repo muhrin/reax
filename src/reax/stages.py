@@ -324,9 +324,12 @@ class Train(EpochStage):
     def _next(self) -> MetricResults:
         res = self._module.training_step(self.batch, self._step)
         if self._module.automatic_optimization:
-            _loss, grads = res
+            if isinstance(res, dict):
+                grad = res["grad"]
+            else:
+                _loss, grad = res
             opt = self._optimizers[0]
-            params, opt = opt.update(self._module.parameters(), grads)
+            params, opt = opt.update(self._module.parameters(), grad)
             self._optimizers = [opt]
             self._module.set_parameters(params)
 

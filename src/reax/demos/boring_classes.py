@@ -33,9 +33,10 @@ class BoringModel(modules.Module):
         super().__init__()
         self.layer = linen.Dense(2)
 
-    def configure_model(self, batch):
-        if self.parameters() is None:
-            params = self.layer.init(self.rng_key(), batch)
+    def setup(self, stage: str):
+        if stage == "training" and self.parameters() is None:
+            batch = next(iter(self.trainer.train_dataloader))
+            params = self.layer.init(self.rng_key(), batch[0])
             self.set_parameters(params)
 
     def forward(self, x: jax.Array) -> jax.Array:
@@ -55,7 +56,8 @@ class BoringModel(modules.Module):
         return self.loss(output)
 
     def training_step(self, batch: Any, batch_idx: int) -> Any:
-        return {"loss": self.step(batch)}
+        loss, grad = jax.value_and_grad(self.step)(batch)
+        return {"loss": loss, "grad": grad}
 
     def validation_step(self, batch: Any, batch_idx: int) -> Any:
         return {"x": self.step(batch)}

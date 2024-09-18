@@ -11,7 +11,7 @@ import jaxtyping as jt
 from . import hooks, listeners
 from . import loggers as loggers_
 from . import modules, stages, strategies, typing
-from .utils import events
+from .utils import arrays, events
 
 if TYPE_CHECKING:
     import reax
@@ -30,6 +30,7 @@ class Trainer(stages.StageListener):
         module: modules.Module,
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = None,
+        limit_train_batches: Optional[Union[int, float]] = None,
         log_every_n_steps: int = 50,
         check_val_every_n_epoch: int = 1,
         enable_progress_bar: bool = True,
@@ -39,6 +40,8 @@ class Trainer(stages.StageListener):
         self._accelerator = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         )
+        self._limit_train_batches = limit_train_batches
+
         self._strategy = strategies.SingleDevice(self._accelerator)
         self._log_every_n_steps = log_every_n_steps
         self.check_val_every_n_epoch = check_val_every_n_epoch
@@ -72,7 +75,11 @@ class Trainer(stages.StageListener):
 
     @property
     def current_epoch(self) -> Optional[int]:
-        return self._current_epoch
+        if self._stage is None or not isinstance(self._stage, stages.EpochStage):
+            return None
+
+        # The step of an epoch stage, is the epoch number
+        return self._stage.step
 
     @property
     def optimizers(self) -> list["reax.Optimizer"]:
@@ -255,16 +262,16 @@ class Trainer(stages.StageListener):
 
     def on_stage_step_end(self, stage: "stages.Stage", step: int, metrics: dict):
         if isinstance(stage, stages.EpochStage):
-            metrics = {PBAR: {}, LOG: {}, CALLBACK: {}}
+            metrics = {PBAR: {}, LOG: {"epoch": stage.step}, CALLBACK: {}}
             for name, entry in stage.metrics.items():
-                if entry.meta.on_epoch:
+                if entry.meta.on_step:
                     if entry.meta.logger:
                         metrics[LOG][name] = entry.last_value
                     if entry.meta.prog_bar:
                         metrics[PBAR][name] = entry.last_value
 
             # Convert tensors to python scalars
-            metrics = jax.tree_map(lambda entry: entry.item(), metrics)
+            metrics = jax.tree_map(arrays.to_scalar, metrics)
             for logger in self.loggers:
                 logger.log_metrics(metrics[LOG], step)
 
@@ -282,7 +289,7 @@ class Trainer(stages.StageListener):
             self.events.fire_event(
                 hooks.TrainerListener.on_epoch_ending, self, stage, stage.results
             )
-            metrics = {PBAR: {}, LOG: {}, CALLBACK: {}}
+            metrics = {PBAR: {}, LOG: {"epoch": stage.step}, CALLBACK: {}}
             for name, entry in stage.metrics.items():
                 if entry.meta.on_epoch:
                     if entry.meta.logger:
@@ -291,7 +298,7 @@ class Trainer(stages.StageListener):
                         metrics[PBAR][name] = entry.metric.compute()
 
             # Convert tensors to python scalars
-            metrics = jax.tree_map(lambda entry: entry.item(), metrics)
+            metrics = jax.tree_map(arrays.to_scalar, metrics)
             for logger in self.loggers:
                 logger.log_metrics(metrics[LOG])
 
