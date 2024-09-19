@@ -162,7 +162,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
     @override
     def _log_graph(
-        # pylint: disable=unused-variable
+        # pylint: disable=arguments-differ
         self,
         model: Callable,
         *inputs,
@@ -178,10 +178,10 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
                 "attribute is not set or `input_array` was not given."
             )
         else:
-            comp = jax.jit(model).lower(inputs).compiler_ir("hlo")
-
             # TODO: Complete this
+            # comp = jax.jit(model).lower(inputs).compiler_ir("hlo")
             # self.experiment.file_writer.add_graph
+            pass
 
     @override
     def _save(self) -> None:

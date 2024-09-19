@@ -15,6 +15,7 @@ from . import _utils, logger
 
 __all__ = ("PandasLogger",)
 
+DEFAULT_FORMAT = "json"
 Path = Union[str, bytes, os.PathLike]
 
 
@@ -27,6 +28,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
         self,
         save_dir: Optional[Path] = None,
         name: Optional[str] = "reax_logs",
+        fmt: str = DEFAULT_FORMAT,
         version: Optional[Union[int, str]] = None,
         prefix: str = "",
         flush_logs_every_n_steps: int = 100,
@@ -34,6 +36,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
         super().__init__()
         self._root_dir = None if save_dir is None else os.fspath(save_dir)
         self._name = name or ""
+        self._fmt = fmt
         self._version = version
         self._prefix = prefix
         self._flush_logs_every_n_step = flush_logs_every_n_steps
@@ -69,9 +72,14 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
         return os.path.join(self._root_dir, self.name, version)
 
     @property
+    def dataframe(self) -> pd.DataFrame:
+        """Get the dataframe from the current experiment"""
+        return self.experiment.dataframe
+
+    @property
     def _experiment(self) -> "ExperimentWriter":
         if self._exp is None:
-            self._exp = ExperimentWriter(log_dir=self.log_dir)
+            self._exp = ExperimentWriter(log_dir=self.log_dir, fmt=self._fmt)
 
         return self._exp
 
@@ -154,10 +162,19 @@ class ExperimentWriter:
     """Pandas experiment writer"""
 
     DEFAULT_BASENAME = "metrics"
-    DEFAULT_FORMAT = "json"
     HPARAMS_FILENAME = "hparams.yaml"
 
     def __init__(self, log_dir: Optional[str], fmt: str = DEFAULT_FORMAT):
+        try:
+            getattr(pd.DataFrame, f"to_{fmt}")
+        except AttributeError:
+            supported_formats = [
+                name[len("to_") :] for name in dir(pd.DataFrame) if name.startswith("to_")
+            ]
+            raise ValueError(
+                f"Format '{fmt}' is not supported.  Try one of {','.join(supported_formats)}'"
+            ) from None
+
         self._log_dir = log_dir
         self._fmt = fmt
 
@@ -167,7 +184,7 @@ class ExperimentWriter:
             self._metrics_file_path = None
             self._fs = None
         else:
-            filename = f"{self.DEFAULT_BASENAME}.{self.DEFAULT_FORMAT}"
+            filename = f"{self.DEFAULT_BASENAME}.{DEFAULT_FORMAT}"
             self._metrics_file_path = os.path.join(self._log_dir, filename)
             self._fs = fsspec.url_to_fs(log_dir)[0]
             self._check_log_dir_exists()
@@ -187,6 +204,7 @@ class ExperimentWriter:
     def metrics_file_path(self) -> Optional[str]:
         return self._metrics_file_path
 
+    @property
     def dataframe(self) -> pd.DataFrame:
         """Get the experiment's dataframe"""
         return pd.DataFrame(self._rows)
@@ -219,7 +237,7 @@ class ExperimentWriter:
         if not self._rows:
             return
 
-        dframe = self.dataframe()
+        dframe = self.dataframe
         save_method: Callable = getattr(dframe, f"to_{self._fmt}")
         save_method(self._metrics_file_path)
 

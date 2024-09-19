@@ -45,25 +45,27 @@ class BoringModel(modules.Module):
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
-    def loss(self, preds: jax.Array, labels: Optional[jax.Array] = None) -> jax.Array:
+    @staticmethod
+    def loss(preds: jax.Array, labels: Optional[jax.Array] = None) -> jax.Array:
         if labels is None:
             labels = jnp.ones_like(preds)
         # An arbitrary loss to have a loss that updates the model weights during `Trainer.fit` calls
         return optax.losses.squared_error(preds, labels).mean()
 
-    def step(self, batch: Any) -> jax.Array:
-        output = self(batch)
-        return self.loss(output)
+    @staticmethod
+    def step(model: linen.Module, parameters, batch: Any) -> jax.Array:
+        output = model.apply(parameters, batch)
+        return BoringModel.loss(output)
 
     def training_step(self, batch: Any, batch_idx: int) -> Any:
-        loss, grad = jax.value_and_grad(self.step)(batch)
+        loss, grad = jax.value_and_grad(self.step, argnums=1)(self.layer, self.parameters(), batch)
         return {"loss": loss, "grad": grad}
 
     def validation_step(self, batch: Any, batch_idx: int) -> Any:
-        return {"x": self.step(batch)}
+        return {"x": self.step(self.layer, self.parameters(), batch)}
 
     def test_step(self, batch: Any, batch_idx: int) -> Any:
-        return {"y": self.step(batch)}
+        return {"y": self.step(self.layer, self.parameters(), batch)}
 
     def configure_optimizers(self) -> tuple:
         schedule = optax.exponential_decay(init_value=0.1, transition_steps=1, decay_rate=0.1)

@@ -53,6 +53,8 @@ class Trainer(stages.StageListener):
         self._automatic_optimization = True
         self._optimizers = []
         self._stage: Optional[stages.Stage] = None
+
+        # State indexes
         self._current_epoch: Optional[int] = None
 
         self.events = events.EventGenerator[hooks.TrainerListener]()
@@ -75,11 +77,8 @@ class Trainer(stages.StageListener):
 
     @property
     def current_epoch(self) -> Optional[int]:
-        if self._stage is None or not isinstance(self._stage, stages.EpochStage):
-            return None
-
-        # The step of an epoch stage, is the epoch number
-        return self._stage.step
+        """Get the current epoch of the fitting"""
+        return self._current_epoch
 
     @property
     def optimizers(self) -> list["reax.Optimizer"]:
@@ -180,6 +179,7 @@ class Trainer(stages.StageListener):
         val_dataloaders: "reax.DataLoader" = None,
         datamodule: "reax.DataModule" = None,
         ckpt_path=None,
+        max_steps: int = -1,
         max_epochs: int = 1_000,
         min_epochs: Optional[int] = None,
     ):
@@ -259,10 +259,15 @@ class Trainer(stages.StageListener):
     def on_stage_step_start(self, stage: "stages.Stage", step: int):
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(hooks.TrainerListener.on_batch_starting, self, stage, step)
+        if isinstance(stage, stages.Fit):
+            if self._current_epoch is None:
+                self._current_epoch = 0
+            else:
+                self._current_epoch += 1
 
     def on_stage_step_end(self, stage: "stages.Stage", step: int, metrics: dict):
         if isinstance(stage, stages.EpochStage):
-            metrics = {PBAR: {}, LOG: {"epoch": stage.step}, CALLBACK: {}}
+            metrics = {PBAR: {}, LOG: {}, CALLBACK: {}}
             for name, entry in stage.metrics.items():
                 if entry.meta.on_step:
                     if entry.meta.logger:
@@ -272,8 +277,13 @@ class Trainer(stages.StageListener):
 
             # Convert tensors to python scalars
             metrics = jax.tree_map(arrays.to_scalar, metrics)
-            for logger in self.loggers:
-                logger.log_metrics(metrics[LOG], step)
+
+            if metrics[LOG]:
+                logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
+                logging_metrics.update(metrics[LOG])
+                for logger in self.loggers:
+                    logger.log_metrics(logging_metrics, step)
+                    logger.save()
 
             self.events.fire_event(
                 hooks.TrainerListener.on_batch_ending,
@@ -289,7 +299,7 @@ class Trainer(stages.StageListener):
             self.events.fire_event(
                 hooks.TrainerListener.on_epoch_ending, self, stage, stage.results
             )
-            metrics = {PBAR: {}, LOG: {"epoch": stage.step}, CALLBACK: {}}
+            metrics = {PBAR: {}, LOG: {}, CALLBACK: {}}
             for name, entry in stage.metrics.items():
                 if entry.meta.on_epoch:
                     if entry.meta.logger:
@@ -299,8 +309,13 @@ class Trainer(stages.StageListener):
 
             # Convert tensors to python scalars
             metrics = jax.tree_map(arrays.to_scalar, metrics)
-            for logger in self.loggers:
-                logger.log_metrics(metrics[LOG])
+
+            if metrics[LOG]:
+                logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
+                logging_metrics.update(metrics[LOG])
+                for logger in self.loggers:
+                    logger.log_metrics(logging_metrics, stage.step)
+                    logger.save()
 
         self.events.fire_event(hooks.TrainerListener.on_stage_ending, self, stage)
 

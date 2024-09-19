@@ -3,9 +3,11 @@ from unittest import mock
 
 import fsspec
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
-from reax import loggers
+import reax
+from reax import demos, loggers
 import reax.loggers.pandas
 
 
@@ -40,7 +42,7 @@ def test_manual_versioning_file_exists(tmp_path):
     # Simulate an existing 'version_0' from a previous run
     (tmp_path / "exp" / "version_0").mkdir(parents=True)
     previous_metrics_file = (
-        tmp_path / "exp" / "version_0" / f"metrics.{loggers.pandas.ExperimentWriter.DEFAULT_FORMAT}"
+        tmp_path / "exp" / "version_0" / f"metrics.{loggers.pandas.DEFAULT_FORMAT}"
     )
     previous_metrics_file.touch()
 
@@ -108,8 +110,8 @@ def test_flush_n_steps(tmp_path):
     metrics = {
         "float": 0.3,
         "int": 1,
-        "FloatTensor": jnp.array(0.1),
-        "IntTensor": jnp.array(1),
+        "FloatArray": jnp.array(0.1),
+        "IntArray": jnp.array(1),
     }
     logger.save = mock.MagicMock()
     logger.log_metrics(metrics, step=0)
@@ -117,3 +119,46 @@ def test_flush_n_steps(tmp_path):
     logger.save.assert_not_called()
     logger.log_metrics(metrics, step=1)
     logger.save.assert_called_once()
+
+
+def test_formats(tmp_path):
+    with pytest.raises(ValueError):
+        logger = loggers.pandas.PandasLogger(tmp_path, fmt="invalid")
+        # We have to ask for the experiment as the format is checked lazily
+        print(logger.experiment)
+
+    logger = loggers.pandas.PandasLogger(tmp_path, fmt="json")
+    # We have to ask for the experiment as the format is checked lazily
+    print(logger.experiment)
+
+
+def test_dataframe_content(tmp_path):
+    """
+    Test that log graph works with both model.example_input_array and if array is passed externally.
+    """
+    logger = loggers.pandas.PandasLogger(tmp_path)
+    df = logger.dataframe
+    assert df.empty
+
+    logger.log_metrics({"training.loss": 10.0, "epoch": 0}, step=0)
+    logger.log_metrics({"training.loss": 8.0, "epoch": 0}, step=1)
+    logger.log_metrics({"validation.loss": 12.0, "epoch": 0}, step=0)
+    logger.log_metrics({"training.loss": 7.0, "epoch": 1}, step=0)
+    df = logger.dataframe
+
+    # Training loss column
+    assert np.allclose(
+        df["training.loss"].to_numpy(), [10.0, 8.0, float("nan"), 7.0], equal_nan=True
+    )
+
+    # Validation loss column
+    assert np.allclose(
+        df["validation.loss"].to_numpy(),
+        [float("nan"), float("nan"), 12.0, float("nan")],
+        equal_nan=True,
+    )
+
+    # Steps
+    assert all(df["step"].to_numpy() == [0, 1, 0, 0])
+    # Epoch
+    assert all(df["epoch"].to_numpy() == [0, 0, 0, 1])
