@@ -1,7 +1,19 @@
 """REAX: A simple training framework for JAX-based projects"""
 
-from . import data, listeners, metrics, modules, optimizers, saving, stages, strategies, training
+from . import (
+    data,
+    hooks,
+    listeners,
+    metrics,
+    modules,
+    optimizers,
+    saving,
+    stages,
+    strategies,
+    training,
+)
 from .data import DataLoader, DataModule, ReaxDataLoader
+from .hooks import *
 from .loggers import Logger
 from .metrics import Metric
 from .modules import *
@@ -13,6 +25,7 @@ from .utils.rngs import seed_everything
 
 __all__ = (
     modules.__all__
+    + hooks.__all__
     + optimizers.__all__
     + saving.__all__
     + strategies.__all__

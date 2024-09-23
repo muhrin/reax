@@ -4,6 +4,9 @@ if TYPE_CHECKING:
     import reax
 
 
+__all__ = ("TrainerListener",)
+
+
 class TrainerListener:
     def on_stage_starting(self, trainer: "reax.Trainer", stage: "reax.stages.Stage") -> None:
         """A trainer stage is about to begin"""

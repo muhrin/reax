@@ -5,23 +5,20 @@ import sys
 from typing import TYPE_CHECKING, Iterable, Literal, Optional, Union
 
 import beartype
+import fsspec
 import jax
 import jaxtyping as jt
 
-from . import hooks, listeners
+from . import hooks, keys
+from . import listeners as listeners_
 from . import loggers as loggers_
 from . import modules, stages, strategies, typing
-from .utils import arrays, events
+from .utils import events
 
 if TYPE_CHECKING:
     import reax
 
 __all__ = ("Trainer",)
-
-
-LOG = "log"
-PBAR = "pbar"
-CALLBACK = "callback"
 
 
 class Trainer(stages.StageListener):
@@ -30,7 +27,7 @@ class Trainer(stages.StageListener):
         module: modules.Module,
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = None,
-        limit_train_batches: Optional[Union[int, float]] = None,
+        listeners: "Optional[list[reax.TrainerListener]]" = None,
         log_every_n_steps: int = 50,
         check_val_every_n_epoch: int = 1,
         enable_progress_bar: bool = True,
@@ -40,7 +37,6 @@ class Trainer(stages.StageListener):
         self._accelerator = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         )
-        self._limit_train_batches = limit_train_batches
 
         self._strategy = strategies.SingleDevice(self._accelerator)
         self._log_every_n_steps = log_every_n_steps
@@ -55,7 +51,8 @@ class Trainer(stages.StageListener):
         self._stage: Optional[stages.Stage] = None
 
         # State indexes
-        self._current_epoch: Optional[int] = None
+        self._current_epoch = 0
+        self._global_updates = 0
 
         self.events = events.EventGenerator[hooks.TrainerListener]()
 
@@ -66,7 +63,25 @@ class Trainer(stages.StageListener):
         self._loggers = _init_loggers(logger, self.default_root_dir)
 
         if enable_progress_bar:
-            self.events.add_listener(listeners.TqdmProgressBar())
+            self.events.add_listener(listeners_.TqdmProgressBar())
+        if listeners:
+            for listener in listeners:
+                self.events.add_listener(listener)
+
+    def finalize(self):
+        """
+        Clean up the trainer.  After this called this object should no longer be interacted with
+        """
+        if self._module is None:
+            return
+
+        if self._module.trainer is self:
+            self._module.trainer = None
+        self.events = None
+        self._loggers = None
+
+    def __del__(self):
+        self.finalize()
 
     @property
     def train_dataloader(self) -> Optional["reax.DataLoader"]:
@@ -76,9 +91,22 @@ class Trainer(stages.StageListener):
         return None
 
     @property
-    def current_epoch(self) -> Optional[int]:
-        """Get the current epoch of the fitting"""
+    def current_epoch(self) -> int:
+        """Get the current fitting epoch"""
+        if self._stage is not None and isinstance(self._stage, stages.Fit):
+            # The stage is running, so count add the number of updates it has performed so far
+            return self._current_epoch + self._stage.iteration
+
         return self._current_epoch
+
+    @property
+    def global_updates(self) -> int:
+        """Get the global number of optimizer updates"""
+        if self._stage is not None and isinstance(self._stage, stages.Fit):
+            # The stage is running, so count add the number of updates it has performed so far
+            return self._global_updates + self._stage.updates
+
+        return self._global_updates
 
     @property
     def optimizers(self) -> list["reax.Optimizer"]:
@@ -102,7 +130,10 @@ class Trainer(stages.StageListener):
         Get the fallback directory used for loggers and other components when not explicitly
         specified
         """
-        return os.path.normpath(os.path.expanduser(self._default_root_dir))
+        if _is_local_file_protocol(self._default_root_dir):
+            return os.path.normpath(os.path.expanduser(self._default_root_dir))
+
+        return self._default_root_dir
 
     @property
     def logger(self) -> "reax.Logger":
@@ -172,17 +203,29 @@ class Trainer(stages.StageListener):
             on_epoch=on_epoch,
         )
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def fit(
         # pylint: disable=unused-argument
         self,
-        train_dataloaders: "reax.DataLoader" = None,
-        val_dataloaders: "reax.DataLoader" = None,
-        datamodule: "reax.DataModule" = None,
+        train_dataloaders: "Optional[reax.DataLoader]" = None,
+        val_dataloaders: "Optional[reax.DataLoader]" = None,
+        datamodule: "Optional[reax.DataModule]" = None,
         ckpt_path=None,
-        max_steps: int = -1,
-        max_epochs: int = 1_000,
+        max_epochs: Optional[int] = 1_000,
         min_epochs: Optional[int] = None,
+        min_updates: Optional[int] = None,
+        max_updates: int = -1,
+        limit_train_batches: Optional[Union[int, float]] = 1.0,
+        accumulate_grad_batches: int = 1,
+        limit_val_batches: Optional[Union[int, float]] = 1.0,
     ):
+        if max_updates < -1:
+            raise ValueError("`max_updates` must be a non-negative integer or -1")
+        if max_epochs is None:
+            max_epochs = -1
+        elif max_epochs < -1:
+            raise ValueError("`max_epochs` must be a non-negative integer or -1")
+
         # Must choose either a datamodule or train/val dataloaders
         if datamodule is not None:
             if train_dataloaders is not None or val_dataloaders is not None:
@@ -206,12 +249,19 @@ class Trainer(stages.StageListener):
             val_dataloaders,
             optimizers=self.optimizers,
             strategy=self._strategy,
-            min_steps=min_epochs,
-            max_steps=max_epochs,
+            min_updates=min_updates,
+            max_updates=max_updates,
+            min_iters=min_epochs,
+            max_iters=max_epochs,
+            limit_train_batches=limit_train_batches,
+            accumulate_grad_batches=accumulate_grad_batches,
+            limit_val_batches=limit_val_batches,
             check_val_every_n_epoch=self.check_val_every_n_epoch,
         )
         self._run_stage(fit)
-        self._current_epoch = None
+        # Update state variables
+        self._global_updates += fit.updates
+        self._current_epoch += fit.iteration
 
     def test(
         self,
@@ -256,33 +306,17 @@ class Trainer(stages.StageListener):
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(hooks.TrainerListener.on_epoch_starting, self, stage)
 
-    def on_stage_step_start(self, stage: "stages.Stage", step: int):
+    def on_stage_iter_starting(self, stage: "stages.Stage", step: int):
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(hooks.TrainerListener.on_batch_starting, self, stage, step)
-        if isinstance(stage, stages.Fit):
-            if self._current_epoch is None:
-                self._current_epoch = 0
-            else:
-                self._current_epoch += 1
 
-    def on_stage_step_end(self, stage: "stages.Stage", step: int, metrics: dict):
+    def on_stage_iter_ending(self, stage: "stages.Stage", step: int, metrics: dict):
         if isinstance(stage, stages.EpochStage):
-            metrics = {PBAR: {}, LOG: {}, CALLBACK: {}}
-            for name, entry in stage.metrics.items():
-                if entry.meta.on_step:
-                    if entry.meta.logger:
-                        metrics[LOG][name] = entry.last_value
-                    if entry.meta.prog_bar:
-                        metrics[PBAR][name] = entry.last_value
-
-            # Convert tensors to python scalars
-            metrics = jax.tree_map(arrays.to_scalar, metrics)
-
-            if metrics[LOG]:
+            if metrics[keys.LOG]:
                 logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
-                logging_metrics.update(metrics[LOG])
+                logging_metrics.update(metrics[keys.LOG])
                 for logger in self.loggers:
-                    logger.log_metrics(logging_metrics, step)
+                    logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
                     logger.save()
 
             self.events.fire_event(
@@ -297,24 +331,15 @@ class Trainer(stages.StageListener):
         """Called when the stage has finished a full epoch"""
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(
-                hooks.TrainerListener.on_epoch_ending, self, stage, stage.results
+                hooks.TrainerListener.on_epoch_ending, self, stage, stage.results[keys.CALLBACK]
             )
-            metrics = {PBAR: {}, LOG: {}, CALLBACK: {}}
-            for name, entry in stage.metrics.items():
-                if entry.meta.on_epoch:
-                    if entry.meta.logger:
-                        metrics[LOG][name] = entry.metric.compute()
-                    if entry.meta.prog_bar:
-                        metrics[PBAR][name] = entry.metric.compute()
 
-            # Convert tensors to python scalars
-            metrics = jax.tree_map(arrays.to_scalar, metrics)
-
-            if metrics[LOG]:
+            metrics = stage.results
+            if metrics[keys.LOG]:
                 logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
-                logging_metrics.update(metrics[LOG])
+                logging_metrics.update(metrics[keys.LOG])
                 for logger in self.loggers:
-                    logger.log_metrics(logging_metrics, stage.step)
+                    logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
                     logger.save()
 
         self.events.fire_event(hooks.TrainerListener.on_stage_ending, self, stage)
@@ -335,3 +360,7 @@ def _init_loggers(
         return []
 
     return list(logger)
+
+
+def _is_local_file_protocol(path: typing.Path) -> bool:
+    return fsspec.utils.get_protocol(str(path)) == "file"

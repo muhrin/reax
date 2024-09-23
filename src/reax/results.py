@@ -3,9 +3,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
-# from . import metrics as metrics_
 from .metrics import _metric
 
 if TYPE_CHECKING:
@@ -100,7 +98,7 @@ class ResultCollection(dict[str, ResultEntry]):
     ):
         key = f"{fx}.{name}"
 
-        if isinstance(value, (jax.Array, np.ndarray)):
+        if isinstance(value, jax.typing.ArrayLike):
             metric = ArrayResultMetric.create(value, batch_size)
         elif isinstance(value, _metric.Metric):
             metric = value

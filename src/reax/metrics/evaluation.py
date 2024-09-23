@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Literal, Union
 
 import jax
 
-from reax import stages, strategies
+from reax import keys, stages, strategies
 
 from . import collections
 
@@ -28,15 +28,15 @@ class StatsEvaluator(stages.EpochStage):
 
     def run(self) -> dict[str, Any]:
         super().run()
-        return {result.meta.name: result.value for result in self.results.values()}
+        return self.results[keys.LOG]
 
     def _next(self) -> Any:
         # Calculate the log all the stats
         for name, stat in self._stats.items():
             if isinstance(self.batch, tuple):
-                self.log(name, stat.create(*self.batch), on_step=False, on_epoch=True)
+                self.log(name, stat.create(*self.batch), on_step=False, on_epoch=True, logger=True)
             else:
-                self.log(name, stat.create(self.batch), on_step=False, on_epoch=True)
+                self.log(name, stat.create(self.batch), on_step=False, on_epoch=True, logger=True)
 
 
 def evaluate_stats(

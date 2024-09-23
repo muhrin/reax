@@ -12,7 +12,6 @@ import reax
 from reax import demos, loggers
 import reax.loggers.tensorboard
 
-#
 # def test_tensorboard_hparams_reload(tmp_path):
 #     class CustomModel(demos.BoringModel):
 #         def __init__(self, b1=0.5, b2=0.999):
@@ -26,9 +25,7 @@ import reax.loggers.tensorboard
 #         logger=loggers.tensorboard.TensorBoardLogger(tmp_path),
 #     )
 #     assert trainer.log_dir == trainer.logger.log_dir
-#     trainer.fit(
-#         # max_steps=1,  # todo: enable this
-#     )
+#     trainer.fit(max_updates=1)
 #
 #     assert trainer.log_dir == trainer.logger.log_dir
 #     folder_path = trainer.log_dir
@@ -117,19 +114,19 @@ def test_tensorboard_log_sub_dir(tmp_path):
     # no sub_dir specified
     save_dir = tmp_path / "logs"
     logger = TestLogger(save_dir)
-    trainer = reax.Trainer(**trainer_args, logger=logger)
+    trainer = reax.Trainer(demos.BoringModel(), **trainer_args, logger=logger)
     assert trainer.logger.log_dir == os.path.join(save_dir, "name", "version")
 
     # sub_dir specified
     logger = TestLogger(save_dir, sub_dir="sub_dir")
-    trainer = reax.Trainer(**trainer_args, logger=logger)
+    trainer = reax.Trainer(demos.BoringModel(), **trainer_args, logger=logger)
     assert trainer.logger.log_dir == os.path.join(save_dir, "name", "version", "sub_dir")
 
     # test home dir (`~`) handling
     save_dir = "~/tmp"
     explicit_save_dir = os.path.expanduser(save_dir)
     logger = TestLogger(save_dir, sub_dir="sub_dir")
-    trainer = reax.Trainer(**trainer_args, logger=logger)
+    trainer = reax.Trainer(demos.BoringModel(), **trainer_args, logger=logger)
     assert trainer.logger.log_dir == os.path.join(explicit_save_dir, "name", "version", "sub_dir")
 
     with mock.patch.dict(os.environ, {}):
@@ -139,7 +136,7 @@ def test_tensorboard_log_sub_dir(tmp_path):
         save_dir = "$TEST_ENV_DIR/tmp"
         explicit_save_dir = f"{test_env_dir}/tmp"
         logger = TestLogger(save_dir, sub_dir="sub_dir")
-        trainer = reax.Trainer(**trainer_args, logger=logger)
+        trainer = reax.Trainer(demos.BoringModel(), **trainer_args, logger=logger)
         assert trainer.logger.log_dir == os.path.join(
             explicit_save_dir, "name", "version", "sub_dir"
         )
@@ -252,11 +249,11 @@ def test_tensorboard_with_accummulated_gradients(mock_log_metrics, tmp_path):
 
         def training_step(self, *args):
             self.log("foo", 1, on_step=True, on_epoch=True)
-            if (
-                not self.trainer.fit_loop._should_accumulate()
-                and self.trainer._logger_connector.should_update_logs
-            ):
-                self.indexes.append(self.trainer.global_step)
+            # if (
+            #     not self.trainer.fit_loop._should_accumulate()
+            #     and self.trainer._logger_connector.should_update_logs
+            # ):
+            #     self.indexes.append(self.trainer.global_step)
             return super().training_step(*args)
 
     model = TestModel()
@@ -264,13 +261,15 @@ def test_tensorboard_with_accummulated_gradients(mock_log_metrics, tmp_path):
     trainer = reax.Trainer(
         model,
         default_root_dir=tmp_path,
-        limit_train_batches=12,
-        limit_val_batches=0,
-        accumulate_grad_batches=2,
         logger=[logger_0],
         log_every_n_steps=3,
     )
-    trainer.fit(max_epochs=3)
+    trainer.fit(
+        max_epochs=3,
+        limit_train_batches=12,
+        limit_val_batches=0,
+        accumulate_grad_batches=2,
+    )
 
     calls = [m[2] for m in mock_log_metrics.mock_calls]
     count_epochs = [c["step"] for c in calls if "foo_epoch" in c["metrics"]]
@@ -304,7 +303,7 @@ def test_tensorboard_save_hparams_to_yaml_once(tmp_path):
     logger = loggers.tensorboard.TensorBoardLogger(log_dir=tmp_path, default_hp_metric=False)
     trainer = reax.Trainer(model, default_root_dir=tmp_path, logger=logger)
     assert trainer.log_dir == trainer.logger.log_dir
-    trainer.fit(max_steps=1)
+    trainer.fit(max_updates=1)
 
     hparams_file = "hparams.yaml"
     assert os.path.isfile(os.path.join(trainer.log_dir, hparams_file))

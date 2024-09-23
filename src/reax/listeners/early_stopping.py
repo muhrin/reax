@@ -28,11 +28,13 @@ class EarlyStopping(hooks.TrainerListener):
         min_delta: float = 0.0,
         patience: int = 3,
         mode: Literal["min", "max"] = "min",
+        check_on_train_epoch_end: bool = False,
     ):
         self._monitor = monitor
         self._min_delta = min_delta
         self._patience = patience
         self._mode = mode
+        self._stage = "training" if check_on_train_epoch_end else "validation"
 
         self._best_score = float("inf")
         self._wait_count: int = 0
@@ -44,7 +46,7 @@ class EarlyStopping(hooks.TrainerListener):
     def on_epoch_ending(  # pylint: disable=unused-argument
         self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage", metrics: dict
     ) -> None:
-        current = metrics.get(f"validation.{self._monitor}")
+        current = metrics.get(f"{self._stage}.{self._monitor}")
         if current is None:
             return
 
@@ -57,4 +59,4 @@ class EarlyStopping(hooks.TrainerListener):
             self._wait_count += 1
             if self._wait_count >= self._patience:
                 # Ask the trainer to stop
-                trainer.should_stop = True
+                trainer.should_stop = "Early stopping ran out of patience"

@@ -171,5 +171,5 @@ if __name__ == "__main__":
     autoencoder = LitAutoEncoder()
 
     trainer = reax.Trainer(autoencoder)
-    trainer.fit(datamodule=datamodule, max_epochs=10)
+    trainer.fit(datamodule=datamodule, max_epochs=10)  # pylint: disable=not-callable
     trainer.test(datamodule=datamodule)

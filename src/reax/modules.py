@@ -52,6 +52,16 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
 
         self._trainer = trainer
 
+    @property
+    def global_updates(self) -> int:
+        """Get the global number of optimizer updates"""
+        return self._trainer.global_updates
+
+    @property
+    def current_epoch(self) -> int:
+        """Get the current fitting epoch"""
+        return self._trainer.current_epoch
+
     def parameters(self) -> Optional[jt.PyTree]:
         return self._parameters
 
