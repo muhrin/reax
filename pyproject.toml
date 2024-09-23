@@ -96,6 +96,7 @@ ignore-paths = '^src/reax/lightning/.*$'  # These are copy-paste from lightning,
 
 [tool.pylint.format]
 max-line-length = 100
+max-positional-arguments = 14
 
 [tool.pylint.messages_control]
 disable = [
