@@ -197,9 +197,10 @@ class EpochStage(Stage, abc.ABC):
         dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
         min_iters: Optional[int] = None,
-        max_iters: int = -1,
+        max_iters: Union[int, float] = -1,
         parent: "Stage" = None,
     ):
+        max_iters = _batches_limit(max_iters, dataloader)
         super().__init__(name, strategy, min_iters=min_iters, max_iters=max_iters, parent=parent)
         if dataloader is None:
             raise ValueError(f"Stage {name} requires a data loader, got `None`")
@@ -317,7 +318,7 @@ class Train(EpochStage):
         optimizers: "list[reax.Optimizer]",
         min_updates: Optional[int] = None,
         max_updates: int = -1,
-        max_iters: int = -1,
+        max_iters: Union[int, float] = -1,
         accumulate_grad_batches: int = 1,
         parent=None,
     ):
@@ -342,7 +343,7 @@ class Train(EpochStage):
         return self._optimizers
 
     def _on_starting(self):
-        self._module.setup(self.name)
+        self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
         self._module.set_parameters(params)
 
@@ -392,14 +393,14 @@ class Validate(EpochStage):
         module: "reax.Module",
         dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
-        max_iters: int = -1,
+        max_iters: Union[int, float] = -1,
         parent: Stage = None,
     ):
         super().__init__("validation", dataloader, strategy, max_iters=max_iters, parent=parent)
         self._module = module
 
     def _on_starting(self):
-        self._module.setup(self.name)
+        self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
         self._module.set_parameters(params)
         super()._on_starting()
@@ -411,19 +412,46 @@ class Validate(EpochStage):
 
 class Test(EpochStage):
     def __init__(
-        self, module: "reax.Module", dataloader, strategy: "reax.Strategy", parent: Stage = None
+        self,
+        module: "reax.Module",
+        dataloader,
+        strategy: "reax.Strategy",
+        max_iters: Union[int, float] = -1,
+        parent: Stage = None,
     ):
-        super().__init__("test", dataloader, strategy, parent=parent)
+        super().__init__("test", dataloader, strategy, max_iters=max_iters, parent=parent)
         self._module = module
 
     def _on_starting(self):
-        self._module.setup(self.name)
+        self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
         self._module.set_parameters(params)
         super()._on_starting()
 
     def _next(self) -> MetricResults:
-        self._module.test_step(self.batch, self._iter)
+        return self._module.predict_step(self.batch, self._iter)
+
+
+class Predict(EpochStage):
+    def __init__(
+        self,
+        module: "reax.Module",
+        dataloader,
+        strategy: "reax.Strategy",
+        max_iters: Union[int, float] = -1,
+        parent: Stage = None,
+    ):
+        super().__init__("predict", dataloader, strategy, max_iters=max_iters, parent=parent)
+        self._module = module
+
+    def _on_starting(self):
+        self._module.setup(self)
+        params = self._strategy.to_device(self._module.parameters())
+        self._module.set_parameters(params)
+        super()._on_starting()
+
+    def _next(self) -> MetricResults:
+        self._module.predict_step(self.batch, self._iter)
         return self._get_iteration_results()
 
 
@@ -519,8 +547,6 @@ class Fit(MultiStage):
         limit_val_batches: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
     ):
-        limit_train_batches = _batches_limit(limit_train_batches, train_dataloaders)
-
         children = [
             Train(
                 module=module,
@@ -535,15 +561,13 @@ class Fit(MultiStage):
             )
         ]
         if val_dataloaders is not None:
-            limit_val_batches = _batches_limit(limit_val_batches, val_dataloaders)
-
             # Add the validation stage to fitting
             children.append(
                 StageInfo(
                     Validate(
                         module=module,
                         dataloader=val_dataloaders,
-                        max_iters=limit_train_batches,
+                        max_iters=limit_val_batches,
                         strategy=strategy,
                         parent=self,
                     ),

@@ -276,6 +276,26 @@ class Trainer(stages.StageListener):
 
         self._run_stage(stages.Test(self._module, dataloaders, self._strategy))
 
+    def predict(
+        self,
+        dataloaders: "Optional[reax.DataLoader]" = None,
+        datamodule: "Optional[reax.DataModule]" = None,
+        return_predictions: Optional[bool] = None,
+        limit_batches=-1,
+    ) -> Optional:
+        r"""
+        Run inference on the data.  Logging is disabled in the predict hooks.
+        """
+        if datamodule is not None:
+            if dataloaders is not None:
+                raise ValueError("Cannot supply dataloaders and datamodule to Trainer.test()")
+
+            dataloaders = datamodule.predict_dataloader()
+
+        predict = stages.Predict(self._module, dataloaders, self._strategy, max_iters=limit_batches)
+        self._run_stage(predict)
+        return predict.results
+
     def _run_stage(self, stage: stages.Stage) -> stages.Stage:
         try:
             with self._attach(stage):

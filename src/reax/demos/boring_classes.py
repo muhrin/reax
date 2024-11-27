@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from reax import data, modules
+from reax import data, modules, stages
 
 __all__ = ("BoringModel",)
 
@@ -33,9 +33,9 @@ class BoringModel(modules.Module):
         super().__init__()
         self.layer = linen.Dense(2)
 
-    def setup(self, stage: str):
-        if stage == "training" and self.parameters() is None:
-            batch = next(iter(self.trainer.train_dataloader))
+    def setup(self, stage):
+        if self.parameters() is None and isinstance(stage, stages.EpochStage):
+            batch = next(iter(stage.dataloader))
             params = self.layer.init(self.rng_key(), batch[0])
             self.set_parameters(params)
 
@@ -66,6 +66,9 @@ class BoringModel(modules.Module):
 
     def test_step(self, batch: Any, batch_idx: int) -> Any:
         return {"y": self.step(self.layer, self.parameters(), batch)}
+
+    def predict_step(self, batch: Any, batch_idx: int) -> Any:
+        return self.forward(batch)
 
     def configure_optimizers(self) -> tuple:
         schedule = optax.exponential_decay(init_value=0.1, transition_steps=1, decay_rate=0.1)

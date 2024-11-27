@@ -19,6 +19,7 @@ from .metrics import Metric
 from .modules import *
 from .optimizers import *
 from .saving import *
+from .stages import Stage
 from .strategies import *
 from .training import *
 from .utils.rngs import seed_everything
@@ -47,6 +48,7 @@ __all__ = (
         "ReaxDataLoader",
         "Logger",
         "seed_everything",
+        "Stage",
     )
 )
 

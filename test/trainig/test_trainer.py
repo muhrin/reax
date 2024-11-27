@@ -10,6 +10,7 @@ import pickle
 from unittest import mock
 from unittest.mock import ANY, Mock, call, patch
 
+import jax.numpy as jnp
 import pytest
 
 import reax
@@ -1309,25 +1310,22 @@ def test_trainer_min_steps_and_min_epochs_not_reached(tmp_path, caplog):
 #         ProcessRaisedException, match="`return_predictions` should be set to `False`"
 #     ):
 #         trainer.predict(model, dataloaders=model.train_dataloader(), return_predictions=True)
-#
-#
-# @pytest.mark.parametrize("return_predictions", [None, False, True])
-# @pytest.mark.parametrize("precision", ["32-true", pytest.param("64-true", marks=RunIf(mps=False))])
-# def test_predict_return_predictions_cpu(return_predictions, precision, tmp_path):
-#     """Test that `return_predictions=True`."""
-#     seed_everything(42)
-#     model = BoringModel()
-#
-#     trainer = Trainer(default_root_dir=tmp_path, fast_dev_run=True, precision=precision)
-#     preds = trainer.predict(
-#         model, dataloaders=model.train_dataloader(), return_predictions=return_predictions
-#     )
-#     if return_predictions or return_predictions is None:
-#         assert len(preds) == 1
-#         assert preds[0].shape == torch.Size([1, 2])
-#         assert preds[0].dtype == (torch.float64 if precision == "64-true" else torch.float32)
-#
-#
+
+
+@pytest.mark.parametrize("return_predictions", [None, False, True])
+def test_predict_return_predictions_cpu(return_predictions, tmp_path):
+    reax.seed_everything(42)
+    model = reax.demos.BoringModel()
+
+    trainer = reax.Trainer(model, default_root_dir=tmp_path)
+    preds = trainer.predict(
+        dataloaders=model.train_dataloader(), return_predictions=return_predictions
+    )
+    if return_predictions or return_predictions is None:
+        assert len(preds) == 1
+        assert preds[0].shape == (1, 2)
+
+
 # @pytest.mark.parametrize(("max_steps", "max_epochs", "global_step"), [(10, 5, 10), (20, None, 20)])
 # def test_repeated_fit_calls_with_max_epochs_and_steps(tmp_path, max_steps, max_epochs, global_step):
 #     """Ensure that the training loop is bound by `max_steps` and `max_epochs` for repeated calls of `trainer.fit`, and

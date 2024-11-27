@@ -85,14 +85,17 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
         # Multiple optimisers
         return optimizers
 
-    def setup(self, stage: str):
-        """Called at the beginning of each stage.  A change to perform some setup on the module"""
+    def setup(self, stage: "reax.Stage"):
+        """Called at the beginning of each stage.  A chance to perform some setup on the module"""
 
     def training_step(self, batch: BatchT, batch_idx: int) -> Optional[TrainOutput]:
         """Train step"""
 
     def validation_step(self, batch: BatchT, batch_idx: int):
         """Validate step"""
+
+    def predict_step(self, batch: BatchT, batch_idx: int) -> OutputT_co:
+        """Predict step"""
 
     def test_step(self, batch: BatchT, batch_idx: int):
         """Test step"""
