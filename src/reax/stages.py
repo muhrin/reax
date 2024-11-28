@@ -216,10 +216,6 @@ class EpochStage(Stage, abc.ABC):
         return self._dataloader
 
     @property
-    def metrics(self) -> "reax.results.ResultCollection":
-        return self._metrics
-
-    @property
     def batch(self):
         """Get the current batch"""
         return self._batch
@@ -228,10 +224,40 @@ class EpochStage(Stage, abc.ABC):
     def max_batches(self) -> Optional[int]:
         return data.sized_len(self._dataloader)
 
+    # region Metrics and metric results
+
+    @property
+    def metrics(self) -> "reax.results.ResultCollection":
+        return self._metrics
+
     @property
     def results(self) -> Optional[dict]:
         """The results for this epoch (if any)"""
         return self._results
+
+    @property
+    def callback_metrics(self) -> dict:
+        """Get the metrics available to callbacks"""
+        if self._results is None:
+            return dict()
+
+        return self._results[keys.CALLBACK]
+
+    @property
+    def logged_metrics(self) -> dict:
+        """Get the metrics available to loggers"""
+        if self._results is None:
+            return dict()
+
+        return self._results[keys.LOG]
+
+    @property
+    def progress_bar_metrics(self) -> dict:
+        """Get the metrics availabe to progress indicators"""
+        if self._results:
+            return dict()
+
+        return self._results[keys.PBAR]
 
     def log(
         self,
@@ -243,6 +269,7 @@ class EpochStage(Stage, abc.ABC):
         on_step=False,
         on_epoch=True,
     ) -> None:
+        """Log metrics during the current epoch"""
         assert self._batch is not None
         if batch_size is None:
             batch_size = data.extract_batch_size(self._batch)
@@ -258,6 +285,8 @@ class EpochStage(Stage, abc.ABC):
             on_step=on_step,
             on_epoch=on_epoch,
         )
+
+    # endregion
 
     def _on_starting(self):
         self._metrics = results.ResultCollection()
@@ -279,6 +308,7 @@ class EpochStage(Stage, abc.ABC):
         metrics = {keys.PBAR: {}, keys.LOG: {}, keys.CALLBACK: {}}
         for name, entry in self.metrics.items():
             if entry.meta.on_epoch:
+                # Ask the metric to compute itself using results accumulated during the epoch
                 value = entry.metric.compute()
                 metrics[keys.CALLBACK][name] = value
                 if entry.meta.logger:
@@ -287,7 +317,7 @@ class EpochStage(Stage, abc.ABC):
                     metrics[keys.PBAR][entry.meta.name] = value
 
         # Convert tensors to python scalars
-        self._results = jax.tree_map(arrays.to_scalar, metrics)
+        self._results = jax.tree_map(arrays.to_base, metrics)
         super()._on_stopping()
 
     def _get_iteration_results(self) -> MetricResults:
@@ -305,7 +335,7 @@ class EpochStage(Stage, abc.ABC):
                     metrics[keys.PBAR][entry.meta.name] = value
 
         # Convert tensors to python scalars
-        return jax.tree_map(arrays.to_scalar, metrics)
+        return jax.tree_map(arrays.to_base, metrics)
 
 
 class Train(EpochStage):

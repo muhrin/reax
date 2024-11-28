@@ -7,6 +7,12 @@ import numpy as np
 
 
 def to_base(array: jax.typing.ArrayLike) -> Union[int, float, list]:
+    if isinstance(array, (int, float)):
+        return array
+
+    if isinstance(array, list):
+        return array
+
     if jnp.isscalar(array):
         return array.item()
 

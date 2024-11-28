@@ -114,6 +114,21 @@ def test_num_unique(rng_key):
     assert res["NumUnique"] == len(jnp.unique(values[mask]))
 
 
+def test_unique(rng_key):
+    unique = metrics.Unique.create(jnp.array([1, 1, 1]))
+    assert unique.compute().tolist() == [1]
+
+    unique = unique.update(jnp.array([1]))
+    assert unique.compute().tolist() == [1]
+
+    unique = unique.update(jnp.array([1, 2]))
+    assert unique.compute().tolist() == [1, 2]
+
+    values = random.randint(rng_key, (40,), minval=0, maxval=10)
+    res = metrics.evaluate_stats(metrics.Unique(), reax.data.ArrayLoader(values, batch_size=9))
+    assert jnp.all(jnp.array(res["Unique"]) == jnp.unique(values))
+
+
 def test_metric_collection(rng_key):
     batch_size = 9
     collection = reax.metrics.MetricCollection(

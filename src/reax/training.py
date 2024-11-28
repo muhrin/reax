@@ -138,6 +138,9 @@ class Trainer(stages.StageListener):
     @property
     def logger(self) -> "reax.Logger":
         """Get the first (and main) logger"""
+        if not self._loggers:
+            return None
+
         return self._loggers[0]
 
     @property
@@ -151,18 +154,7 @@ class Trainer(stages.StageListener):
 
     @property
     def log_dir(self) -> Optional[str]:
-        """The directory for the current experiment. Use this to save images to, etc...
-
-        .. note:: You must call this on all processes. Failing to do so will cause your program to
-            stall forever.
-
-         .. code-block:: python
-
-             def training_step(self, batch, batch_idx):
-                 img = ...
-                 save_img(img, self.trainer.log_dir)
-
-        """
+        """The directory for the current experiment. Use this to save images to, etc..."""
         if len(self.loggers) > 0:
             dirpath = self.loggers[0].log_dir
         else:
@@ -170,6 +162,11 @@ class Trainer(stages.StageListener):
 
         # dirpath = self.strategy.broadcast(dirpath)
         return dirpath
+
+    @property
+    def stage(self) -> "Optional[reax.Stage]":
+        """Get the current stage if there is one running, otherwise None"""
+        return self._stage
 
     def rng_key(self, num=1) -> jax.Array:
         """Get a new RNG key.  This will update the state in the `Trainer`"""
