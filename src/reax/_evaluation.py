@@ -3,9 +3,7 @@ from typing import TYPE_CHECKING, Any, Literal, Union
 
 import jax
 
-from reax import keys, stages, strategies
-
-from . import collections
+from reax import keys, metrics, stages, strategies
 
 if TYPE_CHECKING:
     import reax
@@ -24,7 +22,7 @@ class StatsEvaluator(stages.EpochStage):
         accelerator = jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         strategy = strategy or strategies.SingleDevice(accelerator)
         super().__init__("metrics-evaluator", dataloader, strategy)
-        self._stats = collections.MetricCollection(stats)
+        self._stats = metrics.MetricCollection(stats)
 
     def run(self) -> dict[str, Any]:
         super().run()

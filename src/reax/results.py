@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 import jax
 import jax.numpy as jnp
 
-from .metrics import _metric
+from . import metrics as _metric
 
 if TYPE_CHECKING:
     import reax

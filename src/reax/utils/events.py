@@ -31,3 +31,10 @@ class EventGenerator(Generic[ListenerT]):
             yield
         finally:
             tuple(map(self.remove_listener, uuids))
+
+    T = TypeVar("T", bound=ListenerT)
+
+    def find(self, type: type[T]) -> list[T]:
+        return [
+            listener for listener in self._event_listeners.values() if isinstance(listener, type)
+        ]

@@ -33,7 +33,7 @@ class TrainerListener:
     ) -> None:
         """An epoch is ending"""
 
-    def on_stage_ending(self, trainer: "reax.Trainer", stage: "reax.stages.Stage") -> None:
+    def on_stage_ending(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
         """A trainer stage is ending"""
 
 

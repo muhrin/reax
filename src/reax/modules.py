@@ -95,7 +95,7 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
         """Validate step"""
 
     def predict_step(self, batch: BatchT, batch_idx: int) -> OutputT_co:
-        """Predict step"""
+        """Make a model prediction and return the result"""
 
     def test_step(self, batch: BatchT, batch_idx: int):
         """Test step"""

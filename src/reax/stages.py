@@ -1,18 +1,29 @@
+"""
+Stages that perform the actions expected over the lifetime of a model e.g. training, testing,
+predicting etc.
+"""
+
 import abc
 import dataclasses
 import itertools
 import logging
 from typing import TYPE_CHECKING, Any, Optional, TypedDict, Union, cast
+import weakref
 
 import beartype
 import jax
 import jaxtyping as jt
 import optax
+from typing_extensions import override
 
 from . import data, keys
 from . import optimizers as optimizers_
 from . import results
+from .data import collate
 from .utils import arrays, events
+
+# Note: We do not import the trainer here, the relationship is deliberately one way i.e. `Trainer`
+# knows about stages, but stages don't know about the trainer.  This helps to reduce coupling.
 
 if TYPE_CHECKING:
     import reax
@@ -49,15 +60,19 @@ class PassthroughStageListener(StageListener):
     def __init__(self, events_generator: events.EventGenerator[StageListener]):
         self._events = events_generator
 
+    @override
     def on_stage_starting(self, stage: "Stage"):
         self._events.fire_event(StageListener.on_stage_starting, stage)
 
+    @override
     def on_stage_iter_starting(self, stage: "Stage", step: int):
         self._events.fire_event(StageListener.on_stage_iter_starting, stage, step)
 
+    @override
     def on_stage_iter_ending(self, stage: "Stage", step: int, metrics: MetricResults):
         self._events.fire_event(StageListener.on_stage_iter_ending, stage, step, metrics)
 
+    @override
     def on_stage_ending(self, stage: "Stage"):
         self._events.fire_event(StageListener.on_stage_ending, stage)
 
@@ -134,7 +149,7 @@ class Stage(metaclass=abc.ABCMeta):
                 break
 
         self._on_stopping()
-        self.events.fire_event(StageListener.on_stage_ending, self)
+        self.events.fire_event(StageListener.on_stage_ending, weakref.proxy(self))
 
     def next(self) -> Any:
         """Advance the loop by one iteration"""
@@ -170,13 +185,17 @@ class Stage(metaclass=abc.ABCMeta):
         """Stage is starting"""
         self._iter = -1
         self._should_stop = ""
-        self.events.fire_event(StageListener.on_stage_starting, self)
+        self.events.fire_event(StageListener.on_stage_starting, weakref.proxy(self))
 
     def _on_iteration_starting(self):
-        self.events.fire_event(StageListener.on_stage_iter_starting, self, self._iter)
+        self.events.fire_event(
+            StageListener.on_stage_iter_starting, weakref.proxy(self), self._iter
+        )
 
     def _on_iteration_finished(self, result: Any):
-        self.events.fire_event(StageListener.on_stage_iter_ending, self, self._iter, result)
+        self.events.fire_event(
+            StageListener.on_stage_iter_ending, weakref.proxy(self), self._iter, result
+        )
         if self.should_stop and self._min_iters is not None and self._iter < self._min_iters:
             message = "%s `min_iters=%i` has not been met. Stage will continue"
             _LOGGER.info(message, self.name, self._min_iters)
@@ -221,6 +240,11 @@ class EpochStage(Stage, abc.ABC):
         return self._batch
 
     @property
+    def epoch(self) -> int:
+        """Get the current epoch"""
+        return self._run_count
+
+    @property
     def max_batches(self) -> Optional[int]:
         return data.sized_len(self._dataloader)
 
@@ -240,6 +264,9 @@ class EpochStage(Stage, abc.ABC):
         """Get the metrics available to callbacks"""
         if self._results is None:
             return dict()
+
+        if not isinstance(self._results, dict):
+            return {}
 
         return self._results[keys.CALLBACK]
 
@@ -473,6 +500,7 @@ class Predict(EpochStage):
     ):
         super().__init__("predict", dataloader, strategy, max_iters=max_iters, parent=parent)
         self._module = module
+        self._all_results = []
 
     def _on_starting(self):
         self._module.setup(self)
@@ -481,8 +509,12 @@ class Predict(EpochStage):
         super()._on_starting()
 
     def _next(self) -> MetricResults:
-        self._module.predict_step(self.batch, self._iter)
-        return self._get_iteration_results()
+        res = self._module.predict_step(self.batch, self._iter)
+        self._get_iteration_results()
+        return res
+
+    def _on_iteration_finished(self, result: Any):
+        self._all_results.append(result)
 
 
 @dataclasses.dataclass
@@ -560,6 +592,8 @@ class MultiStage(Stage):
 
 
 class Fit(MultiStage):
+    """Fitting stage.  This is made up of a train and optional validate stage per epoch."""
+
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
@@ -613,6 +647,17 @@ class Fit(MultiStage):
             max_iters=max_iters,
         )
 
+        # State
+        self._callback_metrics: dict[str, jax.Array] = {}
+
+    @property
+    def epoch(self) -> int:
+        return self._run_count
+
+    @property
+    def callback_metrics(self) -> dict[str, jax.Array]:
+        return self._callback_metrics
+
     @property
     def updates(self) -> int:
         """Get the number of gradient updates that have been applied"""
@@ -625,10 +670,18 @@ class Fit(MultiStage):
         return train_stage
 
     @property
-    def validate(self) -> Validate:
+    def validate(self) -> Optional[Validate]:
+        if len(self._children) == 1:
+            # No validation stage
+            return None
+
         validate_stage = self._children[1].stage
         assert isinstance(validate_stage, Validate)
         return validate_stage
+
+    def _next(self) -> MetricResults:
+        metrics = super()._next()
+        self._callback_metrics.update(metrics[keys.CALLBACK])
 
 
 def _batches_limit(limit_batches: Union[int, float], dataloader: "reax.DataLoader") -> int:

@@ -1,6 +1,7 @@
 """REAX: A simple training framework for JAX-based projects"""
 
 from . import (
+    _evaluation,
     data,
     hooks,
     listeners,
@@ -12,6 +13,7 @@ from . import (
     strategies,
     training,
 )
+from ._evaluation import *
 from .data import DataLoader, DataModule, ReaxDataLoader
 from .hooks import *
 from .loggers import Logger
@@ -25,6 +27,7 @@ from .training import *
 from .utils.rngs import seed_everything
 
 __all__ = (
+    _evaluation.__all__,
     modules.__all__
     + hooks.__all__
     + optimizers.__all__
@@ -49,7 +52,7 @@ __all__ = (
         "Logger",
         "seed_everything",
         "Stage",
-    )
+    ),
 )
 
 __version__ = "0.2.0"

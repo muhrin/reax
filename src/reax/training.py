@@ -1,15 +1,17 @@
 import contextlib
 import os
+import pickle
 import signal
 import sys
-from typing import TYPE_CHECKING, Iterable, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Iterable, Literal, Optional, Union
 
 import beartype
 import fsspec
 import jax
 import jaxtyping as jt
+from typing_extensions import override
 
-from . import hooks, keys
+from . import exceptions, hooks, keys
 from . import listeners as listeners_
 from . import loggers as loggers_
 from . import modules, stages, strategies, typing
@@ -29,6 +31,7 @@ class Trainer(stages.StageListener):
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = None,
         listeners: "Optional[list[reax.TrainerListener]]" = None,
         log_every_n_steps: int = 50,
+        enable_checkpointing: Optional[bool] = True,
         check_val_every_n_epoch: int = 1,
         enable_progress_bar: bool = True,
         rng_key: jax.Array = None,
@@ -62,11 +65,22 @@ class Trainer(stages.StageListener):
 
         self._loggers = _init_loggers(logger, self.default_root_dir)
 
-        if enable_progress_bar:
-            self.events.add_listener(listeners_.TqdmProgressBar())
         if listeners:
             for listener in listeners:
                 self.events.add_listener(listener)
+
+        if enable_progress_bar:
+            self.events.add_listener(listeners_.TqdmProgressBar())
+
+        if self.checkpoint_callbacks:
+            if not enable_checkpointing:
+                raise exceptions.MisconfigurationException(
+                    "Trainer was configured with `enable_checkpointing=False`"
+                    " but found `ModelCheckpoint` in callbacks list."
+                )
+        elif enable_checkpointing:
+            # Create the default checkpointer
+            self.events.add_listener(listeners_.ModelCheckpoint())
 
     def finalize(self):
         """
@@ -168,6 +182,12 @@ class Trainer(stages.StageListener):
         """Get the current stage if there is one running, otherwise None"""
         return self._stage
 
+    @property
+    def checkpoint_callbacks(self) -> list[listeners_.Checkpointer]:
+        """A list of all instances of :class:`~lightning.pytorch.callbacks.model_checkpoint.ModelCheckpoint` found in
+        the Trainer.callbacks list."""
+        return self.events.find(type=listeners_.Checkpointer)
+
     def rng_key(self, num=1) -> jax.Array:
         """Get a new RNG key.  This will update the state in the `Trainer`"""
         self._rng_key, subkey = jax.random.split(self._rng_key, num=num + 1)
@@ -199,6 +219,8 @@ class Trainer(stages.StageListener):
             on_step=on_step,
             on_epoch=on_epoch,
         )
+
+    # region Stages
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def fit(
@@ -279,7 +301,7 @@ class Trainer(stages.StageListener):
         datamodule: "Optional[reax.DataModule]" = None,
         return_predictions: Optional[bool] = None,
         limit_batches=-1,
-    ) -> Optional:
+    ) -> Optional[Union[list[Any], list[list[Any]]]]:
         r"""
         Run inference on the data.  Logging is disabled in the predict hooks.
         """
@@ -291,7 +313,7 @@ class Trainer(stages.StageListener):
 
         predict = stages.Predict(self._module, dataloaders, self._strategy, max_iters=limit_batches)
         self._run_stage(predict)
-        return predict.results
+        return predict._all_results
 
     def _run_stage(self, stage: stages.Stage) -> stages.Stage:
         try:
@@ -305,6 +327,8 @@ class Trainer(stages.StageListener):
 
         return stage
 
+    # endregion
+
     @contextlib.contextmanager
     def _attach(self, stage: stages.Stage):
         self._stage = stage
@@ -313,6 +337,7 @@ class Trainer(stages.StageListener):
         finally:
             self._stage = None
 
+    @override
     def on_stage_starting(self, stage: "stages.Stage") -> None:
         """The stage is about to start"""
         if not self._optimizers and isinstance(stage, stages.Train):
@@ -323,10 +348,12 @@ class Trainer(stages.StageListener):
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(hooks.TrainerListener.on_epoch_starting, self, stage)
 
+    @override
     def on_stage_iter_starting(self, stage: "stages.Stage", step: int):
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(hooks.TrainerListener.on_batch_starting, self, stage, step)
 
+    @override
     def on_stage_iter_ending(self, stage: "stages.Stage", step: int, metrics: dict):
         if isinstance(stage, stages.EpochStage):
             if metrics[keys.LOG]:
@@ -344,11 +371,11 @@ class Trainer(stages.StageListener):
                 metrics=metrics,
             )
 
+    @override
     def on_stage_ending(self, stage: "stages.Stage") -> None:
-        """Called when the stage has finished a full epoch"""
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(
-                hooks.TrainerListener.on_epoch_ending, self, stage, stage.results[keys.CALLBACK]
+                hooks.TrainerListener.on_epoch_ending, self, stage, stage.callback_metrics
             )
 
             metrics = stage.results
@@ -360,6 +387,14 @@ class Trainer(stages.StageListener):
                     logger.save()
 
         self.events.fire_event(hooks.TrainerListener.on_stage_ending, self, stage)
+
+    def save_checkpoint(self, filepath: typing.Path):
+        """
+        For now, we just save the model weights.  The user has to store the model definition
+        themselves
+        """
+        with open(filepath, "wb") as file:
+            pickle.dump(self._module.parameters(), file)
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)
