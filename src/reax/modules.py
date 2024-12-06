@@ -133,11 +133,12 @@ class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
             )
             return
 
-        if logger and trainer.logger is None:
-            rank_zero.rank_zero_warn(
-                f"You called `self.log({name!r}, ..., logger=True)` but have no logger configured. "
-                f"You can enable one by using `Trainer(logger=ALogger(...))`"
-            )
+        # TODO: Need to bring this back once we have a logger
+        # if logger and trainer.logger is None:
+        #     rank_zero.rank_zero_warn(
+        #         f"You called `self.log({name!r}, ..., logger=True)` but have no logger configured. "
+        #         f"You can enable one by using `Trainer(logger=ALogger(...))`"
+        #     )
         if logger is None:
             # we could set false here if there's no configured logger, however, we still need to
             # compute the "logged" metrics anyway because that's what the evaluation loops use as

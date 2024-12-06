@@ -1,8 +1,9 @@
 import copy
+import logging
 import os
 import pathlib
 import re
-from typing import TYPE_CHECKING, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Literal, Optional, Union
 
 import jax
 from jax import numpy as jnp
@@ -14,6 +15,8 @@ from . import checkpointer
 
 if TYPE_CHECKING:
     import reax
+
+_LOGGER = logging.getLogger(__name__)
 
 __all__ = ("ModelCheckpoint",)
 
@@ -77,7 +80,9 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         if every_n_train_steps is None and every_n_epochs is None:
             every_n_epochs = 1
             every_n_train_steps = 0
-            # log.debug("Both every_n_train_steps and every_n_epochs are not set. Setting every_n_epochs=1")
+            _LOGGER.debug(
+                "Both every_n_train_steps and every_n_epochs are not set. Setting every_n_epochs=1"
+            )
         else:
             every_n_epochs = every_n_epochs or 0
             every_n_train_steps = every_n_train_steps or 0
@@ -87,6 +92,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         self._every_n_train_steps: int = every_n_train_steps
 
     def __init_monitor_mode(self, mode: str) -> None:
+        # TODO: Call this where necessary
         jnp_info = jnp.array(float("inf" if self._mode == "min" else "-inf"))
         mode_dict = {"min": (jnp_info, "min"), "max": (-jnp_info, "max")}
 
@@ -98,22 +104,18 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         self._kth_value, self._mode = mode_dict[mode]
 
     @override
-    def on_epoch_ending(
-        self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage", metrics: dict
-    ) -> None:
-        """Save a checkpoint at the end of an epoch if needed."""
-        if (
-            not isinstance(trainer.stage, stages.Fit)  # Not fitting, so no checkpoints
-            or self._last_global_step_saved == trainer.global_updates  # Already saved
-        ):
-            return
-
-        fit_stage = cast(stages.Fit, trainer.stage)
+    def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train") -> None:
         metrics = self._monitor_candidates(stage, trainer)
-        if self._should_save_on_train_epoch_end(fit_stage):
+        if self._should_save_on_train_epoch_end(stage):
             if isinstance(stage, stages.Train):
                 self._do_save(trainer, metrics)
-        else:
+
+    @override
+    def on_validation_epoch_end(
+        self, trainer: "reax.Trainer", stage: "reax.stages.Validate"
+    ) -> None:
+        metrics = self._monitor_candidates(stage, trainer)
+        if not self._should_save_on_train_epoch_end(stage):
             if isinstance(stage, stages.Validate):
                 self._do_save(trainer, metrics)
 
@@ -153,12 +155,16 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
         self._save_last_checkpoint(trainer, monitor_candidates)
 
-    def _should_save_on_train_epoch_end(self, fit_stage: stages.Fit) -> bool:
+    def _should_save_on_train_epoch_end(self, stage: stages.EpochStage) -> bool:
         if self._save_on_train_epoch_end is not None:
             # Do whatever the user asked for
             return self._save_on_train_epoch_end
 
-        if fit_stage.validate is None:
+        if (
+            stage.parent is not None
+            and isinstance(stage.parent, stages.FitEpoch)
+            and stage.parent.validate is None
+        ):
             # There is no validation, so save on train end
             return True
 

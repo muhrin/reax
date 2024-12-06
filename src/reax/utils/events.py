@@ -4,19 +4,21 @@ import uuid
 
 ListenerT = TypeVar("ListenerT")
 
+HANDLE = uuid.UUID
+
 
 class EventGenerator(Generic[ListenerT]):
     """Manage listeners and fire events"""
 
     def __init__(self):
-        self._event_listeners: dict[uuid.UUID, ListenerT] = {}
+        self._event_listeners: dict[HANDLE, ListenerT] = {}
 
     def add_listener(self, listener: ListenerT) -> uuid.UUID:
         handle = uuid.uuid4()
         self._event_listeners[handle] = listener
         return handle
 
-    def remove_listener(self, handle: uuid.UUID) -> ListenerT:
+    def remove_listener(self, handle: HANDLE) -> ListenerT:
         return self._event_listeners.pop(handle)
 
     def fire_event(self, event_fn: Callable, *args, **kwargs):
@@ -34,7 +36,12 @@ class EventGenerator(Generic[ListenerT]):
 
     T = TypeVar("T", bound=ListenerT)
 
+    def get(self, handle: HANDLE) -> T:
+        """Get a listener using its handle"""
+        return self._event_listeners[handle]
+
     def find(self, type: type[T]) -> list[T]:
+        """Find listeners matching the passed filter(s)"""
         return [
             listener for listener in self._event_listeners.values() if isinstance(listener, type)
         ]
