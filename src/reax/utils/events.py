@@ -22,7 +22,7 @@ class EventGenerator(Generic[ListenerT]):
         return self._event_listeners.pop(handle)
 
     def fire_event(self, event_fn: Callable, *args, **kwargs):
-        for listener in self._event_listeners.values():
+        for listener in list(self._event_listeners.values()):
             getattr(listener, event_fn.__name__)(*args, **kwargs)
 
     @contextlib.contextmanager

@@ -1,5 +1,5 @@
 import abc
-from typing import Callable, ClassVar, Generic, Optional, TypeVar
+from typing import Any, Callable, ClassVar, Generic, Optional, TypeVar
 
 import equinox
 
@@ -49,6 +49,10 @@ class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def compute(self) -> OutT:
         """Compute the metric"""
+
+    def plot(self, *_: Any, **__: Any) -> Any:
+        """Override this method plot the metric value."""
+        raise NotImplementedError("This metric does not implement the plotting functionality")
 
 
 ParentMetric = TypeVar("ParentMetric", bound=Metric)

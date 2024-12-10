@@ -6,41 +6,10 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 import tensorboardX
-import yaml
 
 import reax
 from reax import demos, loggers
 import reax.loggers.tensorboard
-
-# def test_tensorboard_hparams_reload(tmp_path):
-#     class CustomModel(demos.BoringModel):
-#         def __init__(self, b1=0.5, b2=0.999):
-#             super().__init__()
-#             # self.save_hyperparameters()
-#
-#     model = CustomModel()
-#     trainer = reax.Trainer(
-#         model,
-#         default_root_dir=tmp_path,
-#         logger=loggers.tensorboard.TensorBoardLogger(tmp_path),
-#     )
-#     assert trainer.log_dir == trainer.logger.log_dir
-#     trainer.fit(max_updates=1)
-#
-#     assert trainer.log_dir == trainer.logger.log_dir
-#     folder_path = trainer.log_dir
-#
-#     # make sure yaml is there
-#     with open(os.path.join(folder_path, "hparams.yaml")) as file:
-#         # The FullLoader parameter handles the conversion from YAML
-#         # scalar values to Python the dictionary format
-#         yaml_params = yaml.safe_load(file)
-#         assert yaml_params["b1"] == 0.5
-#         assert yaml_params["b2"] == 0.999
-#         assert len(yaml_params.keys()) == 2
-#
-#     # verify artifacts
-#     assert len(os.listdir(os.path.join(folder_path, "checkpoints"))) == 1
 
 
 def test_tensorboard_automatic_versioning(tmp_path):
