@@ -12,19 +12,13 @@ class ProgressBar(hooks.TrainerListener):
         self._current_eval_dataloader_idx: Optional[int] = None
 
     def disable(self) -> None:
-        """You should provide a way to disable the progress bar."""
+        """Disable the progress bar."""
         raise NotImplementedError
 
     def enable(self) -> None:
-        """You should provide a way to enable the progress bar.
-
-        The :class:`~lightning.pytorch.trainer.trainer.Trainer` will call this in e.g. pre-training
-        routines like the :ref:`learning rate finder <advanced/training_tricks:Learning Rate Finder>`.
-        to temporarily enable and disable the training progress bar.
-
-        """
+        """Enable the progress bar."""
         raise NotImplementedError
 
     def print(self, *args: Any, **kwargs: Any) -> None:
-        """Subclasses should provide a way to print without breaking the progress bar."""
+        """Print the progress bar status."""
         print(*args, **kwargs)

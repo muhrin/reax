@@ -10,6 +10,7 @@ import beartype
 import fsspec
 import jax
 import jaxtyping as jt
+from lightning_utilities.core import rank_zero
 from typing_extensions import override
 
 from . import _logger_connector
@@ -56,13 +57,13 @@ class Trainer(stages.StageListener):
         self._stage: Optional[stages.Stage] = None
 
         # State indexes
-        self._current_epoch = 0
-        self._global_updates = 0
+        self._current_epoch: int = 0
+        self._global_updates: int = 0
 
         self.events = events.EventGenerator[hooks.TrainerListener]()
 
         # Attach the trainer to the module
-        self._module = module
+        self._module: modules.Module = module
         module.trainer = self
 
         self._loggers = _init_loggers(logger, self.default_root_dir)
@@ -182,8 +183,7 @@ class Trainer(stages.StageListener):
 
     @property
     def checkpoint_callbacks(self) -> list[listeners_.Checkpointer]:
-        """A list of all instances of :class:`~lightning.pytorch.callbacks.model_checkpoint.ModelCheckpoint` found in
-        the Trainer.callbacks list."""
+        """A list of all instances of :class:`~reax.listeners.Checkpointer` found in the Trainer.events list."""
         return self.events.find(type=listeners_.Checkpointer)
 
     @property
@@ -415,6 +415,8 @@ class Trainer(stages.StageListener):
             stage = cast(stages.EpochStage, stage)
             self.events.fire_event(event, self, stage)
 
+    # region Checkpointing
+
     def save_checkpoint(self, filepath: typing.Path):
         """
         For now, we just save the model weights.  The user has to store the model definition
@@ -422,6 +424,23 @@ class Trainer(stages.StageListener):
         """
         with open(filepath, "wb") as file:
             pickle.dump(self._module.parameters(), file)
+
+    def _get_checkpoint_path(self) -> Optional[str]:
+        checkpointers = self.checkpoint_callbacks
+        if not checkpointers:
+            return None
+
+        if len(checkpointers) > 1:
+            fn = self._get_checkpoint_path
+            rank_zero.rank_zero_warn(
+                f'`.{fn}(ckpt_path="best")` found Trainer with multiple `ModelCheckpoint`'
+                " callbacks. The best checkpoint path from first checkpoint callback will be used."
+            )
+
+        checkpointer = checkpointers[0]
+        return getattr(checkpointer, "best_model_path", None)
+
+    # endregion
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)

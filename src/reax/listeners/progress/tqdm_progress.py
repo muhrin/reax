@@ -189,9 +189,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
 
     @override
     def on_validation_epoch_start(
-        self,
-        _trainer: "reax.Trainer",
-        stage: "reax.stages.Validate",
+        self, _trainer: "reax.Trainer", stage: "reax.stages.Validate", /
     ) -> None:
         self.val_progress_bar = self.init_validation_tqdm(stage)
 

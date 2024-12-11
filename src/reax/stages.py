@@ -586,7 +586,8 @@ class FitEpoch(Train):
     def _on_stopping(self) -> None:
         super()._on_stopping()
         if (
-            self._check_val_every_n_epoch is not None
+            self._validate is not None
+            and self._check_val_every_n_epoch is not None
             and self.epoch % self._check_val_every_n_epoch == 0
         ):
             self._do_validate()
