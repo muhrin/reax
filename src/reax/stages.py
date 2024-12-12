@@ -401,10 +401,12 @@ class Train(EpochStage):
     def optimizers(self) -> Optional[list["reax.Optimizer"]]:
         return self._optimizers
 
+    @override
     def run(self) -> list["reax.Optimizer"]:
         super().run()
         return self._optimizers
 
+    @override
     def _on_starting(self):
         self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
@@ -431,6 +433,7 @@ class Train(EpochStage):
 
         super()._on_starting()
 
+    @override
     def _step(self) -> Any:
         res = self._module.training_step(self.batch, self._iter)
         if self._module.automatic_optimization:

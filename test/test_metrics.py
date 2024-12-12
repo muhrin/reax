@@ -82,7 +82,7 @@ def test_stats_evaluator(rng_key):
         "std": metrics.Std(),
     }
 
-    eval = metrics.StatsEvaluator(stats, reax.data.ArrayLoader(values, batch_size=batch_size))
+    eval = reax.StatsEvaluator(stats, reax.data.ArrayLoader(values, batch_size=batch_size))
     results = eval.run()
 
     assert isinstance(results, dict)
@@ -92,7 +92,7 @@ def test_stats_evaluator(rng_key):
     assert jnp.isclose(results["std"], values.flatten().std())
 
     # Check that `evaluate_stats` produces the same result
-    evaluated = metrics.evaluate_stats(stats, values)
+    evaluated = reax.evaluate_stats(stats, values)
 
     comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
     assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))
@@ -101,14 +101,14 @@ def test_stats_evaluator(rng_key):
 def test_num_unique(rng_key):
     batch_size = 9
     values = random.randint(rng_key, (40,), minval=0, maxval=9)
-    res = metrics.evaluate_stats(
+    res = reax.evaluate_stats(
         metrics.NumUnique(), reax.data.ArrayLoader(values, batch_size=batch_size)
     )
     assert res["NumUnique"] == len(jnp.unique(values))
 
     # Test the masking functionality
     mask = values == 2
-    res = metrics.evaluate_stats(
+    res = reax.evaluate_stats(
         metrics.NumUnique(), reax.data.ArrayLoader((values, mask), batch_size=batch_size)
     )
     assert res["NumUnique"] == len(jnp.unique(values[mask]))
@@ -125,7 +125,7 @@ def test_unique(rng_key):
     assert unique.compute().tolist() == [1, 2]
 
     values = random.randint(rng_key, (40,), minval=0, maxval=10)
-    res = metrics.evaluate_stats(metrics.Unique(), reax.data.ArrayLoader(values, batch_size=9))
+    res = reax.evaluate_stats(metrics.Unique(), reax.data.ArrayLoader(values, batch_size=9))
     assert jnp.all(jnp.array(res["Unique"]) == jnp.unique(values))
 
 
