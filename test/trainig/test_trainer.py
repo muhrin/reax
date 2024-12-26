@@ -27,7 +27,7 @@ def test_trainer_max_steps_and_epochs(tmp_path):
         module=mod,
         default_root_dir=tmp_path,
         logger=False,
-        # todo: enable_model_summary=False,
+        enable_model_summary=False,
         enable_progress_bar=False,
     )
 
@@ -54,8 +54,8 @@ def test_trainer_max_steps_and_epochs(tmp_path):
     trainer.finalize()
 
     trainer = reax.Trainer(**kwargs)
-    # if max_steps is positive and max_epochs is negative, use max_steps
-    trainer.fit(max_epochs=-1, max_updates=3)
+    # if max_steps is positive and max_epochs is infinity, use max_steps
+    trainer.fit(max_epochs=float("inf"), max_updates=3)
 
     # todo: assert trainer.state.finished, f"Training failed with {trainer.state}"
     assert trainer.global_updates == 3
@@ -173,9 +173,11 @@ def test_predict_return_predictions_cpu(return_predictions, tmp_path):
     reax.seed_everything(42)
     model = reax.demos.BoringModel()
 
-    trainer = reax.Trainer(model, default_root_dir=tmp_path)
+    trainer = reax.Trainer(model, fast_dev_run=True, default_root_dir=tmp_path)
     preds = trainer.predict(
-        dataloaders=model.train_dataloader(), return_predictions=return_predictions
+        dataloaders=model.train_dataloader(),
+        return_predictions=return_predictions,
+        limit_batches=1,  # todo: remove this, it should be set by fast_dev_run
     )
     if return_predictions or return_predictions is None:
         assert len(preds) == 1

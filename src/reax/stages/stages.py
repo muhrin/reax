@@ -273,7 +273,7 @@ class EpochStage(Stage, abc.ABC):
         dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
         min_batches: int = -1,
-        max_batches: Union[int, float] = -1,
+        max_batches: Union[int, float] = float("inf"),
         parent: Optional["reax.Stage"] = None,
     ):
         max_batches = _batches_limit(max_batches, dataloader)
@@ -653,7 +653,7 @@ class Predict(EpochStage):
         module: "reax.Module",
         dataloader,
         strategy: "reax.Strategy",
-        max_batches: Union[int, float] = -1,
+        max_batches: Union[int, float] = float("inf"),
         parent: Optional["reax.Stage"] = None,
     ):
         super().__init__(
@@ -868,7 +868,7 @@ class Fit(Stage):
         val_dataloaders: "Optional[reax.DataLoader]",
         optimizers: list["reax.Optimizer"],
         strategy: "reax.Strategy",
-        max_epochs: int = -1,
+        max_epochs: Union[int, float] = float("inf"),
         min_epochs: int = -1,
         min_updates: int = -1,
         max_updates: Union[int, float] = float("inf"),

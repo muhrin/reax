@@ -288,7 +288,7 @@ class Trainer(stages.StageListener):
         train_dataloaders: "Optional[reax.DataLoader]" = None,
         val_dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
-        max_epochs: int = 1_000,
+        max_epochs: Union[int, float] = 1_000,
         min_epochs: int = -1,
         min_updates: int = -1,
         max_updates: Union[int, float] = float("inf"),
@@ -360,7 +360,7 @@ class Trainer(stages.StageListener):
         dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
         return_predictions: Optional[bool] = None,
-        limit_batches=-1,
+        limit_batches=float("inf"),
     ) -> Optional[Union[list[Any], list[list[Any]]]]:
         r"""
         Run inference on the data.  Logging is disabled in the predict hooks.
