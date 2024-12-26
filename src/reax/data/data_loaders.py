@@ -2,6 +2,8 @@ from typing import Optional
 
 from . import _types, collate, fetchers, samplers
 
+__all__ = ("GenericDataLoader",)
+
 
 class GenericDataLoader(_types.DataLoader):
     def __init__(

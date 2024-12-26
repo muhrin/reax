@@ -1,10 +1,12 @@
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
+import beartype
 import jax
+import jaxtyping as jt
 from typing_extensions import override
 
-from reax import keys, metrics, stages, strategies
+from reax import metrics, stages, strategies
 
 if TYPE_CHECKING:
     import reax
@@ -13,16 +15,17 @@ __all__ = ("StatsEvaluator", "evaluate_stats")
 
 
 class StatsEvaluator(stages.EpochStage):
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
         dataloader: "reax.DataLoader",
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
-        strategy: "reax.Strategy" = None,
+        strategy: Optional["reax.Strategy"] = None,
     ):
         accelerator = jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         strategy = strategy or strategies.SingleDevice(accelerator)
-        super().__init__("Metrics evaluator", dataloader, strategy)
+        super().__init__("Metrics evaluator", None, dataloader, strategy)
         self._stats = metrics.MetricCollection(stats)
 
     @override

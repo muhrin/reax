@@ -1,4 +1,4 @@
-from typing import ClassVar, Optional, Protocol, TypeVar
+from typing import ClassVar, Optional, Protocol, TypeVar, Union
 
 import beartype
 import clu.internal.utils
@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 
+from .. import typing
 from ._metric import Metric
 
 __all__ = tuple()
@@ -39,9 +40,19 @@ def _prepare_mask(
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)
-def prepare_mask(values: jax.typing.ArrayLike, mask: Optional[jax.typing.ArrayLike] = None):
+def prepare_mask(
+    values: jax.typing.ArrayLike, mask: Optional[typing.ArrayMask] = None
+) -> Optional[Union[jt.Int[jt.ArrayLike, "..."], jt.Bool[jt.ArrayLike, "..."]]]:
     if mask is None:
         return None
+    if mask.shape == values.shape:
+        return mask
+
+    if len(mask.shape) > 1:
+        raise ValueError(
+            "Mask must either have same shape as values array ({values.shape}) or the same leading "
+            "dimension, got {mask.shape}."
+        )
 
     mask = _prepare_mask(mask, values)
 
@@ -119,8 +130,8 @@ class WithAccumulatorAndCount(WithAccumulator):
     @classmethod
     def create(
         cls,
-        values: jax.typing.ArrayLike,
-        mask: Optional[jax.typing.ArrayLike] = None,
+        values: jt.ArrayLike,
+        mask: Optional[typing.ArrayMask] = None,
     ) -> Self:
         mask = prepare_mask(values, mask)
         count = jnp.sum(mask) if mask is not None else values.size

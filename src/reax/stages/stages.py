@@ -5,25 +5,39 @@ predicting etc.
 
 import abc
 import logging
-from typing import TYPE_CHECKING, Any, Optional, TypedDict, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypedDict, Union, cast
 import weakref
 
 import beartype
 import jax
 import jaxtyping as jt
+from lightning_utilities.core import overrides
 import optax
 from typing_extensions import override
 
-from . import data, keys
-from . import optimizers as optimizers_
-from . import results
-from .utils import arrays, events
+from .. import data, exceptions, keys, modules
+from .. import optimizers as optimizers_
+from .. import results
+from ..lightning import rank_zero
+from ..utils import arrays, events
 
 # Note: We do not import the trainer here, the relationship is deliberately one way i.e. `Trainer`
 # knows about stages, but stages don't know about the trainer.  This helps to reduce coupling.
 
 if TYPE_CHECKING:
     import reax
+
+__all__ = (
+    "StageListener",
+    "Stage",
+    "EpochStage",
+    "Train",
+    "Validate",
+    "Test",
+    "Fit",
+    "FitEpoch",
+    "Predict",
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,6 +52,9 @@ class StageListener:
     def on_stage_starting(self, stage: "reax.Stage", /):
         """The stage is about to start"""
 
+    def on_stage_started(self, stage: "reax.Stage", /):
+        """The stage has started, all initialisation if complete."""
+
     def on_stage_iter_starting(self, stage: "reax.Stage", step: int, /):
         """The stage is about to start an iteration"""
 
@@ -47,17 +64,41 @@ class StageListener:
     def on_stage_ending(self, stage: "reax.Stage", /):
         """The stage is about to finish"""
 
+    def on_stage_ended(self, stage: "reax.Stage", /):
+        """
+        The stage has ended.  It will not be mutated after this point until it is starting again
+        """
 
-class Stage(metaclass=abc.ABCMeta):
+
+class ShouldStop:
+    def __init__(self):
+        self._should_stop = False
+        self._conditions: list[Callable[[], bool]] = [lambda: self._should_stop]
+
+    def do_stop(self) -> bool:
+        return all(condition() for condition in self._conditions)
+
+    def set(self):
+        self._should_stop = True
+
+    def get(self) -> bool:
+        return self._should_stop
+
+    def add_condition(self, condition: Callable[[], bool]) -> None:
+        self._conditions.append(condition)
+
+
+class Stage(abc.ABC):
     """Interface for loops"""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         name: str,
+        module: Optional["reax.Module"],
         strategy: "reax.Strategy",
-        max_iters: int = -1,
-        min_iters: Optional[int] = None,
+        max_iters: Union[int, float] = float("inf"),
+        min_iters: int = -1,
         parent: Optional["reax.Stage"] = None,
     ):
         # Params
@@ -67,12 +108,15 @@ class Stage(metaclass=abc.ABCMeta):
         self._max_iters = max_iters
 
         # State
+        self._module = module
         self._iter = -1
-        self._should_stop: bool = False
+        self._stopper = ShouldStop()
+        self._stopper.add_condition(lambda: self._iter >= self._min_iters)
         self._stop_reason: str = ""
         self._run_count = 0
         self._parent = parent
         self._events = events.EventGenerator[StageListener]() if parent is None else parent.events
+        self._child: Optional["reax.Stage"] = None
 
     @property
     def name(self) -> str:
@@ -97,20 +141,15 @@ class Stage(metaclass=abc.ABCMeta):
 
     @property
     def should_stop(self) -> bool:
-        return self._should_stop
+        return self._stopper.get()
 
     @property
     def parent(self) -> Optional["reax.Stage"]:
         return self._parent
 
     def stop(self, reason: str):
-        self._should_stop = True
+        self._stopper.set()
         self._stop_reason = reason
-
-    def cancel_stop(self):
-        """Cancel a stop request"""
-        self._should_stop = False
-        self._stop_reason = ""
 
     @property
     def stop_reason(self) -> str:
@@ -128,10 +167,11 @@ class Stage(metaclass=abc.ABCMeta):
         """Advance the loop by one iteration"""
         if self._iter == -1:
             self._on_starting()
+            self._on_started()
 
         try:
-            if self.should_stop:
-                raise StopIteration(self.should_stop)
+            if self._done():
+                raise StopIteration
 
             self._on_iteration_starting()
             result = self._step()
@@ -140,6 +180,7 @@ class Stage(metaclass=abc.ABCMeta):
         except StopIteration as exc:
             self._stop_reason = str(exc)
             self._on_stopping()
+            self._on_stopped()
             raise
 
     @abc.abstractmethod
@@ -158,10 +199,18 @@ class Stage(metaclass=abc.ABCMeta):
     def _on_starting(self):
         """Stage is starting"""
         self._iter = 0
-        self._should_stop = False
+        if self._module is not None:
+            self._module.on_stage_starting(weakref.proxy(self))
         self.events.fire_event(StageListener.on_stage_starting, weakref.proxy(self))
 
+    def _on_started(self):
+        if self._module is not None:
+            self._module.on_stage_started(weakref.proxy(self))
+        self.events.fire_event(StageListener.on_stage_started, weakref.proxy(self))
+
     def _on_iteration_starting(self):
+        if self._module is not None:
+            self._module.on_stage_iter_starting(weakref.proxy(self), self._iter)
         self.events.fire_event(
             StageListener.on_stage_iter_starting, weakref.proxy(self), self._iter
         )
@@ -172,28 +221,45 @@ class Stage(metaclass=abc.ABCMeta):
 
     def _on_iteration_finishing(self, outputs: Any):
         """The iteration is about to finish"""
-
-    def _on_iteration_finished(self, outputs: Any):
-        """The iteration has finished.  Set ourselves up for the next iteration (if there is one)"""
+        if self._module is not None:
+            self._module.on_stage_iter_ending(weakref.proxy(self), self._iter, outputs)
         self.events.fire_event(
             StageListener.on_stage_iter_ending, weakref.proxy(self), self._iter, outputs
         )
 
+    def _on_iteration_finished(self, outputs: Any):
+        """The iteration has finished.  Set ourselves up for the next iteration (if there is one)"""
         # Set ourselves up for the next iteration
         self._iter += 1
-        if self._max_iters != -1 and self._iter >= self._max_iters:
-            self.stop("Max iterations reached")
-
-        if self.should_stop and self._min_iters is not None and self._iter < self._min_iters:
-            message = "%s `min_iters=%i` has not been met. Stage will continue"
-            _LOGGER.info(message, self.name, self._min_iters)
-            self.cancel_stop()
+        # if self.should_stop and self._min_iters is not None and self._iter < self._min_iters:
+        #     message = "%s `min_iters=%i` has not been met. Stage will continue"
+        #     _LOGGER.info(message, self.name, self._min_iters)
+        #     self.cancel_stop()
 
     def _on_stopping(self):
         """The stage is stopping"""
-        self.events.fire_event(StageListener.on_stage_ending, weakref.proxy(self))
         self._iter = -1
         self._run_count += 1
+        self.events.fire_event(StageListener.on_stage_ending, weakref.proxy(self))
+
+    def _on_stopped(self):
+        self.events.fire_event(StageListener.on_stage_ended, weakref.proxy(self))
+
+    def _done(self) -> bool:
+        if self._iter >= self.max_iters:
+            return True
+
+        if self._stopper.do_stop():
+            return True
+
+        return False
+
+    def _run_child(self, stage: "reax.Stage"):
+        self._child = stage
+        try:
+            self._child.run()
+        finally:
+            self._child = None
 
 
 class EpochStage(Stage, abc.ABC):
@@ -203,15 +269,16 @@ class EpochStage(Stage, abc.ABC):
     def __init__(
         self,
         name: str,
+        module: Optional["reax.Module"],
         dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
-        min_batches: Optional[int] = None,
+        min_batches: int = -1,
         max_batches: Union[int, float] = -1,
         parent: Optional["reax.Stage"] = None,
     ):
         max_batches = _batches_limit(max_batches, dataloader)
         super().__init__(
-            name, strategy, min_iters=min_batches, max_iters=max_batches, parent=parent
+            name, module, strategy, min_iters=min_batches, max_iters=max_batches, parent=parent
         )
         if dataloader is None:
             raise ValueError(f"Stage {name} requires a data loader, got `None`")
@@ -222,6 +289,7 @@ class EpochStage(Stage, abc.ABC):
         # State
         self._iterator = None
         self._batch: Optional[Any] = None
+        self._total_batch_idx: int = 0
         self._metrics: Optional["reax.results.ResultCollection"] = None
         self._metrics_results: Optional[MetricResults] = None
         self._outputs = None
@@ -234,6 +302,16 @@ class EpochStage(Stage, abc.ABC):
     def batch(self) -> Optional[Any]:
         """Get the current batch"""
         return self._batch
+
+    @property
+    def batch_idx(self) -> int:
+        """Get the current batch index"""
+        return self._iter
+
+    @property
+    def total_batch_idx(self) -> int:
+        """Get the current batch index when counting over all executions of this loop"""
+        return self._total_batch_idx
 
     @property
     def epoch(self) -> int:
@@ -310,10 +388,10 @@ class EpochStage(Stage, abc.ABC):
 
     @override
     def _on_starting(self):
+        super()._on_starting()
         self._metrics = results.ResultCollection()
         self._iterator = iter(self._dataloader)
         self._metrics_results = None
-        super()._on_starting()
 
     @override
     def _on_iteration_starting(self):
@@ -341,6 +419,12 @@ class EpochStage(Stage, abc.ABC):
         self._metrics_results = jax.tree_map(arrays.to_base, metrics)
 
         super()._on_iteration_finishing(outputs)
+
+    @override
+    def _on_iteration_finished(self, outputs: Any) -> None:
+        super()._on_iteration_finished(outputs)
+        # Keep track of the total number of batches, even across multiple executions of this loop
+        self._total_batch_idx += 1
 
     @override
     def _on_stopping(self) -> None:
@@ -374,14 +458,15 @@ class Train(EpochStage):
         dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
         optimizers: "list[reax.Optimizer]",
-        min_updates: Optional[int] = None,
-        max_updates: int = -1,
-        max_batches: Union[int, float] = -1,
+        min_updates: int = -1,
+        max_updates: Union[int, float] = float("inf"),
+        max_batches: Union[int, float] = float("inf"),
         accumulate_grad_batches: int = 1,
         parent: Optional["reax.Stage"] = None,
+        stopper: Optional[ShouldStop] = None,
     ):
         super().__init__(
-            "Training epoch", dataloader, strategy, max_batches=max_batches, parent=parent
+            "Training epoch", module, dataloader, strategy, max_batches=max_batches, parent=parent
         )
         # Params
         self._min_updates = min_updates
@@ -389,8 +474,9 @@ class Train(EpochStage):
         self._accumulate_grad_batches = accumulate_grad_batches
 
         # State
-        self._module = module
         self._optimizers = optimizers
+        self._stopper = stopper
+        self._stopper.add_condition(lambda: self.updates >= self._min_updates)
 
     @property
     def updates(self) -> int:
@@ -408,6 +494,7 @@ class Train(EpochStage):
 
     @override
     def _on_starting(self):
+        super()._on_starting()
         self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
         self._module.set_parameters(params)
@@ -431,7 +518,12 @@ class Train(EpochStage):
             # Create the `Optimizer` instances
             self._optimizers = optimizers
 
-        super()._on_starting()
+        self._module.on_train_start(weakref.proxy(self))
+
+    @override
+    def _on_started(self):
+        super()._on_started()
+        self._module.on_train_epoch_start(weakref.proxy(self))
 
     @override
     def _step(self) -> Any:
@@ -446,11 +538,38 @@ class Train(EpochStage):
             self._optimizers = [opt]
 
         if (self._min_updates is None or self.updates >= self._min_updates) and (
-            self._max_updates != -1 and self.updates >= self._max_updates
+            self.updates >= self._max_updates
         ):
             self.stop("Max updates reached")
 
         return res
+
+    @override
+    def _on_stopping(self) -> None:
+        self._module.on_train_epoch_end(weakref.proxy(self))
+        super()._on_stopping()
+
+    @override
+    def _done(self) -> bool:
+        if self.batch_idx >= self.max_batches:
+            rank_zero.rank_zero_info(
+                f"`{type(self).__name__}` done: max_batches.{self.max_batches!r}` reached."
+            )
+            return True
+
+        if self.updates >= self._max_updates:
+            rank_zero.rank_zero_info(
+                f"`{type(self).__name__}` done: `max_updates={self._max_updates!r}` reached."
+            )
+            return True
+
+        if self._stopper.do_stop():
+            rank_zero.rank_zero_debug(
+                f"`{type(self).__name__}` stopped: `{type(self).__name__}.should_stop` was set."
+            )
+            return True
+
+        return False
 
 
 class Validate(EpochStage):
@@ -462,17 +581,35 @@ class Validate(EpochStage):
         max_batches: Union[int, float] = -1,
         parent: Optional["reax.Stage"] = None,
     ):
-        super().__init__("Validation", dataloader, strategy, max_batches=max_batches, parent=parent)
-        self._module = module
+        super().__init__(
+            "Validation", module, dataloader, strategy, max_batches=max_batches, parent=parent
+        )
 
+    @override
     def _on_starting(self):
+        super()._on_starting()
         self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
         self._module.set_parameters(params)
-        super()._on_starting()
+        self._module.on_validation_start(weakref.proxy(self))
+
+    @override
+    def _on_started(self):
+        super()._on_started()
+        self._module.on_validation_epoch_start(weakref.proxy(self))
 
     def _step(self) -> MetricResults:
         return self._module.validation_step(self.batch, self._iter)
+
+    @override
+    def _on_stopping(self) -> None:
+        self._module.on_validation_epoch_end(weakref.proxy(self))
+        super()._on_stopping()
+
+    @override
+    def _on_stopped(self):
+        super()._on_stopped()
+        self._module.on_validation_end(weakref.proxy(self))
 
 
 class Test(EpochStage):
@@ -484,8 +621,9 @@ class Test(EpochStage):
         max_batches: Union[int, float] = -1,
         parent: Optional["reax.Stage"] = None,
     ):
-        super().__init__("test", dataloader, strategy, max_batches=max_batches, parent=parent)
-        self._module = module
+        super().__init__(
+            "test", module, dataloader, strategy, max_batches=max_batches, parent=parent
+        )
 
     @override
     def _on_starting(self):
@@ -493,6 +631,16 @@ class Test(EpochStage):
         params = self._strategy.to_device(self._module.parameters())
         self._module.set_parameters(params)
         super()._on_starting()
+
+    @override
+    def _on_started(self):
+        super()._on_started()
+        self._module.on_test_epoch_start(weakref.proxy(self))
+
+    @override
+    def _on_stopped(self):
+        super()._on_stopped()
+        self._module.on_test_epoch_end(weakref.proxy(self))
 
     @override
     def _step(self) -> MetricResults:
@@ -508,8 +656,9 @@ class Predict(EpochStage):
         max_batches: Union[int, float] = -1,
         parent: Optional["reax.Stage"] = None,
     ):
-        super().__init__("Predicting", dataloader, strategy, max_batches=max_batches, parent=parent)
-        self._module = module
+        super().__init__(
+            "Predicting", module, dataloader, strategy, max_batches=max_batches, parent=parent
+        )
         self._all_outputs = []
 
     @override
@@ -538,13 +687,14 @@ class FitEpoch(Train):
         optimizers: list["reax.Optimizer"],
         strategy: "reax.Strategy",
         min_updates: Optional[int] = None,
-        max_updates: int = -1,
+        max_updates: Union[int, float] = float("inf"),
         limit_train_batches: Optional[Union[int, float]] = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: Optional[Union[int, float]] = 1.0,
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
         parent: Optional["reax.Stage"] = None,
+        stopper: Optional[ShouldStop] = None,
     ):
         super().__init__(
             module,
@@ -556,20 +706,35 @@ class FitEpoch(Train):
             max_batches=limit_train_batches,
             accumulate_grad_batches=accumulate_grad_batches,
             parent=parent,
+            stopper=stopper,
         )
         # Params
         self._val_check_interval = val_check_interval
         self._check_val_every_n_epoch = check_val_every_n_epoch
+        self._val_check_batch = self._setup_val_check_batch_(
+            val_check_interval, self.max_batches, check_val_every_n_epoch, train_dataloaders
+        )
 
         # State
-        if val_dataloaders is None or limit_val_batches == 0.0:
+        if (
+            val_dataloaders is None
+            or limit_val_batches == 0.0
+            or not overrides.is_overridden("validation_step", module, modules.Module)
+        ):
             # No validation
             self._validate = None
         else:
             self._validate = Validate(
                 module, val_dataloaders, strategy, max_batches=limit_val_batches, parent=parent
             )
-        self._validating = False
+
+    @property
+    def val_check_interval(self) -> Optional[Union[int, float]]:
+        return self._val_check_interval
+
+    @property
+    def check_val_every_n_epoch(self) -> Optional[int]:
+        return self._check_val_every_n_epoch
 
     @property
     def validate(self) -> Optional[Validate]:
@@ -578,22 +743,23 @@ class FitEpoch(Train):
     @override
     def _on_iteration_finished(self, outputs: Any) -> None:
         super()._on_iteration_finished(outputs)
+
         # We've finished the train iteration, so check if we should do a validation
         if (
             isinstance(self._val_check_interval, int)
             and self.iteration % self._val_check_interval == 0
         ):
-            self._do_validate()
+            self._run_child(self._validate)
 
     @override
     def _on_stopping(self) -> None:
-        super()._on_stopping()
         if (
             self._validate is not None
             and self._check_val_every_n_epoch is not None
             and self.epoch % self._check_val_every_n_epoch == 0
         ):
-            self._do_validate()
+            self._run_child(self._validate)
+        super()._on_stopping()
 
     @override
     def log(
@@ -606,17 +772,91 @@ class FitEpoch(Train):
         on_step=False,
         on_epoch=True,
     ) -> None:
-        if self._validating:
-            self._validate.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch)
+        if self._child is not None:
+            self._child.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch)
         else:
             super().log(name, value, batch_size, prog_bar, logger, on_step, on_epoch)
 
-    def _do_validate(self):
-        try:
-            self._validating = True
-            self._validate.run()
-        finally:
-            self._validating = False
+    def _should_check_val_fx(self) -> bool:
+        """Decide if we should run validation."""
+        if not self._should_check_val_epoch():
+            return False
+
+        # val_check_batch is inf for iterable datasets with no length defined
+        is_infinite_dataset = self._val_check_batch == float("inf")
+        is_last_batch = self.batch_progress.is_last_batch
+        if is_last_batch and is_infinite_dataset:
+            return True
+
+        if self._stopper.do_stop():
+            # allow validation if requesting to stop early through `Trainer.should_stop`
+            # (e.g. by early stopping) and when the loop allows to stop (min_epochs/steps met)
+            return True
+
+        # TODO: let training/eval loop handle logic around limit_*_batches and val_check_batch
+        is_val_check_batch = is_last_batch
+        if isinstance(self.max_batches, int) and is_infinite_dataset:
+            is_val_check_batch = (self.batch_idx + 1) % self.max_batches == 0
+        elif self._val_check_batch != float("inf"):
+            # if `check_val_every_n_epoch is `None`, run a validation loop every n training batches
+            # else condition it based on the batch_idx of the current epoch
+            current_iteration = (
+                self.total_batch_idx if self._check_val_every_n_epoch is None else self.batch_idx
+            )
+            is_val_check_batch = (current_iteration + 1) % self._val_check_batch == 0
+
+        return is_val_check_batch
+
+    def _should_check_val_epoch(self) -> bool:
+        return self.validate and (
+            self._check_val_every_n_epoch is None
+            or (self.epoch + 1) % self._check_val_every_n_epoch == 0
+        )
+
+    @staticmethod
+    def _setup_val_check_batch_(
+        val_check_interval: Union[int, float],
+        max_batches: Union[int, float],
+        check_val_every_n_epoch: int,
+        dataloader: "reax.DataLoader",
+    ) -> Optional[Union[int, float]]:
+        if max_batches == 0:
+            return None
+
+        if isinstance(val_check_interval, int):
+            val_check_batch = val_check_interval
+            if val_check_batch > max_batches and check_val_every_n_epoch is not None:
+                raise ValueError(
+                    f" `val_check_interval` ({val_check_interval}) must be less than or equal"
+                    f" to the number of the training batches ({max_batches})."
+                    " If you want to disable validation set `limit_val_batches` to 0.0 instead."
+                    " If you want to validate based on the total training batches, set `check_val_every_n_epoch=None`."
+                )
+        else:
+            dataloader_size = data.sized_len(dataloader)
+            has_len_all_ranks_ = dataloader_size is not None
+            if not has_len_all_ranks_:
+                if val_check_interval == 1.0:
+                    val_check_batch = float("inf")
+                else:
+                    raise exceptions.MisconfigurationException(
+                        "When using an IterableDataset for `train_dataloader`,"
+                        " `Trainer(val_check_interval)` must be `1.0` or an int. An int k specifies"
+                        " checking validation every k training batches."
+                    )
+            else:
+                val_check_batch = int(max_batches * val_check_interval)
+                val_check_batch = max(1, val_check_batch)
+
+        # if loggers and max_batches < log_every_n_steps and not fast_dev_run:
+        #     rank_zero_warn(
+        #         f"The number of training batches ({max_batches}) is smaller than the logging interval"
+        #         f" Trainer(log_every_n_steps={log_every_n_steps}). Set a lower value for log_every_n_steps if"
+        #         " you want to see logs for the training epoch.",
+        #         category=PossibleUserWarning,
+        #     )
+
+        return val_check_batch
 
 
 class Fit(Stage):
@@ -629,9 +869,9 @@ class Fit(Stage):
         optimizers: list["reax.Optimizer"],
         strategy: "reax.Strategy",
         max_epochs: int = -1,
-        min_epochs: Optional[int] = None,
-        min_updates: Optional[int] = None,
-        max_updates: int = -1,
+        min_epochs: int = -1,
+        min_updates: int = -1,
+        max_updates: Union[int, float] = float("inf"),
         limit_train_batches: Optional[Union[int, float]] = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: Optional[Union[int, float]] = 1.0,
@@ -641,6 +881,7 @@ class Fit(Stage):
     ):
         super().__init__(
             "Fitting",
+            module,
             strategy,
             max_iters=max_epochs,
             min_iters=min_epochs,
@@ -662,6 +903,7 @@ class Fit(Stage):
             val_check_interval=val_check_interval,
             check_val_every_n_epoch=check_val_every_n_epoch,
             parent=self,
+            stopper=self._stopper,
         )
 
     @property
@@ -671,6 +913,14 @@ class Fit(Stage):
     @property
     def validate(self) -> Optional[Validate]:
         return self._fit_epoch.validate
+
+    @property
+    def val_check_interval(self):
+        return self._fit_epoch.val_check_interval
+
+    @property
+    def check_val_every_n_epoch(self) -> Optional[int]:
+        return self._fit_epoch.check_val_every_n_epoch
 
     @override
     def log(
@@ -687,16 +937,18 @@ class Fit(Stage):
 
     @override
     def _step(self) -> Any:
-        self._fit_epoch.run()
+        self._run_child(self._fit_epoch)
 
 
-def _batches_limit(batch_limit: Union[int, float], dataloader: "reax.DataLoader") -> int:
+def _batches_limit(
+    batch_limit: Union[int, float], dataloader: "reax.DataLoader"
+) -> Union[int, float]:
     """
     Return a maximum number of batches given a dataloader and an optional batches limit.
     If the dataloader has fewer entries than the batch limit, then this will be used, otherwise
     the batches limit.
 
-    .. note:: Will return `-1` if there is no limit.
+    .. note:: Will return `float("inf")` if there is no limit.
 
     :param batch_limit: the batches limit
     :param dataloader: the dataloader
@@ -706,15 +958,17 @@ def _batches_limit(batch_limit: Union[int, float], dataloader: "reax.DataLoader"
     if isinstance(batch_limit, int):
         if dataloader_size is None:
             return batch_limit
-        elif batch_limit == -1:
-            return dataloader_size
 
         return min(batch_limit, dataloader_size)
 
-    if dataloader_size is None:
-        # We can't say anything other than just 'go to the end'
-        return -1
+    if (
+        dataloader_size is not None
+        and isinstance(batch_limit, float)
+        and batch_limit != float("inf")
+    ):
+        # batch_limit is a float
+        batch_limit = cast(float, batch_limit)
+        return int(round(batch_limit * dataloader_size))
 
-    # batch_limit is a float
-    batch_limit = cast(float, batch_limit)
-    return int(round(batch_limit * dataloader_size))
+    # We can't say anything other than just 'go to the end'
+    return float("inf")

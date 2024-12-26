@@ -1,10 +1,12 @@
 import contextlib
 import functools
+import logging
 import os
 import pickle
 import signal
 import sys
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Optional, Union, cast
+import weakref
 
 import beartype
 import fsspec
@@ -23,6 +25,9 @@ from ..utils import containers, events
 if TYPE_CHECKING:
     import reax
 
+_LOGGER = logging.getLogger(__name__)
+
+
 __all__ = ("Trainer",)
 
 
@@ -32,11 +37,13 @@ class Trainer(stages.StageListener):
         module: modules.Module,
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = None,
-        listeners: "Optional[list[reax.TrainerListener]]" = None,
+        fast_dev_run: Union[int, bool] = False,
+        listeners: "Optional[list[reax.TrainerListener], reax.TrainerListener]" = None,
         log_every_n_steps: int = 50,
         enable_checkpointing: Optional[bool] = True,
         check_val_every_n_epoch: int = 1,
         enable_progress_bar: bool = True,
+        enable_model_summary: Optional[bool] = None,
         rng_key: jax.Array = None,
         default_root_dir: Optional[typing.Path] = None,
     ):
@@ -45,6 +52,7 @@ class Trainer(stages.StageListener):
         )
 
         self._strategy = strategies.SingleDevice(self._accelerator)
+        self._fast_dev_run = fast_dev_run
         self._log_every_n_steps = log_every_n_steps
         self.check_val_every_n_epoch = check_val_every_n_epoch
         self._rng_key = rng_key if rng_key is not None else jax.random.key(0)
@@ -71,12 +79,17 @@ class Trainer(stages.StageListener):
         self._logging = _logger_connector.TrainerLogging()
         self.events.add_listener(self._logging)
 
+        if isinstance(listeners, hooks.TrainerListener):
+            listeners = [listeners]
         if listeners:
             for listener in listeners:
                 self.events.add_listener(listener)
 
         if enable_progress_bar:
             self.events.add_listener(listeners_.TqdmProgressBar())
+
+        if enable_model_summary:
+            _LOGGER.warning("`enable_model_summary` is not supported yet, ignoring")
 
         if self.checkpoint_callbacks:
             if not enable_checkpointing:
@@ -104,12 +117,12 @@ class Trainer(stages.StageListener):
         self.finalize()
 
     @property
+    def fast_dev_run(self) -> Union[int, bool]:
+        return self._fast_dev_run
+
+    @property
     def current_epoch(self) -> int:
         """Get the current fitting epoch"""
-        if self._stage is not None and isinstance(self._stage, stages.Fit):
-            # The stage is running, so count add the number of updates it has performed so far
-            return self._current_epoch + self._stage.iteration
-
         return self._current_epoch
 
     @property
@@ -131,11 +144,14 @@ class Trainer(stages.StageListener):
 
     @property
     def should_stop(self) -> bool:
+        if self._stage is None:
+            return False
         return self._stage.should_stop
 
     @should_stop.setter
     def should_stop(self, stop: bool):
-        self._stage.should_stop = stop
+        if stop:
+            self._stage.stop("None")
 
     @property
     def default_root_dir(self) -> str:
@@ -147,6 +163,19 @@ class Trainer(stages.StageListener):
             return os.path.normpath(os.path.expanduser(self._default_root_dir))
 
         return self._default_root_dir
+
+    @property
+    def early_stopping_callback(self) -> Optional[listeners_.EarlyStopping]:
+        """The first :class:`~reax.listeners.early_stopping.EarlyStopping` callback in the
+        Trainer.callbacks list, or ``None`` if it doesn't exist."""
+        callbacks = self.early_stopping_callbacks
+        return callbacks[0] if len(callbacks) > 0 else None
+
+    @property
+    def early_stopping_callbacks(self) -> list[listeners_.EarlyStopping]:
+        """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in the
+        Trainer.callbacks list."""
+        return self.events.find(listeners_.EarlyStopping)
 
     @property
     def logger(self) -> "reax.Logger":
@@ -198,6 +227,26 @@ class Trainer(stages.StageListener):
     def logger_metrics(self) -> dict:
         return self._logging.logger_metrics
 
+    @property
+    def global_rank(self) -> int:
+        return getattr(self._strategy, "global_rank", 0)
+
+    @property
+    def local_rank(self) -> int:
+        return getattr(self._strategy, "local_rank", 0)
+
+    @property
+    def node_rank(self) -> int:
+        return getattr(self._strategy, "node_rank", 0)
+
+    @property
+    def world_size(self) -> int:
+        return getattr(self._strategy, "world_size", 1)
+
+    @property
+    def num_nodes(self) -> int:
+        return getattr(self._strategy, "num_nodes", 1)
+
     def rng_key(self, num=1) -> jax.Array:
         """Get a new RNG key.  This will update the state in the `Trainer`"""
         self._rng_key, subkey = jax.random.split(self._rng_key, num=num + 1)
@@ -235,18 +284,18 @@ class Trainer(stages.StageListener):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def fit(
-        # pylint: disable=unused-argument
         self,
         train_dataloaders: "Optional[reax.DataLoader]" = None,
         val_dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
-        max_epochs: Optional[int] = 1_000,
-        min_epochs: Optional[int] = None,
-        min_updates: Optional[int] = None,
-        max_updates: int = -1,
+        max_epochs: int = 1_000,
+        min_epochs: int = -1,
+        min_updates: int = -1,
+        max_updates: Union[int, float] = float("inf"),
         limit_train_batches: Optional[Union[int, float]] = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: Optional[Union[int, float]] = 1.0,
+        num_sanity_val_steps: Optional[int] = None,
     ):
         if max_updates < -1:
             raise ValueError("`max_updates` must be a non-negative integer or -1")
@@ -254,6 +303,8 @@ class Trainer(stages.StageListener):
             max_epochs = -1
         elif max_epochs < -1:
             raise ValueError("`max_epochs` must be a non-negative integer or -1")
+        if num_sanity_val_steps:
+            _LOGGER.warning("`num_sanity_val_steps` is not supported yet, ignoring.")
 
         # Must choose either a datamodule or train/val dataloaders
         if datamodule is not None:
@@ -290,7 +341,6 @@ class Trainer(stages.StageListener):
         self._run_stage(fit)
         # Update state variables
         self._global_updates += fit.updates
-        self._current_epoch += fit.iteration
 
     def test(
         self,
@@ -356,15 +406,24 @@ class Trainer(stages.StageListener):
         if not self._optimizers and isinstance(stage, stages.Train):
             self._optimizers = stage.optimizers
 
-        self.events.fire_event(hooks.TrainerListener.on_stage_starting, self, stage)
+        self.events.fire_event(hooks.TrainerListener.on_stage_starting, weakref.proxy(self), stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_starting)
         if event is not None:
             self.events.fire_event(event, self, stage)
 
     @override
+    def on_stage_started(self, stage: "reax.Stage", /):
+        self.events.fire_event(hooks.TrainerListener.on_stage_started, weakref.proxy(self), stage)
+        event = hook_map(stage).get(hooks.TrainerListener.on_stage_started)
+        if event is not None:
+            self.events.fire_event(event, self, stage)
+
+    @override
     def on_stage_iter_starting(self, stage: "stages.Stage", step: int):
-        self.events.fire_event(hooks.TrainerListener.on_stage_iter_starting, self, stage, step)
+        self.events.fire_event(
+            hooks.TrainerListener.on_stage_iter_starting, weakref.proxy(self), stage, step
+        )
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_iter_starting)
         if event is not None:
@@ -372,7 +431,7 @@ class Trainer(stages.StageListener):
             self.events.fire_event(event, self, stage, stage.batch, step)
 
     @override
-    def on_stage_iter_ending(self, stage: "stages.Stage", step: int, outputs: Any):
+    def on_stage_iter_ending(self, stage: "stages.Stage", step: int, outputs: Any, /):
         if isinstance(stage, stages.EpochStage):
             logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
             logging_metrics.update(stage.logged_metrics)
@@ -393,6 +452,10 @@ class Trainer(stages.StageListener):
             stage = cast(stages.EpochStage, stage)
             self.events.fire_event(event, self, stage, outputs, stage.batch, step)
 
+        if isinstance(stage, stages.Fit):
+            # Keep track of the number of completed training epochs
+            self._current_epoch += 1
+
     @override
     def on_stage_ending(self, stage: "stages.Stage") -> None:
         if isinstance(stage, stages.EpochStage):
@@ -408,12 +471,21 @@ class Trainer(stages.StageListener):
                     logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
                     logger.save()
 
-        self.events.fire_event(hooks.TrainerListener.on_stage_ending, self, stage)
+        self.events.fire_event(hooks.TrainerListener.on_stage_ending, weakref.proxy(self), stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_ending)
         if event is not None:
             stage = cast(stages.EpochStage, stage)
             self.events.fire_event(event, self, stage)
+
+    @override
+    def on_stage_ended(self, stage: "reax.Stage", /):
+        self.events.fire_event(hooks.TrainerListener.on_stage_ended, weakref.proxy(self), stage)
+
+        event = hook_map(stage).get(hooks.TrainerListener.on_stage_ended)
+        if event is not None:
+            stage = cast(stages.EpochStage, stage)
+            self.events.fire_event(event, weakref.proxy(self), stage)
 
     # region Checkpointing
 
@@ -487,10 +559,12 @@ def _(stage: stages.Train) -> dict[Callable, Callable]:
 @hook_map.register
 def _(stage: stages.Validate) -> dict[Callable, Callable]:
     return {
-        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_validation_epoch_start,
+        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_validation_start,
+        hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_validation_epoch_start,
         hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_validation_batch_start,
         hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_validation_batch_end,
         hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_validation_epoch_end,
+        hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_validation_end,
     }
 
 
@@ -520,46 +594,3 @@ def _(stage: stages.Fit) -> dict[Callable, Callable]:
         hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_fit_start,
         hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_fit_end,
     }
-
-
-_stage_starting = containers.TypeRegistry[Callable[[Trainer, "stages.Stage"], None]](
-    {
-        stages.Fit: hooks.TrainerListener.on_fit_start,
-        stages.Train: hooks.TrainerListener.on_train_epoch_start,
-        stages.Validate: hooks.TrainerListener.on_validation_epoch_start,
-        stages.Test: hooks.TrainerListener.on_test_epoch_start,
-        stages.Predict: hooks.TrainerListener.on_predict_epoch_start,
-    }
-)
-
-_stage_iteration_starting = containers.TypeRegistry[
-    Callable[[Trainer, "stages.Stage", _BATCH, _BATCH_IDX], None]
-](
-    {
-        stages.Train: hooks.TrainerListener.on_train_batch_start,
-        stages.Validate: hooks.TrainerListener.on_validation_batch_start,
-        stages.Test: hooks.TrainerListener.on_test_batch_start,
-        stages.Predict: hooks.TrainerListener.on_predict_batch_start,
-    }
-)
-
-_stage_iteration_ending = containers.TypeRegistry[
-    Callable[[Trainer, "stages.Stage", _OUTPUTS, _BATCH, _BATCH_IDX], Any]
-](
-    {
-        stages.Train: hooks.TrainerListener.on_train_batch_end,
-        stages.Validate: hooks.TrainerListener.on_validation_batch_end,
-        stages.Test: hooks.TrainerListener.on_test_batch_end,
-        stages.Predict: hooks.TrainerListener.on_predict_batch_end,
-    }
-)
-
-_stage_ending = containers.TypeRegistry[Callable[[Trainer, "stages.Stage"], None]](
-    {
-        stages.Fit: hooks.TrainerListener.on_fit_end,
-        stages.Train: hooks.TrainerListener.on_train_epoch_end,
-        stages.Validate: hooks.TrainerListener.on_validation_epoch_end,
-        stages.Test: hooks.TrainerListener.on_test_epoch_end,
-        stages.Predict: hooks.TrainerListener.on_predict_epoch_end,
-    }
-)

@@ -7,7 +7,7 @@ import jaxtyping as jt
 from lightning_utilities.core import rank_zero
 import optax
 
-from . import hooks
+from . import _module_hooks, hooks
 
 if TYPE_CHECKING:
     import reax
@@ -24,7 +24,7 @@ LossAndGrad = tuple[jax.Array, jax.Array]
 TrainOutput = Union[LossAndGrad, LossAndGradDict]
 
 
-class Module(Generic[BatchT, OutputT_co], hooks.ModelHooks):
+class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
     example_input_array: Optional[BatchT]
 
     def __init__(self, rng_key: jax.Array = None):

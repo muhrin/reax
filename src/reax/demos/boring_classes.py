@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
+from typing_extensions import override
 
 from reax import data, modules, stages
 
@@ -33,6 +34,7 @@ class BoringModel(modules.Module):
         super().__init__()
         self.layer = linen.Dense(2)
 
+    @override
     def setup(self, stage):
         if self.parameters() is None and isinstance(stage, stages.EpochStage):
             batch = next(iter(stage.dataloader))

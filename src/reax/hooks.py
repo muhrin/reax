@@ -35,6 +35,11 @@ class TrainerListener:
     def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
         """A training epoch is about to end"""
 
+    def on_validation_start(
+        self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /
+    ) -> None:
+        """Validation is starting"""
+
     def on_validation_epoch_start(
         self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /
     ) -> None:
@@ -59,6 +64,11 @@ class TrainerListener:
         self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /
     ) -> None:
         """A validation epoch is about to end"""
+
+    def on_validation_end(self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /) -> None:
+        """
+        Validation has ended
+        """
 
     def on_test_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Test") -> None:
         """A test epoch is about to begin"""
@@ -125,8 +135,11 @@ class TrainerListener:
 
     # region Generic messages
 
-    def on_stage_starting(self, trainer: "reax.Trainer", stage: "reax.stages.Stage") -> None:
+    def on_stage_starting(self, trainer: "reax.Trainer", stage: "reax.stages.Stage", /) -> None:
         """A trainer stage is about to begin"""
+
+    def on_stage_started(self, trainer: "reax.Trainer", stage: "reax.stages.Stage", /) -> None:
+        """A trainer has started"""
 
     def on_stage_iter_starting(
         self, trainer: "reax.Trainer", stage: "reax.Stage", step: int
@@ -141,19 +154,7 @@ class TrainerListener:
     def on_stage_ending(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
         """The stage is about to finish"""
 
+    def on_stage_ended(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
+        """The stage has ended"""
+
     # endregion
-
-
-class ModelHooks:
-    def on_train_start(self) -> None:
-        """Training is about to begin"""
-
-    def on_train_end(self) -> None:
-        """Training is ending"""
-
-    def configure_model(self, batch):
-        """
-        Configure the model before a fit/va/test/predict stage.  This will be called at the
-        beginning of each of these stages, so it's important that the implementation is a no-op
-        after the first time it is called.
-        """

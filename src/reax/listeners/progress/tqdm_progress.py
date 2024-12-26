@@ -192,15 +192,6 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         self, _trainer: "reax.Trainer", stage: "reax.stages.Validate", /
     ) -> None:
         self.val_progress_bar = self.init_validation_tqdm(stage)
-
-    @override
-    def on_validation_batch_start(
-        self,
-        trainer: "reax.Trainer",
-        stage: "reax.stages.Validate",
-        batch: Any,
-        batch_idx: int,
-    ) -> None:
         self.val_progress_bar.reset(total=convert_inf(stage.max_iters))
         self.val_progress_bar.initial = 0
         self.val_progress_bar.set_description(stage.name)
