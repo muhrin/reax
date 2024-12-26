@@ -323,6 +323,19 @@ class Trainer(stages.StageListener):
         if val_dataloaders is None:
             val_dataloaders = self._module.val_dataloader()
 
+        if self._fast_dev_run:
+            num_batches = 1
+            max_epochs = 1
+            limit_train_batches = num_batches
+            limit_val_batches = num_batches
+            val_check_interval = 1.0
+            check_val_every_n_epochs = 1
+
+            rank_zero.rank_zero_info(
+                f"Running in `fast_dev_run` mode: will run the requested loop using {num_batches} "
+                f"batch(es). Logging and checkpointing is suppressed."
+            )
+
         fit = stages.Fit(
             self._module,
             train_dataloaders,
@@ -370,6 +383,9 @@ class Trainer(stages.StageListener):
                 raise ValueError("Cannot supply dataloaders and datamodule to Trainer.test()")
 
             dataloaders = datamodule.predict_dataloader()
+
+        if self._fast_dev_run:
+            limit_batches = 1
 
         predict = stages.Predict(
             self._module, dataloaders, self._strategy, max_batches=limit_batches

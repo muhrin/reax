@@ -175,9 +175,7 @@ def test_predict_return_predictions_cpu(return_predictions, tmp_path):
 
     trainer = reax.Trainer(model, fast_dev_run=True, default_root_dir=tmp_path)
     preds = trainer.predict(
-        dataloaders=model.train_dataloader(),
-        return_predictions=return_predictions,
-        limit_batches=1,  # todo: remove this, it should be set by fast_dev_run
+        dataloaders=model.train_dataloader(), return_predictions=return_predictions
     )
     if return_predictions or return_predictions is None:
         assert len(preds) == 1
