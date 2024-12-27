@@ -1,13 +1,13 @@
-import math
 import os
 import sys
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional
 
 from lightning_utilities.core import rank_zero
 import tqdm
 from typing_extensions import override
 
 from . import progress_bar
+from .. import utils
 
 if TYPE_CHECKING:
     import reax
@@ -160,7 +160,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
 
     @override
     def on_train_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train") -> None:
-        self.train_progress_bar.reset(total=convert_inf(stage.max_iters))
+        self.train_progress_bar.reset(total=utils.convert_inf(stage.max_iters))
         self.train_progress_bar.initial = 0
         self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
 
@@ -192,7 +192,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         self, _trainer: "reax.Trainer", stage: "reax.stages.Validate", /
     ) -> None:
         self.val_progress_bar = self.init_validation_tqdm(stage)
-        self.val_progress_bar.reset(total=convert_inf(stage.max_iters))
+        self.val_progress_bar.reset(total=utils.convert_inf(stage.max_iters))
         self.val_progress_bar.initial = 0
         self.val_progress_bar.set_description(stage.name)
 
@@ -229,7 +229,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         batch: Any,
         batch_idx: int,
     ) -> None:
-        self.test_progress_bar.reset(total=convert_inf(stage.max_iters))
+        self.test_progress_bar.reset(total=utils.convert_inf(stage.max_iters))
         self.test_progress_bar.initial = 0
         self.test_progress_bar.set_description(f"{stage.name}")
 
@@ -255,7 +255,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         self, _trainer: "reax.Trainer", stage: "reax.stages.Predict"
     ) -> None:
         self.predict_progress_bar = self.init_predict_tqdm(stage)
-        self.predict_progress_bar.reset(total=convert_inf(stage.max_iters))
+        self.predict_progress_bar.reset(total=utils.convert_inf(stage.max_iters))
         self.predict_progress_bar.initial = 0
         self.predict_progress_bar.set_description(stage.name)
 
@@ -306,17 +306,6 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         if "TQDM_MINITERS" in os.environ:
             return max(int(os.environ["TQDM_MINITERS"]), refresh_rate)
         return refresh_rate
-
-
-def convert_inf(x: Optional[Union[int, float]]) -> Optional[Union[int, float]]:
-    """The tqdm doesn't support inf/nan values.
-
-    We have to convert it to None.
-
-    """
-    if x is None or math.isinf(x) or math.isnan(x):
-        return None
-    return x
 
 
 def _update_n(bar: tqdm.tqdm, value: int) -> None:

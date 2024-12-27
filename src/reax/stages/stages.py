@@ -552,13 +552,13 @@ class Train(EpochStage):
     @override
     def _done(self) -> bool:
         if self.batch_idx >= self.max_batches:
-            rank_zero.rank_zero_info(
+            rank_zero.rank_zero_debug(
                 f"`{type(self).__name__}` done: max_batches.{self.max_batches!r}` reached."
             )
             return True
 
         if self.updates >= self._max_updates:
-            rank_zero.rank_zero_info(
+            rank_zero.rank_zero_debug(
                 f"`{type(self).__name__}` done: `max_updates={self._max_updates!r}` reached."
             )
             return True
@@ -961,14 +961,21 @@ def _batches_limit(
 
         return min(batch_limit, dataloader_size)
 
-    if (
-        dataloader_size is not None
-        and isinstance(batch_limit, float)
-        and batch_limit != float("inf")
-    ):
-        # batch_limit is a float
-        batch_limit = cast(float, batch_limit)
-        return int(round(batch_limit * dataloader_size))
+    if isinstance(batch_limit, float):
+        if batch_limit == float("inf") or batch_limit == 1.0:
+            if dataloader_size is not None:
+                return dataloader_size
+            return float("inf")
+
+        if dataloader_size is not None:
+            # batch_limit is a finite float and we have a dataloader size
+            batch_limit = cast(float, batch_limit)
+            return int(round(batch_limit * dataloader_size))
+
+        raise ValueError(
+            f"Cannot determine number of batches from dataloader and batch_limit is "
+            f"{batch_limit}"
+        )
 
     # We can't say anything other than just 'go to the end'
     return float("inf")
