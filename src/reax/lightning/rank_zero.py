@@ -36,7 +36,6 @@ import logging
 import os
 from typing import Optional
 
-from lightning.fabric.utilities.imports import _UTILITIES_GREATER_EQUAL_0_10
 import lightning_utilities.core.rank_zero as rank_zero_module
 
 # note: we want to keep these indirections so the `rank_zero_only.rank` is set on import

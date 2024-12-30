@@ -64,7 +64,7 @@ def _array_batch_size(batch: Union[jax.Array, np.ndarray]):
 try:
     import torch
 
-    def _tensor_batch_size(batch: torch.Tensor):
+    def _tensor_batch_size(batch: "torch.Tensor"):
         if batch.ndim == 0:
             yield 1
         else:
