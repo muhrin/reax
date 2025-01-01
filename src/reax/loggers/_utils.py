@@ -8,9 +8,7 @@ import jax.typing
 
 def convert_params(params: Optional[Union[dict[str, Any], argparse.Namespace]]) -> dict[str, Any]:
     """Ensure parameters are a dict or convert to dict if necessary.
-
-
-    :param params: Object to be converted to `dict`
+    :param params: Object to be converted to `dict`.
     """
     # in case converting from namespace
     if isinstance(params, argparse.Namespace):
@@ -23,6 +21,7 @@ def convert_params(params: Optional[Union[dict[str, Any], argparse.Namespace]]) 
 
 
 def sanitize_params(params: dict[str, Any]) -> dict[str, Any]:
+    """Sanitize params."""
     for key in params:
         # JAX/numpy scalars to python base types
         if isinstance(params[key], (jnp.bool_, jnp.integer, jnp.floating)):
@@ -37,9 +36,10 @@ def flatten_dict(
     params: Mapping[Any, Any], delimiter: str = "/", parent_key: str = ""
 ) -> dict[str, Any]:
     """Flatten hierarchical dict, e.g. ``{'a': {'b': 'c'}} -> {'a/b': 'c'}``.
-
-    :param params: the mapping containing hyperparameters
-    :param delimiter: the delimiter to express hierarchy
+    :param parent_key:
+        Defaults to "".
+    :param params: The mapping containing hyperparameters.
+    :param delimiter: The delimiter to express hierarchy, defaults to "/".
 
     Examples:
 
@@ -49,7 +49,6 @@ def flatten_dict(
         {'a/b': 123}
         >>> flatten_dict({5: {'a': 123}})
         {'5/a': 123}
-
     """
     result: dict[str, Any] = {}
     for key, val in params.items():
@@ -71,15 +70,10 @@ def add_prefix(
     metrics: Mapping[str, Union[jax.typing.ArrayLike, float]], prefix: str, separator: str
 ) -> Mapping[str, Union[jax.typing.ArrayLike, float]]:
     """Insert prefix before each key in a dict, separated by the separator.
-
-    Args:
-        metrics: Dictionary with metric names as keys and measured quantities as values
-        prefix: Prefix to insert before each key
-        separator: Separates prefix and original key name
-
-    Returns:
-        Dictionary with prefix and separator inserted before each key
-
+    :param metrics: Dictionary with metric names as keys and measured quantities as values.
+    :param prefix: Prefix to insert before each key.
+    :param separator: Separates prefix and original key name.
+    :returns: Dictionary with prefix and separator inserted before each key
     """
     if not prefix:
         return metrics

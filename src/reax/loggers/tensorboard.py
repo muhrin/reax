@@ -36,6 +36,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         sub_dir: Optional[typing.Path] = None,
         **kwargs: Any,
     ):
+        """Init function."""
         super().__init__()
         self._root_dir = os.fspath(log_dir)
         self._name = name or ""
@@ -54,11 +55,13 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     @property
     @override
     def name(self) -> str:
+        """Name function."""
         return self._name
 
     @property
     @override
     def version(self) -> Union[int, str]:
+        """Version function."""
         if self._version is None:
             self._version = self._get_next_version()
         return self._version
@@ -66,11 +69,13 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     @property
     @override
     def root_dir(self) -> str:
+        """Root dir."""
         return os.path.join(self._root_dir, self.name)
 
     @property
     @override
     def log_dir(self) -> str:
+        """Log dir."""
         # create a pseudo standard path ala test-tube
         version = self.version if isinstance(self.version, str) else f"version_{self.version}"
         log_dir = os.path.join(self.root_dir, version)
@@ -83,18 +88,18 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
     @property
     def sub_dir(self) -> Optional[str]:
+        """Sub dir."""
         return self._sub_dir
 
     @property
     @override
     def save_dir(self) -> str:
+        """Save dir."""
         return self._root_dir
 
     @property
     def _experiment(self) -> Optional["tensorboardX.SummaryWriter"]:
-        """
-        Get the tensorboard object.
-        """
+        """Get the tensorboard object."""
         if self._exp is not None:
             return self._exp
 
@@ -110,6 +115,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     def _log_metrics(
         self, metrics: Mapping[str, jax.typing.ArrayLike], step: Optional[int] = None
     ) -> None:
+        """Log metrics."""
         metrics = _utils.add_prefix(metrics, self._prefix, self.LOGGER_JOIN_CHAR)
 
         for key, val in metrics.items():
@@ -134,6 +140,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         params: Union[dict[str, Any], argparse.Namespace],
         metrics: Optional[dict[str, Any]] = None,
     ) -> None:
+        """Log hyperparams."""
         params = _utils.convert_params(params)
 
         if omegaconf is not None and isinstance(params, omegaconf.Container):
@@ -168,6 +175,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         model: Callable,
         *inputs,
     ) -> None:
+        """Log graph."""
         if not self._should_log_graph:
             return
 
@@ -186,10 +194,12 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
     @override
     def _save(self) -> None:
+        """Save function."""
         self.experiment.flush()
 
     @override
     def _finalize(self, status: str) -> None:
+        """Finalize function."""
         if status == "success":
             # saving hparams happens independent of experiment manager
             self.save()
@@ -199,6 +209,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
             self.experiment.close()
 
     def _get_next_version(self) -> int:
+        """Get next version."""
         root_dir = self.root_dir
 
         try:
@@ -221,6 +232,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
     @staticmethod
     def _sanitize_params(params: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize params."""
         params = _utils.sanitize_params(params)
         # logging of arrays with dimension > 1 is not supported, sanitize as string
         return {

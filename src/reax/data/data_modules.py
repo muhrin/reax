@@ -20,20 +20,25 @@ class DataModule:
         predict_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
         batch_size: int = 1,
     ) -> "DataModule":
+        """From datasets."""
         return FromDatasets(
             train_dataset, val_dataset, test_dataset, predict_dataset, batch_size=batch_size
         )
 
     def train_dataloader(self) -> "reax.DataLoader":
+        """Train dataloader."""
         raise NotImplementedError("DataModule.train_dataloaders has not been implemented")
 
     def val_dataloader(self) -> "reax.DataLoader":
+        """Val dataloader."""
         raise NotImplementedError("DataModule.val_dataloaders has not been implemented")
 
     def test_dataloader(self) -> "reax.DataLoader":
+        """Test dataloader."""
         raise NotImplementedError("DataModule.test_dataloaders has not been implemented")
 
     def predict_dataloader(self) -> "reax.DataLoader":
+        """Predict dataloader."""
         raise NotImplementedError("DataModule.predict_dataloaders has not been implemented")
 
 
@@ -46,6 +51,7 @@ class FromDatasets(DataModule):
         predict_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
         batch_size: int = 1,
     ):
+        """Init function."""
         self._train_dataset = train_dataset
         self._val_dataset = val_dataset
         self._test_dataset = test_dataset
@@ -53,13 +59,17 @@ class FromDatasets(DataModule):
         self._batch_size = batch_size
 
     def train_dataloader(self) -> "reax.DataLoader":
+        """Train dataloader."""
         return _loaders.ReaxDataLoader(self._train_dataset, batch_size=self._batch_size)
 
     def val_dataloader(self) -> "reax.DataLoader":
+        """Val dataloader."""
         return _loaders.ReaxDataLoader(self._val_dataset, batch_size=self._batch_size)
 
     def test_dataloader(self) -> "reax.DataLoader":
+        """Test dataloader."""
         return _loaders.ReaxDataLoader(self._test_dataset, batch_size=self._batch_size)
 
     def predict_dataloader(self) -> "reax.DataLoader":
+        """Predict dataloader."""
         return _loaders.ReaxDataLoader(self._predict_dataset, batch_size=self._batch_size)

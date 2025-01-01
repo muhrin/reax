@@ -50,54 +50,62 @@ class MetricResults(TypedDict):
 
 class StageListener:
     def on_stage_starting(self, stage: "reax.Stage", /):
-        """The stage is about to start"""
+        """The stage is about to start."""
 
     def on_stage_started(self, stage: "reax.Stage", /):
         """The stage has started, all initialisation if complete."""
 
     def on_stage_iter_starting(self, stage: "reax.Stage", step: int, /):
-        """The stage is about to start an iteration"""
+        """The stage is about to start an iteration."""
 
     def on_stage_iter_ending(self, stage: "reax.Stage", step: int, outputs: Any, /):
-        """The stage just finished processing an iteration"""
+        """The stage just finished processing an iteration."""
 
     def on_stage_ending(self, stage: "reax.Stage", /):
-        """The stage is about to finish"""
+        """The stage is about to finish."""
 
     def on_stage_ended(self, stage: "reax.Stage", /):
-        """
-        The stage has ended.  It will not be mutated after this point until it is starting again
+        """The stage has ended.
+
+        It will not be mutated after this point until it is starting again.
         """
 
 
 class _Stopper:
     def __init__(self):
+        """Init function."""
         self._stop_requested = False
         self._conditions: list[Callable[[], bool]] = []
 
     @property
     def stop_requested(self) -> bool:
+        """Stop requested."""
         return self._stop_requested
 
     @property
     def can_stop(self):
+        """Can stop."""
         return all(condition() for condition in self._conditions)
 
     def do_stop(self) -> bool:
+        """Do stop."""
         return self._stop_requested and self.can_stop
 
     def set(self):
+        """Set function."""
         self._stop_requested = True
 
     def get(self) -> bool:
+        """Get function."""
         return self._stop_requested
 
     def add_condition(self, condition: Callable[[], bool]) -> None:
+        """Add condition."""
         self._conditions.append(condition)
 
 
 class Stage(abc.ABC):
-    """Interface for loops"""
+    """Interface for loops."""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
@@ -129,43 +137,51 @@ class Stage(abc.ABC):
 
     @property
     def name(self) -> str:
+        """Name function."""
         return self._name
 
     @property
     def iteration(self) -> int:
-        """Get the current stage iteration"""
+        """Get the current stage iteration."""
         return self._iter
 
     @property
     def max_iters(self) -> int:
+        """Max iters."""
         return self._max_iters
 
     @property
     def run_count(self) -> int:
+        """Run count."""
         return self._run_count
 
     @property
     def events(self) -> events.EventGenerator[StageListener]:
+        """Events function."""
         return self._events
 
     @property
     def should_stop(self) -> bool:
+        """Should stop."""
         return self._stopper.get()
 
     @property
     def parent(self) -> Optional["reax.Stage"]:
+        """Parent function."""
         return self._parent
 
     def stop(self, reason: str):
+        """Stop function."""
         self._stopper.set()
         self._stop_reason = reason
 
     @property
     def stop_reason(self) -> str:
+        """Stop reason."""
         return self._stop_reason
 
     def run(self) -> None:
-        """Run the loop until the end or `max_iters`"""
+        """Run the loop until the end or `max_iters`."""
         while True:
             try:
                 self.step()
@@ -173,7 +189,7 @@ class Stage(abc.ABC):
                 break
 
     def step(self) -> None:
-        """Advance the loop by one iteration"""
+        """Advance the loop by one iteration."""
         if self._iter == -1:
             self._on_starting()
             self._on_started()
@@ -203,21 +219,23 @@ class Stage(abc.ABC):
         on_step=False,
         on_epoch=True,
     ) -> None:
-        """Log a result while the stage is running"""
+        """Log a result while the stage is running."""
 
     def _on_starting(self):
-        """Stage is starting"""
+        """Stage is starting."""
         self._iter = 0
         if self._module is not None:
             self._module.on_stage_starting(weakref.proxy(self))
         self.events.fire_event(StageListener.on_stage_starting, weakref.proxy(self))
 
     def _on_started(self):
+        """On started."""
         if self._module is not None:
             self._module.on_stage_started(weakref.proxy(self))
         self.events.fire_event(StageListener.on_stage_started, weakref.proxy(self))
 
     def _on_iteration_starting(self):
+        """On iteration starting."""
         if self._module is not None:
             self._module.on_stage_iter_starting(weakref.proxy(self), self._iter)
         self.events.fire_event(
@@ -226,10 +244,10 @@ class Stage(abc.ABC):
 
     @abc.abstractmethod
     def _step(self) -> Any:
-        """The advance logic that should be implemented by subclasses"""
+        """The advance logic that should be implemented by subclasses."""
 
     def _on_iteration_finishing(self, outputs: Any):
-        """The iteration is about to finish"""
+        """The iteration is about to finish."""
         if self._module is not None:
             self._module.on_stage_iter_ending(weakref.proxy(self), self._iter, outputs)
         self.events.fire_event(
@@ -237,7 +255,10 @@ class Stage(abc.ABC):
         )
 
     def _on_iteration_finished(self, outputs: Any):
-        """The iteration has finished.  Set ourselves up for the next iteration (if there is one)"""
+        """The iteration has finished.
+
+        Set ourselves up for the next iteration (if there is one).
+        """
         # Set ourselves up for the next iteration
         self._iter += 1
         # if self.should_stop and self._min_iters is not None and self._iter < self._min_iters:
@@ -246,15 +267,17 @@ class Stage(abc.ABC):
         #     self.cancel_stop()
 
     def _on_stopping(self):
-        """The stage is stopping"""
+        """The stage is stopping."""
         self._iter = -1
         self._run_count += 1
         self.events.fire_event(StageListener.on_stage_ending, weakref.proxy(self))
 
     def _on_stopped(self):
+        """On stopped."""
         self.events.fire_event(StageListener.on_stage_ended, weakref.proxy(self))
 
     def _done(self) -> bool:
+        """Done function."""
         if self._iter >= self.max_iters:
             return True
 
@@ -264,6 +287,7 @@ class Stage(abc.ABC):
         return False
 
     def _run_child(self, stage: "reax.Stage"):
+        """Run child."""
         self._child = stage
         try:
             self._child.run()
@@ -272,7 +296,7 @@ class Stage(abc.ABC):
 
 
 class EpochStage(Stage, abc.ABC):
-    """Stage that represents a loop over batches i.e. a single epoch"""
+    """Stage that represents a loop over batches i.e. a single epoch."""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
@@ -305,44 +329,47 @@ class EpochStage(Stage, abc.ABC):
 
     @property
     def dataloader(self) -> "reax.DataLoader":
+        """Dataloader function."""
         return self._dataloader
 
     @property
     def batch(self) -> Optional[Any]:
-        """Get the current batch"""
+        """Get the current batch."""
         return self._batch
 
     @property
     def batch_idx(self) -> int:
-        """Get the current batch index"""
+        """Get the current batch index."""
         return self._iter
 
     @property
     def total_batch_idx(self) -> int:
-        """Get the current batch index when counting over all executions of this loop"""
+        """Get the current batch index when counting over all executions of this loop."""
         return self._total_batch_idx
 
     @property
     def epoch(self) -> int:
-        """Get the current epoch"""
+        """Get the current epoch."""
         return self._run_count
 
     @property
     def max_batches(self) -> Optional[int]:
+        """Max batches."""
         return self._max_iters
 
     @property
     def metrics(self) -> "reax.results.ResultCollection":
+        """Metrics function."""
         return self._metrics
 
     @property
     def results(self) -> Optional[dict]:
-        """The results for this epoch (if any)"""
+        """The results for this epoch (if any)."""
         return self._metrics_results
 
     @property
     def callback_metrics(self) -> typing.MetricsDict:
-        """Get the metrics available to callbacks"""
+        """Get the metrics available to callbacks."""
         if not self._metrics_results:
             return dict()
 
@@ -350,7 +377,7 @@ class EpochStage(Stage, abc.ABC):
 
     @property
     def logged_metrics(self) -> typing.MetricsDict:
-        """Get the metrics available to loggers"""
+        """Get the metrics available to loggers."""
         if not self._metrics_results:
             return dict()
 
@@ -358,7 +385,7 @@ class EpochStage(Stage, abc.ABC):
 
     @property
     def progress_bar_metrics(self) -> typing.MetricsDict:
-        """Get the metrics available to progress indicators"""
+        """Get the metrics available to progress indicators."""
         if not self._metrics_results:
             return dict()
 
@@ -366,6 +393,7 @@ class EpochStage(Stage, abc.ABC):
 
     @property
     def outputs(self) -> Any:
+        """Outputs function."""
         return self._outputs
 
     def log(
@@ -378,7 +406,7 @@ class EpochStage(Stage, abc.ABC):
         on_step=False,
         on_epoch=True,
     ) -> None:
-        """Log metrics during the current epoch"""
+        """Log metrics during the current epoch."""
         assert self._batch is not None
         if batch_size is None:
             batch_size = data.extract_batch_size(self._batch)
@@ -397,6 +425,7 @@ class EpochStage(Stage, abc.ABC):
 
     @override
     def _on_starting(self):
+        """On starting."""
         super()._on_starting()
         self._metrics = results.ResultCollection()
         self._iterator = iter(self._dataloader)
@@ -404,6 +433,7 @@ class EpochStage(Stage, abc.ABC):
 
     @override
     def _on_iteration_starting(self):
+        """On iteration starting."""
         batch = next(self._iterator)
         self._strategy.to_device(batch)
         self._batch = batch
@@ -411,8 +441,7 @@ class EpochStage(Stage, abc.ABC):
 
     @override
     def _on_iteration_finishing(self, outputs: Any) -> None:
-        """
-        Look through the logged metrics and extract those where a user logged a results during this
+        """Look through the logged metrics and extract those where a user logged a results during this
         step and used the `on_step=True` option
         """
         metrics = {keys.PBAR: {}, keys.LOG: {}, keys.CALLBACK: {}}
@@ -431,14 +460,14 @@ class EpochStage(Stage, abc.ABC):
 
     @override
     def _on_iteration_finished(self, outputs: Any) -> None:
+        """On iteration finished."""
         super()._on_iteration_finished(outputs)
         # Keep track of the total number of batches, even across multiple executions of this loop
         self._total_batch_idx += 1
 
     @override
     def _on_stopping(self) -> None:
-        """
-        Look through the logged metrics and extract those where a user logged a results during this
+        """Look through the logged metrics and extract those where a user logged a results during this
         step and used the `on_epoch=True` option
         """
         metrics = {keys.PBAR: {}, keys.LOG: {}, keys.CALLBACK: {}}
@@ -458,7 +487,7 @@ class EpochStage(Stage, abc.ABC):
 
 
 class Train(EpochStage):
-    """One training epoch"""
+    """One training epoch."""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
@@ -489,20 +518,23 @@ class Train(EpochStage):
 
     @property
     def updates(self) -> int:
-        """Get the number of gradient updates that have been applied"""
+        """Get the number of gradient updates that have been applied."""
         return sum(opt.update_count for opt in self._optimizers)
 
     @property
     def optimizers(self) -> Optional[list["reax.Optimizer"]]:
+        """Optimizers function."""
         return self._optimizers
 
     @override
     def run(self) -> list["reax.Optimizer"]:
+        """Run function."""
         super().run()
         return self._optimizers
 
     @override
     def _on_starting(self):
+        """On starting."""
         super()._on_starting()
         self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
@@ -531,11 +563,13 @@ class Train(EpochStage):
 
     @override
     def _on_started(self):
+        """On started."""
         super()._on_started()
         self._module.on_train_epoch_start(weakref.proxy(self))
 
     @override
     def _step(self) -> Any:
+        """Step function."""
         res = self._module.training_step(self.batch, self._iter)
         if self._module.automatic_optimization:
             if isinstance(res, dict):
@@ -555,11 +589,13 @@ class Train(EpochStage):
 
     @override
     def _on_stopping(self) -> None:
+        """On stopping."""
         self._module.on_train_epoch_end(weakref.proxy(self))
         super()._on_stopping()
 
     @override
     def _done(self) -> bool:
+        """Done function."""
         if self.batch_idx >= self.max_batches:
             rank_zero.rank_zero_debug(
                 f"`{type(self).__name__}` done: max_batches.{self.max_batches!r}` reached."
@@ -598,12 +634,14 @@ class Validate(EpochStage):
         max_batches: Union[int, float] = -1,
         parent: Optional["reax.Stage"] = None,
     ):
+        """Init function."""
         super().__init__(
             "Validation", module, dataloader, strategy, max_batches=max_batches, parent=parent
         )
 
     @override
     def _on_starting(self):
+        """On starting."""
         super()._on_starting()
         self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
@@ -612,19 +650,23 @@ class Validate(EpochStage):
 
     @override
     def _on_started(self):
+        """On started."""
         super()._on_started()
         self._module.on_validation_epoch_start(weakref.proxy(self))
 
     def _step(self) -> MetricResults:
+        """Step function."""
         return self._module.validation_step(self.batch, self._iter)
 
     @override
     def _on_stopping(self) -> None:
+        """On stopping."""
         self._module.on_validation_epoch_end(weakref.proxy(self))
         super()._on_stopping()
 
     @override
     def _on_stopped(self):
+        """On stopped."""
         super()._on_stopped()
         self._module.on_validation_end(weakref.proxy(self))
 
@@ -638,12 +680,14 @@ class Test(EpochStage):
         max_batches: Union[int, float] = -1,
         parent: Optional["reax.Stage"] = None,
     ):
+        """Init function."""
         super().__init__(
             "test", module, dataloader, strategy, max_batches=max_batches, parent=parent
         )
 
     @override
     def _on_starting(self):
+        """On starting."""
         self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
         self._module.set_parameters(params)
@@ -651,16 +695,19 @@ class Test(EpochStage):
 
     @override
     def _on_started(self):
+        """On started."""
         super()._on_started()
         self._module.on_test_epoch_start(weakref.proxy(self))
 
     @override
     def _on_stopped(self):
+        """On stopped."""
         super()._on_stopped()
         self._module.on_test_epoch_end(weakref.proxy(self))
 
     @override
     def _step(self) -> MetricResults:
+        """Step function."""
         return self._module.predict_step(self.batch, self._iter)
 
 
@@ -673,6 +720,7 @@ class Predict(EpochStage):
         max_batches: Union[int, float] = float("inf"),
         parent: Optional["reax.Stage"] = None,
     ):
+        """Init function."""
         super().__init__(
             "Predicting", module, dataloader, strategy, max_batches=max_batches, parent=parent
         )
@@ -680,6 +728,7 @@ class Predict(EpochStage):
 
     @override
     def _on_starting(self):
+        """On starting."""
         self._module.setup(self)
         params = self._strategy.to_device(self._module.parameters())
         self._module.set_parameters(params)
@@ -687,10 +736,12 @@ class Predict(EpochStage):
 
     @override
     def _step(self) -> MetricResults:
+        """Step function."""
         return self._module.predict_step(self.batch, self._iter)
 
     @override
     def _on_iteration_finishing(self, outputs: Any):
+        """On iteration finishing."""
         self._all_outputs.append(outputs)
 
 
@@ -713,6 +764,7 @@ class FitEpoch(Train):
         parent: Optional["reax.Stage"] = None,
         stopper: Optional[_Stopper] = None,
     ):
+        """Init function."""
         super().__init__(
             module,
             train_dataloaders,
@@ -747,18 +799,22 @@ class FitEpoch(Train):
 
     @property
     def val_check_interval(self) -> Optional[Union[int, float]]:
+        """Val check interval."""
         return self._val_check_interval
 
     @property
     def check_val_every_n_epoch(self) -> Optional[int]:
+        """Check val every n epoch."""
         return self._check_val_every_n_epoch
 
     @property
     def validate(self) -> Optional[Validate]:
+        """Validate function."""
         return self._validate
 
     @override
     def _on_iteration_finished(self, outputs: Any) -> None:
+        """On iteration finished."""
         super()._on_iteration_finished(outputs)
 
         # We've finished the train iteration, so check if we should do a validation
@@ -770,6 +826,7 @@ class FitEpoch(Train):
 
     @override
     def _on_stopping(self) -> None:
+        """On stopping."""
         if (
             self._validate is not None
             and self._check_val_every_n_epoch is not None
@@ -789,6 +846,7 @@ class FitEpoch(Train):
         on_step=False,
         on_epoch=True,
     ) -> None:
+        """Log function."""
         if self._child is not None:
             self._child.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch)
         else:
@@ -825,6 +883,7 @@ class FitEpoch(Train):
         return is_val_check_batch
 
     def _should_check_val_epoch(self) -> bool:
+        """Should check val epoch."""
         return self.validate and (
             self._check_val_every_n_epoch is None
             or (self.epoch + 1) % self._check_val_every_n_epoch == 0
@@ -837,6 +896,7 @@ class FitEpoch(Train):
         check_val_every_n_epoch: int,
         dataloader: "reax.DataLoader",
     ) -> Optional[Union[int, float]]:
+        """Setup val check batch."""
         if max_batches == 0:
             return None
 
@@ -896,6 +956,7 @@ class Fit(Stage):
         check_val_every_n_epoch: int = 1,
         parent: Optional["reax.Stage"] = None,
     ):
+        """Init function."""
         super().__init__(
             "Fitting",
             module,
@@ -925,18 +986,22 @@ class Fit(Stage):
 
     @property
     def updates(self) -> int:
+        """Updates function."""
         return self._fit_epoch.updates
 
     @property
     def validate(self) -> Optional[Validate]:
+        """Validate function."""
         return self._fit_epoch.validate
 
     @property
     def val_check_interval(self):
+        """Val check interval."""
         return self._fit_epoch.val_check_interval
 
     @property
     def check_val_every_n_epoch(self) -> Optional[int]:
+        """Check val every n epoch."""
         return self._fit_epoch.check_val_every_n_epoch
 
     @override
@@ -950,26 +1015,30 @@ class Fit(Stage):
         on_step=False,
         on_epoch=True,
     ) -> None:
+        """Log function."""
         self._fit_epoch.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch)
 
     @override
     def _step(self) -> Any:
+        """Step function."""
         self._run_child(self._fit_epoch)
 
 
 def _batches_limit(
     batch_limit: Union[int, float], dataloader: "reax.DataLoader"
 ) -> Union[int, float]:
-    """
-    Return a maximum number of batches given a dataloader and an optional batches limit.
+    """Return a maximum number of batches given a dataloader and an optional batches limit.
+
     If the dataloader has fewer entries than the batch limit, then this will be used, otherwise
     the batches limit.
 
     .. note:: Will return `float("inf")` if there is no limit.
-
-    :param batch_limit: the batches limit
-    :param dataloader: the dataloader
-    :return: the maximum number of batches
+    :param batch_limit: The batches limit.
+    :type batch_limit: Union[int, float]
+    :param dataloader: The dataloader.
+    :type dataloader: "reax.DataLoader"
+    :return: The maximum number of batches.
+    :rtype: Union[int, float]
     """
     dataloader_size = data.sized_len(dataloader)
     if isinstance(batch_limit, int):

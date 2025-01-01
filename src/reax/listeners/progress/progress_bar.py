@@ -6,7 +6,7 @@ __all__ = ("ProgressBar",)
 
 
 class ProgressBar(hooks.TrainerListener):
-    r"""Base class for progress bars"""
+    r"""Base class for progress bars."""
 
     def __init__(self) -> None:
         self._current_eval_dataloader_idx: Optional[int] = None

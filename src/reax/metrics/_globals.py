@@ -11,6 +11,7 @@ __all__ = ("get",)
 
 @functools.singledispatch
 def get(metric) -> "reax.Metric":
+    """Get function."""
     try:
         if issubclass(metric, _metric.Metric):
             return metric()
@@ -22,9 +23,11 @@ def get(metric) -> "reax.Metric":
 
 @get.register
 def get_str(metric: str):
+    """Get str."""
     return _registry.get(metric)
 
 
 @get.register(_metric.Metric)
 def get_metric(metric: "reax.Metric"):
+    """Get metric."""
     return metric

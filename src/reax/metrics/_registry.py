@@ -8,6 +8,7 @@ __all__ = ("Registry", "get_registry", "set_registry")
 
 class Registry(containers.Registry[metric_.Metric]):
     def register(self, key: str, obj: Union[metric_.Metric, type[metric_.Metric]]):
+        """Register function."""
         try:
             if issubclass(obj, metric_.Metric):
                 # Try to instantiate it
@@ -28,15 +29,17 @@ _registry = Registry()
 
 
 def get_registry() -> Registry:
+    """Get registry."""
     global _registry  # pylint: disable=global-variable-not-assigned
     return _registry
 
 
 def set_registry(registry: Registry) -> None:
+    """Set registry."""
     global _registry  # pylint: disable=global-statement
     _registry = registry
 
 
 def get(name: str) -> metric_.Metric:
-    """Convenience method to get a metric using its name"""
+    """Convenience method to get a metric using its name."""
     return get_registry()[name]

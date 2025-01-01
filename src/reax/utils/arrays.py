@@ -7,6 +7,7 @@ import numpy as np
 
 
 def to_base(array: jax.typing.ArrayLike) -> Union[int, float, list]:
+    """To base."""
     if isinstance(array, (int, float)):
         return array
 
@@ -20,7 +21,7 @@ def to_base(array: jax.typing.ArrayLike) -> Union[int, float, list]:
 
 
 def to_scalar(array: jax.typing.ArrayLike) -> Union[float, int]:
-    """Convert an array to a python scalar type"""
+    """Convert an array to a python scalar type."""
     if isinstance(array, (np.ndarray, jax.Array)):
         return array.item()
 

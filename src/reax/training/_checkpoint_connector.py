@@ -8,9 +8,11 @@ if TYPE_CHECKING:
 
 class _CheckpointConnector:
     def __init__(self, trainer: "reax.Trainer") -> None:
+        """Init function."""
         self._trainer = trainer
 
     def _get_checkpoint_path(self) -> Optional[str]:
+        """Get checkpoint path."""
         checkpointers = self._trainer.checkpoint_callbacks
         if not checkpointers:
             return None

@@ -4,4 +4,4 @@ __all__ = ("Checkpointer",)
 
 
 class Checkpointer(hooks.TrainerListener):
-    r"""Interface for trainer checkpointing"""
+    r"""Interface for trainer checkpointing."""

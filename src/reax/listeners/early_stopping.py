@@ -63,10 +63,10 @@ MonitorOp = Callable[[jax.typing.ArrayLike, jax.typing.ArrayLike], jax.typing.Ar
 class EarlyStopping(hooks.TrainerListener):
     r"""Monitor a metric and stop training when it stops improving.
     :param monitor: Quantity to be monitored.
-
+    :type monitor: str
     :param min_delta: Minimum change in the monitored quantity to qualify as an improvement, i.e. an absolute
         change of less than or equal to `min_delta`, will count as no improvement, defaults to 0.0.
-
+    :type min_delta: float, optional
     :param patience: Number of checks with no improvement
         after which training will be stopped. Under the default configuration, one check happens after
         every training epoch. However, the frequency of validation can be modified by setting various parameters on
@@ -78,30 +78,35 @@ class EarlyStopping(hooks.TrainerListener):
         no improvement, and not the number of training epochs. Therefore, with parameters
         ``check_val_every_n_epoch=10`` and ``patience=3``, the trainer will perform at least 40 training
         epochs before being stopped, defaults to 3.
-
+    :type patience: int, optional
     :param verbose: Verbosity mode, defaults to False.
+    :type verbose: bool, optional
     :param mode: One of ``'min'``, ``'max'``. In ``'min'`` mode, training will stop when the quantity
         monitored has stopped decreasing and in ``'max'`` mode it will stop when the quantity
         monitored has stopped increasing, defaults to "min".
+    :type mode: Literal["min", "max"], optional
     :param strict: Whether to crash the training if `monitor` is not found in the validation metrics, defaults to True.
+    :type strict: bool, optional
     :param check_finite: When set ``True``, stops training when the monitor becomes NaN or infinite, defaults to True.
+    :type check_finite: bool, optional
     :param stopping_threshold: Stop training immediately once the monitored quantity reaches this threshold, defaults to None.
+    :type stopping_threshold: Optional[float], optional
     :param divergence_threshold: Stop training as soon as the monitored quantity becomes worse than this threshold, defaults to None.
+    :type divergence_threshold: Optional[float], optional
     :param check_on_train_epoch_end: Whether to run early stopping at the end of the training epoch.
-        If this is ``False``, then the check runs at the end of the validation, defaults to False.
-    :param log_rank_zero_only: When set ``True``, logs the status of the early stopping callback only for rank 0 process.
-    :raises MisconfigurationException:
-        If ``mode`` is none of ``"min"`` or ``"max"``.
-    :raises RuntimeError:
-        If the metric ``monitor`` is not available.
+        If this is ``False``, then the check runs at the end of the validation, defaults to None.
+    :type check_on_train_epoch_end: bool, optional
+    :param log_rank_zero_only: When set ``True``, logs the status of the early stopping callback only for rank 0 process, defaults to False.
+    :type log_rank_zero_only: bool, optional
+    :raises MisconfigurationException: If ``mode`` is none of ``"min"`` or ``"max"``.
+    :raises RuntimeError: If the metric ``monitor`` is not available.
 
     Example::
 
-            >>> from reax import Trainer
-            >>> from reax.listeners import EarlyStopping
-            >>> early_stopping = EarlyStopping('val_loss')
-            >>> trainer = Trainer(callbacks=[early_stopping])
-
+        >>> from reax import Trainer
+        >>> from reax.listeners import EarlyStopping
+        >>> early_stopping = EarlyStopping('val_loss')
+        >>> trainer = Trainer(callbacks=[early_stopping])
     """
 
     mode_dict: dict[str, MonitorOp] = {"min": jnp.less, "max": jnp.greater}
@@ -147,13 +152,16 @@ class EarlyStopping(hooks.TrainerListener):
 
     @property
     def best_score(self) -> float:
+        """Best score."""
         return self._best_score
 
     def _should_skip_check(self, trainer: "reax.Trainer") -> bool:
+        """Should skip check."""
         return not isinstance(trainer.stage, stages.Fit)
 
     @override
     def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit") -> None:
+        """On fit start."""
         if self.__check_on_train_epoch_end is None:
             # if the user runs validation multiple times per training epoch or multiple training epochs without
             # validation, then we run after validation instead of on train epoch end
@@ -163,12 +171,14 @@ class EarlyStopping(hooks.TrainerListener):
 
     @override
     def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train") -> None:
+        """On train epoch end."""
         if not self._check_on_train_epoch_end or self._should_skip_check(trainer):
             return
         self._run_early_stopping_check(trainer, stage)
 
     @override
     def on_validation_end(self, trainer: "reax.Trainer", stage: "reax.stages.Validate") -> None:
+        """On validation end."""
         if self._check_on_train_epoch_end or self._should_skip_check(trainer):
             return
         self._run_early_stopping_check(trainer, stage)
@@ -272,6 +282,7 @@ class EarlyStopping(hooks.TrainerListener):
 
     @staticmethod
     def _log_info(trainer: "reax.Trainer", message: str, log_rank_zero_only: bool) -> None:
+        """Log info."""
         rank = trainer.global_rank if trainer.world_size > 1 else None
         message = rank_zero.rank_prefixed_message(message, rank)
         if rank is None or not log_rank_zero_only or rank == 0:

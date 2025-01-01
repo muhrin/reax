@@ -13,6 +13,7 @@ class GenericDataLoader(_types.DataLoader):
         shuffle: bool = False,
         collate_fn: Optional[_types.CollateFn] = None,
     ):
+        """Init function."""
         self._batch_size = batch_size
         self._dataset = dataset
         self._sampler = samplers.create_sampler(
@@ -28,8 +29,10 @@ class GenericDataLoader(_types.DataLoader):
 
     @property
     def batch_size(self) -> int:
+        """Batch size."""
         return self._batch_size
 
     def __iter__(self):
+        """Iter function."""
         for indices in self._sampler:
             yield self._fetcher.fetch(indices)

@@ -45,6 +45,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         save_top_k: int = 1,
         enable_version_counter: bool = True,
     ):
+        """Init function."""
         super().__init__()
         self._monitor = monitor
         self._mode = mode
@@ -75,6 +76,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         every_n_epochs: Optional[int],
         # train_time_interval: Optional[timedelta],
     ) -> None:
+        """Init triggers."""
         # Default to running once after each validation epoch if neither
         # every_n_train_steps nor every_n_epochs is set
         if every_n_train_steps is None and every_n_epochs is None:
@@ -92,6 +94,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         self._every_n_train_steps: int = every_n_train_steps
 
     def __init_monitor_mode(self, mode: str) -> None:
+        """Init monitor mode."""
         # TODO: Call this where necessary
         jnp_info = jnp.array(float("inf" if self._mode == "min" else "-inf"))
         mode_dict = {"min": (jnp_info, "min"), "max": (-jnp_info, "max")}
@@ -105,6 +108,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
     @override
     def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train") -> None:
+        """On train epoch end."""
         metrics = self._monitor_candidates(stage, trainer)
         if self._should_save_on_train_epoch_end(stage):
             if isinstance(stage, stages.Train):
@@ -114,6 +118,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def on_validation_epoch_end(
         self, trainer: "reax.Trainer", stage: "reax.stages.Validate"
     ) -> None:
+        """On validation epoch end."""
         metrics = self._monitor_candidates(stage, trainer)
         if not self._should_save_on_train_epoch_end(stage):
             if isinstance(stage, stages.Validate):
@@ -121,17 +126,20 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
     @property
     def best_model_path(self) -> str:
+        """Best model path."""
         return self._best_model_path
 
     def _monitor_candidates(
         self, stage: "reax.stages.EpochStage", trainer: "reax.Trainer"
     ) -> dict[str, jax.Array]:
+        """Monitor candidates."""
         monitor_candidates: dict = copy.deepcopy(stage.callback_metrics)
         monitor_candidates.setdefault("epoch", trainer.current_epoch)
         monitor_candidates.setdefault("step", trainer.global_updates)
         return monitor_candidates
 
     def check_monitor_top_k(self, current: Optional[jax.Array] = None) -> bool:
+        """Check monitor top k."""
         if current is None:
             return False
 
@@ -150,12 +158,14 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         return should_update_best_and_save
 
     def _do_save(self, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]):
+        """Do save."""
         if self._every_n_epochs >= 1 and (trainer.current_epoch + 1) % self._every_n_epochs == 0:
             self._save_topk_checkpoint(trainer, monitor_candidates)
 
         self._save_last_checkpoint(trainer, monitor_candidates)
 
     def _should_save_on_train_epoch_end(self, stage: stages.EpochStage) -> bool:
+        """Should save on train epoch end."""
         if self._save_on_train_epoch_end is not None:
             # Do whatever the user asked for
             return self._save_on_train_epoch_end
@@ -175,6 +185,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         trainer: "reax.Trainer",
         monitor_candidates: dict[str, jax.Array],
     ) -> None:
+        """Save topk checkpoint."""
         if self._save_top_k == 0:
             return
 
@@ -186,6 +197,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def _save_last_checkpoint(
         self, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
     ) -> None:
+        """Save last checkpoint."""
         if not self._save_last:
             return
 
@@ -211,6 +223,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def _save_monitor_checkpoint(
         self, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
     ) -> None:
+        """Save monitor checkpoint."""
         assert self._monitor is not None
         current = monitor_candidates.get(self._monitor)
 
@@ -221,6 +234,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def _save_none_monitor_checkpoint(
         self, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
     ) -> None:
+        """Save none monitor checkpoint."""
         filepath = self._get_metric_interpolated_filepath_name(
             trainer, monitor_candidates, self._best_model_path
         )
@@ -238,6 +252,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def _update_best_and_save(
         self, current: jax.Array, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
     ) -> None:
+        """Update best and save."""
         k = len(self._best_k_models) + 1 if self._save_top_k == -1 else self._save_top_k
 
         del_filepath = None
@@ -297,10 +312,12 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         filename: Optional[str] = None,
         version: Optional[int] = None,
     ) -> str:
+        """Get checkpoint filepath."""
         filepath = self.format_checkpoint_name(metrics, filename, version)
         return os.path.join(self._get_dirpath(trainer), filepath)
 
     def _get_dirpath(self, trainer: "reax.Trainer") -> str:
+        """Get dirpath."""
         if self._dirpath is not None:
             return self._dirpath
         elif trainer.default_root_dir is not None:
@@ -314,6 +331,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         monitor_candidates: dict[str, jax.Array],
         del_filepath: Optional[str] = None,
     ) -> str:
+        """Get metric interpolated filepath name."""
         filepath = self._get_checkpoint_filepath(trainer, monitor_candidates)
 
         if self._enable_version_counter:
@@ -333,6 +351,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         prefix: str = "",
         auto_insert_metric_name: bool = True,
     ) -> str:
+        """Format checkpoint name."""
         if not filename:
             # filename is not set, use default name
             filename = "{epoch}" + self.CHECKPOINT_JOIN_CHAR + "{step}"
@@ -364,6 +383,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         return filename
 
     def _save_checkpoint(self, trainer: "reax.Trainer", filepath: str) -> None:
+        """Save checkpoint."""
         trainer.save_checkpoint(filepath)
         self._last_global_step_saved = trainer.global_updates
         self._last_checkpoint_saved = filepath
@@ -377,7 +397,6 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         - The previous checkpoint is the same as the current checkpoint (means the old was already overwritten by new)
         - The previous checkpoint is not in the current checkpoint directory and the filesystem is local
         - The previous checkpoint is the checkpoint the Trainer resumed from and the filesystem is local
-
         """
         if previous == current:
             return False

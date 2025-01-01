@@ -20,7 +20,7 @@ Path = Union[str, bytes, os.PathLike]
 
 
 class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
-    """Log results in a pandas dataframe"""
+    """Log results in a pandas dataframe."""
 
     LOGGER_JOIN_CHAR: Final[str] = "-"
 
@@ -47,11 +47,13 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
     @property
     @override
     def name(self) -> str:
+        """Name function."""
         return self._name
 
     @property
     @override
     def version(self) -> Union[int, str]:
+        """Version function."""
         if self._version is None:
             self._version = self._get_next_version()
         return self._version
@@ -59,11 +61,13 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
     @property
     @override
     def root_dir(self) -> Optional[str]:
+        """Root dir."""
         return self._root_dir
 
     @property
     @override
     def log_dir(self) -> Optional[str]:
+        """Log dir."""
         if self.root_dir is None:
             return None
 
@@ -73,11 +77,12 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
     @property
     def dataframe(self) -> pd.DataFrame:
-        """Get the dataframe from the current experiment"""
+        """Get the dataframe from the current experiment."""
         return self.experiment.dataframe
 
     @property
     def _experiment(self) -> "ExperimentWriter":
+        """Experiment function."""
         if self._exp is None:
             self._exp = ExperimentWriter(log_dir=self.log_dir, fmt=self._fmt)
 
@@ -86,10 +91,12 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
     @property
     @override
     def save_dir(self) -> Optional[str]:
+        """Save dir."""
         return self._root_dir
 
     @override
     def _log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
+        """Log metrics."""
         metrics = _utils.add_prefix(metrics, self._prefix, self.LOGGER_JOIN_CHAR)
 
         if step is None:
@@ -105,21 +112,25 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
         self,
         params: Union[dict[str, Any], argparse.Namespace],
     ) -> None:
+        """Log hyperparams."""
         params = _utils.convert_params(params)
         self.experiment.log_hparams(params)
 
     @override
     def _save(self) -> None:
+        """Save function."""
         self.experiment.save()
 
     @override
     def _finalize(self, status: str) -> None:
+        """Finalize function."""
         if self._experiment is not None:
             return
 
         self.save()
 
     def _get_next_version(self) -> int:
+        """Get next version."""
         if self.root_dir is None:
             return 0
 
@@ -150,6 +161,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
     @staticmethod
     def _sanitize_params(params: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize params."""
         params = _utils.sanitize_params(params)
         # logging of arrays with dimension > 1 is not supported, sanitize as string
         return {
@@ -159,7 +171,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
 
 class ExperimentWriter:
-    """Pandas experiment writer"""
+    r"""Pandas experiment write."""
 
     DEFAULT_BASENAME = "metrics"
     HPARAMS_FILENAME = "hparams.yaml"
@@ -194,23 +206,29 @@ class ExperimentWriter:
 
     @property
     def log_dir(self) -> Optional[str]:
+        """Log dir."""
         return self._log_dir
 
     @property
     def metrics(self):
+        """Metrics function."""
         return self._rows
 
     @property
     def metrics_file_path(self) -> Optional[str]:
+        """Metrics file path."""
         return self._metrics_file_path
 
     @property
     def dataframe(self) -> pd.DataFrame:
-        """Get the experiment's dataframe"""
+        """Get the experiment's dataframe."""
         return pd.DataFrame(self._rows)
 
     def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
+        """Log metrics."""
+
         def _handle_value(value: Union[jax.Array, np.ndarray, Any]) -> Any:
+            """Handle value."""
             if isinstance(value, (jax.Array, np.ndarray)):
                 return value.item()
             return value
@@ -242,6 +260,7 @@ class ExperimentWriter:
         save_method(self._metrics_file_path)
 
     def _check_log_dir_exists(self) -> None:
+        """Check log dir exists."""
         if self._fs.exists(self.log_dir) and self._fs.listdir(self.log_dir):
             rank_zero.rank_zero_warn(
                 f"Experiment logs directory {self.log_dir} exists and is not empty."

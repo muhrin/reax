@@ -11,17 +11,20 @@ OutT = TypeVar("OutT")
 class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
     @classmethod
     def from_fun(cls, function: Callable) -> type["FromFun[OutT]"]:
-        """
-        Create a new metric from this one where a function is called before passing it on to this
+        """Create a new metric from this one where a function is called before passing it on to this
         metric.
-        :param function: the function to call
-        :return: the new metric type
+        :param cls:
+        :param function: The function to call.
+        :type function: Callable
+        :return: The new metric type.
+        :rtype: type["FromFun[OutT]"]
         """
 
         class FromFunction(FromFun):
             metric = cls()  # pylint: disable=abstract-class-instantiated
 
             def fun(self, *args, **kwargs) -> "Metric[OutT]":
+                """Fun function."""
                 return function(*args, **kwargs)
 
         return FromFunction
@@ -36,19 +39,19 @@ class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def create(self, *args, **kwargs) -> "Metric":
-        """Create a new metric instance from data"""
+        """Create a new metric instance from data."""
 
     def update(self, *args, **kwargs) -> "Metric":
-        """Update the metric from new data and return a new instance"""
+        """Update the metric from new data and return a new instance."""
         return self.merge(self.create(*args, **kwargs))
 
     @abc.abstractmethod
     def merge(self, other: "Metric") -> "Metric":
-        """Merge the metric with data from another metric instance of the same type"""
+        """Merge the metric with data from another metric instance of the same type."""
 
     @abc.abstractmethod
     def compute(self) -> OutT:
-        """Compute the metric"""
+        """Compute the metric."""
 
     def plot(self, *_: Any, **__: Any) -> Any:
         """Override this method plot the metric value."""
@@ -59,9 +62,7 @@ ParentMetric = TypeVar("ParentMetric", bound=Metric)
 
 
 class FromFun(Metric[OutT]):
-    """
-    Helper class apply a function before passing the result to an existing metric.
-    """
+    """Helper class apply a function before passing the result to an existing metric."""
 
     fun: ClassVar[Callable]
     metric: ClassVar[Metric]
@@ -78,19 +79,23 @@ class FromFun(Metric[OutT]):
 
     @property
     def is_empty(self) -> bool:
+        """Is empty."""
         return self._state is None
 
     def empty(self) -> "FromFun[OutT]":
+        """Empty function."""
         if self.is_empty:
             return self
 
         return type(self)()
 
     def create(self, *args, **kwargs) -> "FromFun":
+        """Create function."""
         val = self._call_fn(*args, **kwargs)
         return type(self)(state=self.metric.create(*val))
 
     def merge(self, other: "FromFun") -> "FromFun":
+        """Merge function."""
         if self.is_empty:
             return other
         if other.is_empty:
@@ -99,6 +104,7 @@ class FromFun(Metric[OutT]):
         return type(self)(state=self._state.merge(other._state))  # pylint: disable=protected-access
 
     def update(self, *args, **kwargs) -> "FromFun":
+        """Update function."""
         if self.is_empty:
             return self.create(*args, **kwargs)
 
@@ -106,11 +112,13 @@ class FromFun(Metric[OutT]):
         return type(self)(state=self._state.update(*val))
 
     def compute(self) -> OutT:
+        """Compute function."""
         if self._state is None:
             raise RuntimeError("Nothing to compute, metric is empty!")
         return self._state.compute()
 
     def _call_fn(self, *args, **kwargs) -> tuple:
+        """Call fn."""
         val = self.fun(*args, **kwargs)
 
         # Automatically unroll a tuple of return values

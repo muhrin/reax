@@ -28,6 +28,7 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
     example_input_array: Optional[BatchT]
 
     def __init__(self, rng_key: jax.Array = None):
+        """Init function."""
         self._trainer: Optional["reax.Trainer"] = None
         self._rng_key = rng_key or jax.random.key(0)
         self._parameters = None
@@ -35,18 +36,22 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
 
     @property
     def automatic_optimization(self) -> bool:
+        """Automatic optimization."""
         return self._automatic_optimization
 
     @automatic_optimization.setter
     def automatic_optimization(self, automatic_optimization: bool) -> None:
+        """Automatic optimization."""
         self._automatic_optimization = automatic_optimization
 
     @property
     def trainer(self) -> "reax.Trainer":
+        """Trainer function."""
         return self._trainer
 
     @trainer.setter
     def trainer(self, trainer):
+        """Trainer function."""
         if self._trainer is not None and trainer is not None:
             raise RuntimeError("Cannot set trainer, it is already set.")
 
@@ -54,24 +59,28 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
 
     @property
     def global_updates(self) -> int:
-        """Get the global number of optimizer updates"""
+        """Get the global number of optimizer updates."""
         return self._trainer.global_updates
 
     @property
     def current_epoch(self) -> int:
-        """Get the current fitting epoch"""
+        """Get the current fitting epoch."""
         return self._trainer.current_epoch
 
     def parameters(self) -> Optional[jt.PyTree]:
+        """Parameters function."""
         return self._parameters
 
     def set_parameters(self, params: jt.PyTree):
+        """Set parameters."""
         self._parameters = params
 
     def rng_key(self, num=1) -> jax.Array:
+        """Rng key."""
         return self._trainer.rng_key(num=num)
 
     def optimizers(self) -> Union["reax.Optimizer", list["reax.Optimizer"]]:
+        """Optimizers function."""
         optimizers = self.trainer.optimizers
 
         # Check for a single optimiser
@@ -86,25 +95,28 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
         return optimizers
 
     def setup(self, stage: "reax.Stage"):
-        """Called at the beginning of each stage.  A chance to perform some setup on the module"""
+        """Called at the beginning of each stage.
+
+        A chance to perform some setup on the module.
+        """
 
     def training_step(self, batch: BatchT, batch_idx: int) -> Optional[TrainOutput]:
-        """Train step"""
+        """Train step."""
 
     def validation_step(self, batch: BatchT, batch_idx: int):
-        """Validate step"""
+        """Validate step."""
 
     def predict_step(self, batch: BatchT, batch_idx: int) -> OutputT_co:
-        """Make a model prediction and return the result"""
+        """Make a model prediction and return the result."""
 
     def test_step(self, batch: BatchT, batch_idx: int):
-        """Test step"""
+        """Test step."""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def configure_optimizers(
         self,
     ) -> Optional[Union[OptimizerData, Sequence[OptimizerData]]]:
-        """Create the optimizer(s) to use during training"""
+        """Create the optimizer(s) to use during training."""
         return None
 
     def log(
@@ -122,7 +134,6 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
         Example::
 
             self.log('train_loss', loss)
-
         """
         trainer = self._trainer
         if trainer is None:

@@ -23,6 +23,7 @@ class StatsEvaluator(stages.EpochStage):
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
         strategy: Optional["reax.Strategy"] = None,
     ):
+        """Init function."""
         accelerator = jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         strategy = strategy or strategies.SingleDevice(accelerator)
         super().__init__("Metrics evaluator", None, dataloader, strategy)
@@ -30,6 +31,7 @@ class StatsEvaluator(stages.EpochStage):
 
     @override
     def _step(self) -> Any:
+        """Step function."""
         # Calculate and log all the stats
         for name, stat in self._stats.items():
             if isinstance(self.batch, tuple):
@@ -42,6 +44,7 @@ def evaluate_stats(
     stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
     dataloader: "reax.DataLoader",
 ) -> typing.MetricsDict:
+    """Evaluate stats."""
     evaluator = StatsEvaluator(stats, dataloader)
     evaluator.run()
     return evaluator.logged_metrics

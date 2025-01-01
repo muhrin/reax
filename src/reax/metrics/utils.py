@@ -17,24 +17,29 @@ M = TypeVar("M", bound=Metric)
 
 class ReduceFn(Protocol):
     def __call__(self, values: jax.Array, where: jax.Array = None) -> jax.Array:
-        """Perform reduction on the passed values"""
+        """Perform reduction on the passed values."""
 
 
 def _prepare_mask(
     mask: jt.Bool[jax.Array, "n_elements"], array: jt.Float[jax.Array, "..."]
 ) -> jt.Float[jax.Array, "n_elements ..."]:
     """
-    Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure the
-    mask is of the right shape to be compatible with such an operation.  The other alternative is
+    Prepare a mask for use with jnp.where(mask, array, ...).
 
-        ``jnp.where(mask, array.T, ...).T``
+    This needs to be done to make sure the mask is of the right shape to be compatible with such an operation.  The other alternative is
+
+    .. code-block::
+
+        jnp.where(mask, array.T, ...).T
 
     but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not
     sure why, but this approach seems to avoid the problem.
-
-    :param mask: the mask to prepare
-    :param array: the array the mask will be applied to
-    :return: the prepared mask, typically this is just padded with extra dimensions (or reduced)
+    :param mask: The mask to prepare.
+    :type mask: jt.Bool[jax.Array, "n_elements"]
+    :param array: The array the mask will be applied to.
+    :type array: jt.Float[jax.Array, "..."]
+    :return: The prepared mask, typically this is just padded with extra dimensions (or reduced).
+    :rtype: jt.Float[jax.Array, "n_elements ..."]
     """
     return mask.reshape(-1, *(1,) * len(array.shape[1:]))
 
@@ -43,6 +48,7 @@ def _prepare_mask(
 def prepare_mask(
     values: jax.typing.ArrayLike, mask: Optional[typing.ArrayMask] = None
 ) -> Optional[Union[jt.Int[jt.ArrayLike, "..."], jt.Bool[jt.ArrayLike, "..."]]]:
+    """Prepare mask."""
     if mask is None:
         return None
     if mask.shape == values.shape:
@@ -69,6 +75,7 @@ def prepare_mask(
 
 
 def concat(tensors: tuple[jax.Array]) -> jax.Array:
+    """Concat function."""
     return jnp.concatenate(tuple(map(jnp.atleast_1d, tensors)))
 
 
@@ -87,11 +94,13 @@ class WithAccumulator(equinox.Module):
         values: jax.typing.ArrayLike,
         mask: Optional[jax.typing.ArrayLike] = None,
     ) -> Self:
+        """Create function."""
         mask = prepare_mask(values, mask)
         return cls(accumulator=cls.reduce_fn(values, where=mask))
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def merge(self, other: Self) -> Self:
+        """Merge function."""
         if self.accumulator is None:
             return other
 
@@ -104,6 +113,7 @@ class WithAccumulator(equinox.Module):
         values: jax.typing.ArrayLike,
         mask: Optional[jax.typing.ArrayLike] = None,
     ) -> Self:
+        """Update function."""
         cls = type(self)
         if self.accumulator is None:
             return cls.create(values, mask=mask)
@@ -114,12 +124,12 @@ class WithAccumulator(equinox.Module):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def compute(self) -> jax.Array:
+        """Compute function."""
         return self.accumulator
 
 
 class WithAccumulatorAndCount(WithAccumulator):
-    """
-    Helper class to group common functionality for metrics that can keep track using a total and
+    """Helper class to group common functionality for metrics that can keep track using a total and
     count accumulators
     """
 
@@ -133,12 +143,14 @@ class WithAccumulatorAndCount(WithAccumulator):
         values: jt.ArrayLike,
         mask: Optional[typing.ArrayMask] = None,
     ) -> Self:
+        """Create function."""
         mask = prepare_mask(values, mask)
         count = jnp.sum(mask) if mask is not None else values.size
         return cls(accumulator=cls.reduce_fn(values, where=mask), count=count)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def merge(self, other: Self) -> Self:
+        """Merge function."""
         if self.count == 0:
             return other
 
@@ -154,6 +166,7 @@ class WithAccumulatorAndCount(WithAccumulator):
         values: jax.typing.ArrayLike,
         mask: Optional[jax.typing.ArrayLike] = None,
     ) -> Self:
+        """Update function."""
         cls = type(self)
         if self.count == 0:
             # This metric is empty
@@ -169,4 +182,5 @@ class WithAccumulatorAndCount(WithAccumulator):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def compute(self) -> jax.Array:
+        """Compute function."""
         return self.accumulator / self.count

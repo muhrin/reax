@@ -12,8 +12,9 @@ __all__ = ("Average", "Std", "Min", "Max", "Unique", "NumUnique")
 
 class Aggregation(Metric[jax.Array], metaclass=abc.ABCMeta):
     """
-    Interface that defines an aggregation metric.  This takes a single array and possibly as ask
-    and calculates a metric.
+    Interface that defines an aggregation metric.
+
+    This takes a single array and possibly as ask and calculates a metric.
     """
 
     Self = TypeVar("Self", bound="Aggregation")
@@ -24,7 +25,7 @@ class Aggregation(Metric[jax.Array], metaclass=abc.ABCMeta):
         values: jax.typing.ArrayLike,
         mask: Optional[jax.typing.ArrayLike] = None,
     ) -> Self:
-        """Create the metric from data"""
+        """Create the metric from data."""
 
     @abc.abstractmethod
     def update(  # pylint: disable=arguments-differ
@@ -32,7 +33,7 @@ class Aggregation(Metric[jax.Array], metaclass=abc.ABCMeta):
         values: jax.typing.ArrayLike,
         mask: Optional[jax.typing.ArrayLike] = None,
     ) -> Self:
-        """Update this metric and return an updated instance"""
+        """Update this metric and return an updated instance."""
 
 
 class Sum(utils.WithAccumulator, Aggregation):
@@ -48,28 +49,30 @@ class Max(utils.WithAccumulator, Aggregation):
 
 
 class Unique(utils.WithAccumulator, Aggregation):
-    """
-    Get the set of unique values.
+    """Get the set of unique values.
 
     warning: this cannot be used with JAX jit because it relies on dynamically-sized arrays
     """
 
     @staticmethod
     def reduce_fn(values, where=None):
+        """Reduce fn."""
         return jnp.unique(values[where] if where is not None else values)
 
 
 class NumUnique(utils.WithAccumulator, Aggregation):
     """Count the number of unique values
 
-    warning: this cannot be used with JAX jit because it relies on dynamically-sized arrays
+    warning: this cannot be used with JAX jit because it relies on dynamically-sized arrays....
     """
 
     @staticmethod
     def reduce_fn(values, where=None):
+        """Reduce fn."""
         return jnp.unique(values[where] if where is not None else values)
 
     def compute(self) -> jax.Array:
+        """Compute function."""
         return jnp.asarray(jnp.size(self.accumulator))
 
 
@@ -78,9 +81,7 @@ class Average(utils.WithAccumulatorAndCount, Aggregation):
 
 
 class Std(Aggregation):
-    """
-    Calculate standard deviation
-    """
+    """Calculate standard deviation."""
 
     total: jax.Array
     sum_of_squares: jax.Array
@@ -99,7 +100,7 @@ class Std(Aggregation):
         values: jax.typing.ArrayLike,
         mask: Optional[jax.typing.ArrayLike] = None,
     ) -> "Std":
-        """Create the metric from data"""
+        """Create the metric from data."""
         if values.ndim == 0:
             values = values[None]
         if mask is None:
@@ -118,6 +119,7 @@ class Std(Aggregation):
         values: jax.Array,
         mask: Optional[jax.Array] = None,
     ) -> "Std":
+        """Update function."""
         if values.ndim == 0:
             values = values[None]
         if mask is None:
@@ -132,6 +134,7 @@ class Std(Aggregation):
         )
 
     def merge(self, other: "Std") -> "Std":
+        """Merge function."""
         return type(self)(
             total=self.total + other.total,
             sum_of_squares=self.sum_of_squares + other.sum_of_squares,
@@ -139,6 +142,7 @@ class Std(Aggregation):
         )
 
     def compute(self) -> jax.Array:
+        """Compute function."""
         # var(X) = 1/N \sum_i (x_i - mean)^2
         #        = 1/N \sum_i (x_i^2 - 2 x_i mean + mean^2)
         #        = 1/N ( \sum_i x_i^2 - 2 mean \sum_i x_i + N * mean^2 )

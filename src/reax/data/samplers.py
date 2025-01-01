@@ -16,28 +16,28 @@ IdxT = TypeVar("IdxT", bound=Hashable)
 
 class SequentialSampler(_types.Sampler[int]):
     """
-    Sequentially sample integers index samples up to a given `length`.  Equivalent to
-    `range(length)`
+    Sequentially sample integers index samples up to a given ``length``. Equivalent to
+    ``range(length)``.
     """
 
     def __init__(self, length: int) -> None:
+        """Init function."""
         if not isinstance(length, int):
             raise TypeError("Length must be an integer")
 
         self._length = length
 
     def __iter__(self) -> Iterator[int]:
+        """Iter function."""
         return iter(range(self._length))
 
     def __len__(self) -> int:
+        """Len function."""
         return self._length
 
 
 class RandomSampler(_types.Sampler[int]):
-    """
-    Randomly sample integer index up to a given `length` with possible `replacements`
-
-    """
+    """Randomly sample integer index up to a given ``length`` with possible ``replacements``."""
 
     SAMPLE_SIZE = 32  # Used to control the number of samples we generate internally at once
 
@@ -48,15 +48,18 @@ class RandomSampler(_types.Sampler[int]):
 
     @property
     def num_samples(self) -> int:
+        """Num samples."""
         if self._num_samples is None:
             return self._length
 
         return self._num_samples  # Fixed number of samples
 
     def __len__(self) -> int:
+        """Len function."""
         return self.num_samples
 
     def __iter__(self) -> Iterator[int]:
+        """Iter function."""
         total = self._length
 
         if self._replacements:
@@ -72,7 +75,7 @@ class RandomSampler(_types.Sampler[int]):
 
 
 class BatchSampler(_types.Sampler[list[IdxT]]):
-    """Sample batches of indexes from a given sampler"""
+    r"""Sample batches of indexes from a given sample."""
 
     def __init__(self, sampler: _types.Sampler[IdxT], batch_size: int, drop_last: bool) -> None:
         self._sampler = sampler
@@ -80,6 +83,7 @@ class BatchSampler(_types.Sampler[list[IdxT]]):
         self._drop_last = drop_last
 
     def __iter__(self) -> Iterator[list[IdxT]]:
+        """Iter function."""
         if self._drop_last:
             sampler_iter = iter(self._sampler)
             while True:
@@ -102,6 +106,7 @@ class BatchSampler(_types.Sampler[list[IdxT]]):
                 yield batch[:idx_in_batch]
 
     def __len__(self) -> int:
+        """Len function."""
         if self._drop_last:
             return len(self._sampler) // self._batch_size
 
@@ -110,6 +115,7 @@ class BatchSampler(_types.Sampler[list[IdxT]]):
 
 class IterableSampler(_types.Sampler[None]):
     def __iter__(self) -> Iterator[None]:
+        """Iter function."""
         yield from itertools.repeat(None)
 
 
@@ -120,6 +126,7 @@ def create_sampler(
     replacements: bool = False,
     shuffle: bool = False,
 ) -> _types.Sampler:
+    """Create sampler."""
     raise TypeError(f"Unsupported type {type(dataset).__name__}")
 
 
@@ -133,6 +140,7 @@ with contextlib.suppress(ImportError):
         replacements: bool = False,
         shuffle: bool = False,
     ):
+        """Create torch iterable dataset sampler."""
         return create_iterable_sampler(
             dataset, batch_size=batch_size, replacements=replacements, shuffle=shuffle
         )
@@ -144,6 +152,7 @@ with contextlib.suppress(ImportError):
         replacements: bool = False,
         shuffle: bool = False,
     ):
+        """Create torch dataset sampler."""
         return create_sequence_sampler(
             dataset, batch_size=batch_size, replacements=replacements, shuffle=shuffle
         )
@@ -156,6 +165,7 @@ def create_sequence_sampler(
     replacements: bool = False,
     shuffle: bool = False,
 ) -> _types.Sampler[list[IdxT]]:
+    """Create sequence sampler."""
     if shuffle:
         sampler = RandomSampler(len(dataset), replacements=replacements)
     else:
@@ -171,6 +181,7 @@ def create_iterable_sampler(
     replacements: bool = False,
     shuffle: bool = False,
 ) -> Union[_types.Sampler[None], _types.Sampler[list[None]]]:
+    """Create iterable sampler."""
     if shuffle:
         raise ValueError(
             f"``shuffle=True`` is not supported with dataset type {type(dataset).__name__} which "
@@ -195,6 +206,7 @@ def create_batch_sampler(
     replacements: bool = False,
     shuffle: bool = False,
 ) -> BatchSampler[int]:
+    """Create batch sampler."""
     if shuffle:
         sampler = RandomSampler(len(dataset), replacements=replacements)
     else:

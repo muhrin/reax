@@ -14,7 +14,7 @@ T = TypeVar("T", bound=type)
 
 
 class BatchSizer:
-    """Tool for extracting batch sizes from dataset"""
+    """Tool for extracting batch sizes from dataset."""
 
     def __init__(self):
         self._registry = containers.TypeRegistry[Extractor]()
@@ -24,6 +24,7 @@ class BatchSizer:
         entry_type: Union[T, tuple[type, ...]],
         extractor: Callable[[Union[T, tuple[type, ...]]], Iterable[int]],
     ):
+        """Register function."""
         self._registry.register(entry_type, extractor)
 
     def extract_batch_size(self, batch) -> Iterable[int]:
@@ -35,6 +36,7 @@ class BatchSizer:
             yield from self._fallback_extractor(batch)
 
     def _fallback_extractor(self, batch) -> Iterable[int]:
+        """Fallback extractor."""
         if isinstance(batch, (Iterable, Mapping)):
             if isinstance(batch, Mapping):
                 batch = batch.values()
@@ -55,6 +57,7 @@ _registry = None  # pylint: disable=invalid-name
 
 
 def _array_batch_size(batch: Union[jax.Array, np.ndarray]):
+    """Array batch size."""
     if batch.ndim == 0:
         yield 1
     else:
@@ -65,6 +68,7 @@ try:
     import torch
 
     def _tensor_batch_size(batch: "torch.Tensor"):
+        """Tensor batch size."""
         if batch.ndim == 0:
             yield 1
         else:
@@ -75,6 +79,7 @@ except ImportError:
 
 
 def get_registry() -> BatchSizer:
+    """Get registry."""
     global _registry  # pylint: disable=global-statement
     if _registry is None:
         _registry = BatchSizer()
@@ -86,6 +91,7 @@ def get_registry() -> BatchSizer:
 
 
 def extract_batch_size(batch) -> int:
+    """Extract batch size."""
     error_msg = (
         "Could not determine batch size automatically.  You can provide this manually using "
         "`self.log(..., batch_size=size)`"
@@ -111,6 +117,7 @@ def extract_batch_size(batch) -> int:
 
 
 def sized_len(dataloader) -> Optional[int]:
+    """Sized len."""
     try:
         return len(dataloader)
     except (TypeError, NotImplementedError):

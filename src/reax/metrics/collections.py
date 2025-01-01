@@ -17,7 +17,7 @@ MetricType = Union[type[metric_.Metric], metric_.Metric]
 
 
 class MetricCollection(equinox.Module):
-    """A collection of metrics that can be created/updated/merged using a single call"""
+    """A collection of metrics that can be created/updated/merged using a single call."""
 
     _metrics: flax.core.FrozenDict[str, "reax.Metric"]
 
@@ -29,6 +29,7 @@ class MetricCollection(equinox.Module):
         self._metrics = flax.core.FrozenDict(_metrics_dict(metrics))
 
     def items(self):
+        """Items function."""
         return self._metrics.items()
 
     def empty(self) -> "MetricCollection":
@@ -40,17 +41,20 @@ class MetricCollection(equinox.Module):
         return MetricCollection({name: metric.empty() for name, metric in self._metrics.items()})
 
     def create(self, *args, **kwargs) -> "MetricCollection":
+        """Create function."""
         return MetricCollection(
             {name: metric.create(*args, **kwargs) for name, metric in self._metrics.items()}
         )
 
     def update(self, *args, **kwargs) -> "MetricCollection":
+        """Update function."""
         return MetricCollection(
             {name: metric.update(*args, **kwargs) for name, metric in self._metrics.items()}
         )
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def merge(self, other: "MetricCollection") -> "MetricCollection":
+        """Merge function."""
         merged = {}
         for name, metric in self._metrics.items():
             try:
@@ -69,12 +73,14 @@ class MetricCollection(equinox.Module):
         return MetricCollection(merged)
 
     def compute(self) -> dict[str, Any]:
+        """Compute function."""
         return {name: metric.compute() for name, metric in self._metrics.items()}
 
 
 def _metrics_dict(
     metrics: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]]
 ) -> dict[str, metric_.Metric]:
+    """Metrics dict."""
     if isinstance(metrics, dict):
         return {name: _ensure_metric(metric) for name, metric in metrics.items()}
 
@@ -87,10 +93,12 @@ def _metrics_dict(
 
 
 def _ensure_metric(metric: "reax.Metric") -> metric_.Metric:
+    """Ensure metric."""
     return metric
 
 
 def combine(*metric: metric_.Metric) -> MetricCollection:
     """Combine multiple metrics with the same signature into a collection that can be used to
-    calculate multiple metrics at once"""
+    calculate multiple metrics at once
+    """
     return MetricCollection(metric)

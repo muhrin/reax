@@ -16,6 +16,7 @@ ArrayOrArrayTuple = Union[jax.typing.ArrayLike, tuple[jax.typing.ArrayLike, ...]
 
 
 def _single_or_value(value: tuple[T, ...], to_test=None) -> Union[T, tuple[T, ...]]:
+    """Single or value."""
     if to_test is None:
         to_test = value
     if len(to_test) > 1:
@@ -24,9 +25,7 @@ def _single_or_value(value: tuple[T, ...], to_test=None) -> Union[T, tuple[T, ..
 
 
 class ReaxDataLoader(_types.DataLoader):
-    """
-    A general-purpose data loader provided by REAX that is suitable for most situations.
-    """
+    """A general-purpose data loader provided by REAX that is suitable for most situations."""
 
     def __init__(
         self,
@@ -50,18 +49,21 @@ class ReaxDataLoader(_types.DataLoader):
 
     @property
     def batch_size(self) -> int:
+        """Batch size."""
         return self._batch_size
 
     def __len__(self) -> int:
+        """Len function."""
         return len(self._index_sampler)
 
     def __iter__(self):
+        """Iter function."""
         for indices in self._index_sampler:
             yield self._fetcher.fetch(indices)
 
 
 class ArrayLoader(Iterable[ArrayOrArrayTuple]):
-    """A dataset of arrays"""
+    """A dataset of arrays."""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
@@ -86,6 +88,7 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __iter__(self) -> Iterator[ArrayOrArrayTuple]:
+        """Iter function."""
         for idx in self._sampler:
             idx = np.asarray(idx)
             if isinstance(self._arrays, tuple):
@@ -95,16 +98,17 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __len__(self) -> int:
+        """Len function."""
         return len(self._sampler)
 
     def first(self) -> ArrayOrArrayTuple:
+        """First function."""
         return next(iter(self))
 
 
 class CachingLoader(Iterable):
-    """
-    Caching loader is useful, for example, if you don't want to shuffle data every time but at
-    some interval defined by `repeat_every`.  This means you need to have enough memory to
+    """Caching loader is useful, for example, if you don't want to shuffle data every time but at
+    some interval defined by ``reset_every``.  This means you need to have enough memory to
     accommodate all the data.
     """
 
@@ -115,6 +119,7 @@ class CachingLoader(Iterable):
         self._cache = None
 
     def __iter__(self):
+        """Iter function."""
         if self._cache:
             yield from self._cache
         else:

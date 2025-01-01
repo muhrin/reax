@@ -27,13 +27,16 @@ DEFAULT_COLLATE_ERR_MSG_FORMAT = (
 
 class Collator:
     def __init__(self):
+        """Init function."""
         super().__init__()
         self._registry = containers.TypeRegistry[CollateFn]()
 
     def register(self, entry_type: T_co, collate_fn: Callable[[Sequence[T_co]], U]):
+        """Register function."""
         self._registry.register(entry_type, collate_fn)
 
     def collate(self, batch: Any) -> Any:
+        """Collate function."""
         elem = batch[0]
 
         collate_fn = self._registry.find(elem)
@@ -44,7 +47,7 @@ class Collator:
         return self._fallback_collate(batch)
 
     def _fallback_collate(self, batch: Any) -> Any:
-        """Called when the batch element doesn't match any type registered with the collator"""
+        r"""Called when the batch element doesn't match any type registered with the collato."""
         elem = batch[0]
         elem_type = type(elem)
 
@@ -97,18 +100,22 @@ class Collator:
 
 
 def collate_jax_array_fn(batch: Sequence[jax.Array]):
+    """Collate jax array fn."""
     return np.stack(batch)
 
 
 def collate_numpy_scalar_fn(batch):
+    """Collate numpy scalar fn."""
     return np.asarray(batch)
 
 
 def collate_int_fn(batch):
+    """Collate int fn."""
     return np.asarray(batch)
 
 
 def collate_numpy_array_fn(batch: Sequence[np.ndarray]):
+    """Collate numpy array fn."""
     return np.stack(batch)
 
 
@@ -116,7 +123,7 @@ _default_collator: Optional[Collator] = None
 
 
 def get_default_collator() -> Collator:
-    """Get or create the default collator"""
+    r"""Get or create the default collato."""
     global _default_collator  # pylint: disable=global-statement
     if _default_collator is not None:
         return _default_collator
@@ -145,4 +152,5 @@ def get_default_collator() -> Collator:
 
 
 def default_collate(batch) -> Any:
+    """Default collate."""
     return get_default_collator().collate(batch)
