@@ -17,7 +17,7 @@ from typing_extensions import override
 
 from .. import data, exceptions, keys, modules
 from .. import optimizers as optimizers_
-from .. import results
+from .. import results, typing
 from ..lightning import rank_zero
 from ..utils import arrays, events
 
@@ -70,19 +70,27 @@ class StageListener:
         """
 
 
-class ShouldStop:
+class _Stopper:
     def __init__(self):
-        self._should_stop = False
-        self._conditions: list[Callable[[], bool]] = [lambda: self._should_stop]
+        self._stop_requested = False
+        self._conditions: list[Callable[[], bool]] = []
 
-    def do_stop(self) -> bool:
+    @property
+    def stop_requested(self) -> bool:
+        return self._stop_requested
+
+    @property
+    def can_stop(self):
         return all(condition() for condition in self._conditions)
 
+    def do_stop(self) -> bool:
+        return self._stop_requested and self.can_stop
+
     def set(self):
-        self._should_stop = True
+        self._stop_requested = True
 
     def get(self) -> bool:
-        return self._should_stop
+        return self._stop_requested
 
     def add_condition(self, condition: Callable[[], bool]) -> None:
         self._conditions.append(condition)
@@ -109,8 +117,9 @@ class Stage(abc.ABC):
 
         # State
         self._module = module
+        self._warning_cache = rank_zero.WarningCache()
         self._iter = -1
-        self._stopper = ShouldStop()
+        self._stopper = _Stopper()
         self._stopper.add_condition(lambda: self._iter >= self._min_iters)
         self._stop_reason: str = ""
         self._run_count = 0
@@ -332,7 +341,7 @@ class EpochStage(Stage, abc.ABC):
         return self._metrics_results
 
     @property
-    def callback_metrics(self) -> dict:
+    def callback_metrics(self) -> typing.MetricsDict:
         """Get the metrics available to callbacks"""
         if not self._metrics_results:
             return dict()
@@ -340,7 +349,7 @@ class EpochStage(Stage, abc.ABC):
         return self._metrics_results[keys.CALLBACK]
 
     @property
-    def logged_metrics(self) -> dict:
+    def logged_metrics(self) -> typing.MetricsDict:
         """Get the metrics available to loggers"""
         if not self._metrics_results:
             return dict()
@@ -348,7 +357,7 @@ class EpochStage(Stage, abc.ABC):
         return self._metrics_results[keys.LOG]
 
     @property
-    def progress_bar_metrics(self) -> dict:
+    def progress_bar_metrics(self) -> typing.MetricsDict:
         """Get the metrics available to progress indicators"""
         if not self._metrics_results:
             return dict()
@@ -463,7 +472,7 @@ class Train(EpochStage):
         max_batches: Union[int, float] = float("inf"),
         accumulate_grad_batches: int = 1,
         parent: Optional["reax.Stage"] = None,
-        stopper: Optional[ShouldStop] = None,
+        stopper: Optional[_Stopper] = None,
     ):
         super().__init__(
             "Training epoch", module, dataloader, strategy, max_batches=max_batches, parent=parent
@@ -563,11 +572,19 @@ class Train(EpochStage):
             )
             return True
 
-        if self._stopper.do_stop():
-            rank_zero.rank_zero_debug(
-                f"`{type(self).__name__}` stopped: `{type(self).__name__}.should_stop` was set."
-            )
-            return True
+        if self._stopper.stop_requested:
+            if self._stopper.can_stop:
+                rank_zero.rank_zero_debug(
+                    f"`{type(self).__name__}` stopped: `{type(self).__name__}.should_stop` was set."
+                )
+            else:
+                self._warning_cache.info(
+                    f"Trainer was signaled to stop but the required "
+                    f"`min_epochs={self.parent._min_iters!r}` or"
+                    f" `min_steps={self._min_updates!r}` has not been met. "
+                    f"Training will continue..."
+                )
+            return self._stopper.can_stop
 
         return False
 
@@ -694,7 +711,7 @@ class FitEpoch(Train):
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
         parent: Optional["reax.Stage"] = None,
-        stopper: Optional[ShouldStop] = None,
+        stopper: Optional[_Stopper] = None,
     ):
         super().__init__(
             module,

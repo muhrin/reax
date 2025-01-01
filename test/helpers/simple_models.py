@@ -33,6 +33,7 @@
 import functools
 from typing import Any, Callable, Optional
 
+import equinox as eqx
 from flax import linen
 import jax.typing
 import jaxtyping as jt
@@ -111,7 +112,7 @@ class ClassificationModel(reax.Module):
         return self.forward(x)
 
     @staticmethod
-    @functools.partial(jax.jit, static_argnums=[3, 4], donate_argnums=[0, 1, 2])
+    @eqx.filter_jit(donate="all")
     def step(
         params: jt.PyTree,
         inputs: Any,

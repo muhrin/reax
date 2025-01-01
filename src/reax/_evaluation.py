@@ -6,12 +6,12 @@ import jax
 import jaxtyping as jt
 from typing_extensions import override
 
-from reax import metrics, stages, strategies
+from reax import metrics, stages, strategies, typing
 
 if TYPE_CHECKING:
     import reax
 
-__all__ = ("StatsEvaluator", "evaluate_stats")
+__all__ = ("evaluate_stats",)
 
 
 class StatsEvaluator(stages.EpochStage):
@@ -41,7 +41,7 @@ class StatsEvaluator(stages.EpochStage):
 def evaluate_stats(
     stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
     dataloader: "reax.DataLoader",
-):
+) -> typing.MetricsDict:
     evaluator = StatsEvaluator(stats, dataloader)
     evaluator.run()
     return evaluator.logged_metrics

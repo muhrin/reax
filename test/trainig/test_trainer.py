@@ -155,14 +155,18 @@ def test_trainer_min_steps_and_min_epochs_not_reached(tmp_path, caplog):
         enable_progress_bar=False,
         listeners=[early_stop],
     )
-    with caplog.at_level(logging.INFO, logger="reax.training"):
+    with caplog.at_level(logging.INFO, logger="reax"):
         trainer.fit(
             min_epochs=min_epochs,
             limit_val_batches=0,
             limit_train_batches=2,
         )
 
-    message = f"training `min_iters={min_epochs}` has not been met. Stage will continue"
+    message = (
+        f"Trainer was signaled to stop but the required "
+        f"`min_epochs={min_epochs!r}` or `min_steps=-1` has not been met. "
+        f"Training will continue..."
+    )
     num_messages = sum(1 for record in caplog.records if message in record.message)
     assert num_messages == 1
     assert model.training_step_invoked == min_epochs * 2

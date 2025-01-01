@@ -82,8 +82,7 @@ def test_stats_evaluator(rng_key):
         "std": metrics.Std(),
     }
 
-    eval = reax.StatsEvaluator(stats, reax.data.ArrayLoader(values, batch_size=batch_size))
-    results = eval.run()
+    results = reax.evaluate_stats(stats, reax.data.ArrayLoader(values, batch_size=batch_size))
 
     assert isinstance(results, dict)
     assert jnp.isclose(results["avg"], values.mean())
