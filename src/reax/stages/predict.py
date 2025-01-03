@@ -20,12 +20,13 @@ class Predict(stages.EpochStage):
         module: "reax.Module",
         dataloader,
         strategy: "reax.Strategy",
+        *,
         max_batches: Union[int, float] = float("inf"),
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
         super().__init__(
-            "Predicting", module, dataloader, strategy, max_batches=max_batches, parent=parent
+            "predict", module, dataloader, strategy, max_batches=max_batches, parent=parent
         )
         self._all_outputs = []
 

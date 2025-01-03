@@ -18,6 +18,7 @@ class Validate(stages.EpochStage):
         module: "reax.Module",
         dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
+        *,
         max_batches: Union[int, float] = -1,
         parent: Optional["reax.Stage"] = None,
     ):

@@ -39,6 +39,7 @@ class Stage(abc.ABC):
         name: str,
         module: Optional["reax.Module"],
         strategy: "reax.Strategy",
+        *,
         max_iters: Union[int, float] = float("inf"),
         min_iters: int = -1,
         parent: Optional["reax.Stage"] = None,

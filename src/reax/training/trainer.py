@@ -68,7 +68,9 @@ class Trainer(stages.StageListener):
         self._current_epoch: int = 0
         self._global_updates: int = 0
 
-        self.events = events.EventGenerator[hooks.TrainerListener]()
+        self.events = events.EventGenerator[hooks.TrainerListener](
+            default_args=(weakref.proxy(self),)
+        )
 
         # Attach the trainer to the module
         self._module: modules.Module = module
@@ -488,34 +490,32 @@ class Trainer(stages.StageListener):
 
         if stage.is_root:
             # Only setup for the root loop
-            self.events.fire_event(hooks.TrainerListener.setup, weakref.proxy(self), stage)
+            self.events.fire_event(hooks.TrainerListener.setup, stage)
 
-        self.events.fire_event(hooks.TrainerListener.on_stage_starting, weakref.proxy(self), stage)
+        self.events.fire_event(hooks.TrainerListener.on_stage_starting, stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_starting)
         if event is not None:
-            self.events.fire_event(event, self, stage)
+            self.events.fire_event(event, stage)
 
     @override
     def on_stage_started(self, stage: "reax.Stage", /):
         """On stage started."""
-        self.events.fire_event(hooks.TrainerListener.on_stage_started, weakref.proxy(self), stage)
+        self.events.fire_event(hooks.TrainerListener.on_stage_started, stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_started)
         if event is not None:
-            self.events.fire_event(event, self, stage)
+            self.events.fire_event(event, stage)
 
     @override
     def on_stage_iter_starting(self, stage: "stages.Stage", step: int):
         """On stage iter starting."""
-        self.events.fire_event(
-            hooks.TrainerListener.on_stage_iter_starting, weakref.proxy(self), stage, step
-        )
+        self.events.fire_event(hooks.TrainerListener.on_stage_iter_starting, stage, step)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_iter_starting)
         if event is not None:
             stage = cast(stages.EpochStage, stage)
-            self.events.fire_event(event, self, stage, stage.batch, step)
+            self.events.fire_event(event, stage, stage.batch, step)
 
     @override
     def on_stage_iter_ending(self, stage: "stages.Stage", step: int, outputs: Any, /):
@@ -529,7 +529,6 @@ class Trainer(stages.StageListener):
 
             self.events.fire_event(
                 hooks.TrainerListener.on_batch_ending,
-                self,
                 stage,
                 batch_idx=step,
                 metrics=outputs,
@@ -538,7 +537,7 @@ class Trainer(stages.StageListener):
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_iter_ending)
         if event is not None:
             stage = cast(stages.EpochStage, stage)
-            self.events.fire_event(event, self, stage, outputs, stage.batch, step)
+            self.events.fire_event(event, stage, outputs, stage.batch, step)
 
         if isinstance(stage, stages.Fit):
             # Keep track of the number of completed training epochs
@@ -549,7 +548,7 @@ class Trainer(stages.StageListener):
         """On stage ending."""
         if isinstance(stage, stages.EpochStage):
             self.events.fire_event(
-                hooks.TrainerListener.on_epoch_ending, self, stage, stage.callback_metrics
+                hooks.TrainerListener.on_epoch_ending, stage, stage.callback_metrics
             )
 
             metrics = stage.results
@@ -560,22 +559,22 @@ class Trainer(stages.StageListener):
                     logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
                     logger.save()
 
-        self.events.fire_event(hooks.TrainerListener.on_stage_ending, weakref.proxy(self), stage)
+        self.events.fire_event(hooks.TrainerListener.on_stage_ending, stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_ending)
         if event is not None:
             stage = cast(stages.EpochStage, stage)
-            self.events.fire_event(event, self, stage)
+            self.events.fire_event(event, stage)
 
     @override
     def on_stage_ended(self, stage: "reax.Stage", /):
         """On stage ended."""
-        self.events.fire_event(hooks.TrainerListener.on_stage_ended, weakref.proxy(self), stage)
+        self.events.fire_event(hooks.TrainerListener.on_stage_ended, stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_ended)
         if event is not None:
             stage = cast(stages.EpochStage, stage)
-            self.events.fire_event(event, weakref.proxy(self), stage)
+            self.events.fire_event(event, stage)
 
     # region Checkpointing
 

@@ -36,7 +36,7 @@ class Train(stages.EpochStage):
         stopper: Optional[common.Stopper] = None,
     ):
         super().__init__(
-            "Training epoch", module, dataloader, strategy, max_batches=max_batches, parent=parent
+            "train epoch", module, dataloader, strategy, max_batches=max_batches, parent=parent
         )
         # Params
         self._min_updates = min_updates
