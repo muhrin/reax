@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, Union
 import beartype
 import equinox
 import jax
+import jax.numpy as jnp
 import jaxtyping as jt
 import optax
 
@@ -52,3 +53,9 @@ class Optimizer(equinox.Module):
         params, updated_opt = self.update(module.parameters(), grad)
         module.set_parameters(params)
         return updated_opt
+
+
+mock_optimizer = optax.GradientTransformation(
+    init=lambda params: {},
+    update=lambda grad, opt_state, *_, **__: (jax.tree.map(jnp.zeros_like, grad), opt_state),
+)

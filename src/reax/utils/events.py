@@ -10,7 +10,8 @@ HANDLE = uuid.UUID
 class EventGenerator(Generic[ListenerT]):
     """Manage listeners and fire events."""
 
-    def __init__(self):
+    def __init__(self, default_args=tuple()):
+        self._default_args = default_args
         self._event_listeners: dict[HANDLE, ListenerT] = {}
 
     def add_listener(self, listener: ListenerT) -> uuid.UUID:
@@ -25,6 +26,7 @@ class EventGenerator(Generic[ListenerT]):
 
     def fire_event(self, event_fn: Callable, *args, **kwargs):
         """Fire event."""
+        args = self._default_args + args
         for listener in list(self._event_listeners.values()):
             getattr(listener, event_fn.__name__)(*args, **kwargs)
 

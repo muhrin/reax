@@ -20,7 +20,7 @@ from .. import exceptions, hooks, keys
 from .. import listeners as listeners_
 from .. import loggers as loggers_
 from .. import modules, stages, strategies, typing
-from ..utils import containers, events
+from ..utils import events
 
 if TYPE_CHECKING:
     import reax
@@ -32,6 +32,7 @@ __all__ = ("Trainer",)
 
 
 class Trainer(stages.StageListener):
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         module: modules.Module,
@@ -266,11 +267,14 @@ class Trainer(stages.StageListener):
         """Num nodes."""
         return getattr(self._strategy, "num_nodes", 1)
 
-    def rng_key(self, num=1) -> jax.Array:
-        """Get a new RNG key.
+    @property
+    def train_dataloader(self) -> Optional:
+        if self._stage is not None:
+            return getattr(self._stage, "train_dataloader", None)
+        return None
 
-        This will update the state in the `Trainer`.
-        """
+    def rng_key(self, num=1) -> jax.Array:
+        """Get a new RNG key. This will update the state in the `Trainer`."""
         self._rng_key, subkey = jax.random.split(self._rng_key, num=num + 1)
         return subkey
 
@@ -382,6 +386,27 @@ class Trainer(stages.StageListener):
         # Update state variables
         self._global_updates += fit.updates
 
+    def validate(
+        self,
+        dataloaders=None,
+        datamodule=None,
+        max_batches: Union[int, float] = -1,
+    ):
+        """Test function."""
+        if datamodule is not None:
+            if dataloaders is not None:
+                raise ValueError("Cannot supply dataloaders and datamodule to Trainer.test()")
+
+            dataloaders = datamodule.test_dataloader()
+
+        # Fallback
+        if dataloaders is None:
+            dataloaders = self._module.val_dataloader()
+
+        self._run_stage(
+            stages.Validate(self._module, dataloaders, self._strategy, max_batches=max_batches)
+        )
+
     def test(
         self,
         dataloaders=None,
@@ -393,6 +418,10 @@ class Trainer(stages.StageListener):
                 raise ValueError("Cannot supply dataloaders and datamodule to Trainer.test()")
 
             dataloaders = datamodule.test_dataloader()
+
+        # Fallback
+        if dataloaders is None:
+            dataloaders = self._module.test_dataloader()
 
         self._run_stage(stages.Test(self._module, dataloaders, self._strategy))
 
@@ -412,6 +441,10 @@ class Trainer(stages.StageListener):
                 raise ValueError("Cannot supply dataloaders and datamodule to Trainer.test()")
 
             dataloaders = datamodule.predict_dataloader()
+
+        # Fallback
+        if dataloaders is None:
+            dataloaders = self._module.predict_dataloader()
 
         if self._fast_dev_run:
             limit_batches = 1
@@ -453,6 +486,10 @@ class Trainer(stages.StageListener):
         if not self._optimizers and isinstance(stage, stages.Train):
             self._optimizers = stage.optimizers
 
+        if stage.is_root:
+            # Only setup for the root loop
+            self.events.fire_event(hooks.TrainerListener.setup, weakref.proxy(self), stage)
+
         self.events.fire_event(hooks.TrainerListener.on_stage_starting, weakref.proxy(self), stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_starting)
@@ -463,6 +500,7 @@ class Trainer(stages.StageListener):
     def on_stage_started(self, stage: "reax.Stage", /):
         """On stage started."""
         self.events.fire_event(hooks.TrainerListener.on_stage_started, weakref.proxy(self), stage)
+
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_started)
         if event is not None:
             self.events.fire_event(event, self, stage)

@@ -43,9 +43,8 @@ class LitAutoEncoder(reax.Module):
         self.autoencoder = Autoencoder(hidden_dim=hidden_dim)
         self._learning_rate = learning_rate
 
-    def setup(self, stage: "reax.Stage"):
-        if isinstance(stage, reax.stages.Train) and self.parameters() is None:
-            batch = next(iter(self.dataloader))
+    def setup(self, stage: "reax.Stage", batch: Any) -> None:
+        if self.parameters() is None:
             inputs = self._prepare_batch(batch)
             params = self.autoencoder.init(self.rng_key(), inputs)
             self.set_parameters(params)

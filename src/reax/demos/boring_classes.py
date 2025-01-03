@@ -10,7 +10,7 @@ from typing_extensions import override
 
 from reax import data, modules, stages
 
-__all__ = ("BoringModel",)
+__all__ = "BoringModel", "RandomDataset"
 
 
 class BoringModel(modules.Module):
@@ -36,10 +36,9 @@ class BoringModel(modules.Module):
         self.layer = linen.Dense(2)
 
     @override
-    def setup(self, stage):
+    def setup(self, stage, batch: Any) -> None:
         """Setup function."""
-        if self.parameters() is None and isinstance(stage, stages.EpochStage):
-            batch = next(iter(stage.dataloader))
+        if self.parameters() is None:
             params = self.layer.init(self.rng_key(), batch[0])
             self.set_parameters(params)
 

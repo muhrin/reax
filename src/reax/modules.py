@@ -94,22 +94,19 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
         # Multiple optimisers
         return optimizers
 
-    def setup(self, stage: "reax.Stage"):
-        """Called at the beginning of each stage.
+    def setup(self, stage: "reax.Stage", batch: Any, /) -> None:
+        """Called at the beginning of each stage.  A chance to perform some setup on the module."""
 
-        A chance to perform some setup on the module.
-        """
-
-    def training_step(self, batch: BatchT, batch_idx: int) -> Optional[TrainOutput]:
+    def training_step(self, batch: BatchT, batch_idx: int, /) -> Optional[TrainOutput]:
         """Train step."""
 
-    def validation_step(self, batch: BatchT, batch_idx: int):
+    def validation_step(self, batch: BatchT, batch_idx: int, /):
         """Validate step."""
 
-    def predict_step(self, batch: BatchT, batch_idx: int) -> OutputT_co:
+    def predict_step(self, batch: BatchT, batch_idx: int, /) -> OutputT_co:
         """Make a model prediction and return the result."""
 
-    def test_step(self, batch: BatchT, batch_idx: int):
+    def test_step(self, batch: BatchT, batch_idx: int, /):
         """Test step."""
 
     @jt.jaxtyped(typechecker=beartype.beartype)

@@ -70,11 +70,9 @@ class ClassificationModel(reax.Module):
         state = optimiser.init(self.parameters())
         return optimiser, state
 
-    def setup(self, stage: reax.Stage):
-        if isinstance(stage, reax.stages.Train) and self.parameters() is None:
-            batch = next(iter(stage.dataloader))
+    def setup(self, stage: reax.Stage, batch: Any):
+        if self.parameters() is None:
             inputs = batch[0]
-
             params = self._model.init(self.trainer.rng_key(), inputs)
             self.set_parameters(params)
 

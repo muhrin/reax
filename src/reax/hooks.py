@@ -8,6 +8,9 @@ __all__ = ("TrainerListener",)
 
 
 class TrainerListener:
+    def setup(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
+        """Called when a stage (fit, validate, test, predict) begins."""
+
     def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit") -> None:
         """A fitting stage is about to begin."""
 

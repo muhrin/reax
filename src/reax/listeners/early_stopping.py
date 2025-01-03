@@ -106,7 +106,7 @@ class EarlyStopping(hooks.TrainerListener):
         >>> from reax import Trainer
         >>> from reax.listeners import EarlyStopping
         >>> early_stopping = EarlyStopping('val_loss')
-        >>> trainer = Trainer(callbacks=[early_stopping])
+        >>> trainer = Trainer(listeners=[early_stopping])
     """
 
     mode_dict: dict[str, MonitorOp] = {"min": jnp.less, "max": jnp.greater}
