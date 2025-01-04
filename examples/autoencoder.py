@@ -37,7 +37,7 @@ class Autoencoder(linen.Module):
         return self.decoder(z)
 
 
-class LitAutoEncoder(reax.Module):
+class ReaxAutoEncoder(reax.Module):
     def __init__(self, hidden_dim: int = 64, learning_rate=10e-3):
         super().__init__()
         self.autoencoder = Autoencoder(hidden_dim=hidden_dim)
@@ -167,7 +167,7 @@ if __name__ == "__main__":
 
     # setup data
     datamodule = MyDataModule()
-    autoencoder = LitAutoEncoder()
+    autoencoder = ReaxAutoEncoder()
 
     trainer = reax.Trainer(autoencoder)
     trainer.fit(datamodule=datamodule, max_epochs=10)  # pylint: disable=not-callable
