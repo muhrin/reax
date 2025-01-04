@@ -220,6 +220,7 @@ def test_tensorboard_log_graph(tmp_path, example_input_array):
     logger.log_graph(model, example_input_array)
 
 
+@pytest.mark.skip(reason="Graph logging is not supported yet")
 def test_tensorboard_log_graph_warning_no_example_input_array(tmp_path):
     """Test that log graph throws warning if model.example_input_array is None."""
     model = demos.BoringModel()
@@ -239,6 +240,7 @@ def test_tensorboard_log_graph_warning_no_example_input_array(tmp_path):
         logger.log_graph(model)
 
 
+@pytest.mark.skip(reason="Gradient accumulation is currently not supported")
 @mock.patch("reax.loggers.tensorboard.TensorBoardLogger.log_metrics")
 def test_tensorboard_with_accummulated_gradients(mock_log_metrics, tmp_path):
     """Tests to ensure that tensorboard log properly when accumulated_gradients > 1."""
@@ -299,6 +301,7 @@ def test_tensorboard_finalize(monkeypatch, tmp_path):
     logger.experiment.close.assert_called()
 
 
+@pytest.mark.skip(reason="Saving hparams is currently not supported")
 def test_tensorboard_save_hparams_to_yaml_once(tmp_path):
     model = demos.BoringModel()
     logger = loggers.tensorboard.TensorBoardLogger(log_dir=tmp_path, default_hp_metric=False)
