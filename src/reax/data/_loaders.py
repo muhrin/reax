@@ -92,9 +92,9 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
         for idx in self._sampler:
             idx = np.asarray(idx)
             if isinstance(self._arrays, tuple):
-                yield tuple(array.take(idx) for array in self._arrays)
+                yield tuple(array.take(idx, axis=0) for array in self._arrays)
             else:
-                yield self._arrays.take(idx)
+                yield self._arrays.take(idx, axis=0)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __len__(self) -> int:

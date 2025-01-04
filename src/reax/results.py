@@ -34,7 +34,7 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
         batch_size: int,
     ) -> "ArrayResultMetric":
         """Create function."""
-        return ArrayResultMetric(value=value, cumulated_batch_size=batch_size)
+        return ArrayResultMetric(value=jnp.asarray(value), cumulated_batch_size=batch_size)
 
     def update(
         # pylint: disable=arguments-differ
@@ -108,14 +108,15 @@ class ResultCollection(dict[str, ResultEntry]):
         """Log function."""
         key = f"{fx}.{name}"
 
-        if isinstance(value, jax.typing.ArrayLike):
-            metric = ArrayResultMetric.create(value, batch_size)
-        elif isinstance(value, _metric.Metric):
+        if isinstance(value, _metric.Metric):
             metric = value
         else:
-            raise TypeError(
-                f"Value must be a `reax.Metric` or a raw value, got {type(value).__name__}"
-            )
+            try:
+                metric = ArrayResultMetric.create(value, batch_size)
+            except TypeError:
+                raise TypeError(
+                    f"Value must be a `reax.Metric` or a raw value, got {type(value).__name__}"
+                ) from None
 
         meta = Metadata(
             fx=fx,

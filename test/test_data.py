@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pytest
 
+import reax
 from reax import data
 
 
@@ -27,15 +28,16 @@ def test_array_loader(dataset_size, batch_size):
 
 
 def test_caching_loader():
-    inputs = np.arange(10)
+    reax.seed_everything(2)
+    inputs = np.arange(20).reshape(10, -1)
     loader = data.CachingLoader(data.ArrayLoader(inputs, shuffle=True, batch_size=6), reset_every=3)
     batches = tuple(loader)
     # Check that the result is the same for two more iterations
     for _ in range(2):
         for idx, batch in enumerate(tuple(loader)):
-            assert np.all(batches[idx][0] == batch[0])
+            assert np.all(batches[idx] == batch)
 
     # Nw check that it changed
     for _ in range(3):
         for idx, batch in enumerate(tuple(loader)):
-            assert np.any(batches[idx][0] != batch[0])
+            assert np.any(batches[idx] != batch)
