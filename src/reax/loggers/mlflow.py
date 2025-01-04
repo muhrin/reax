@@ -109,6 +109,7 @@ class MlflowLogger(logger.Logger):
         experiment_name: str = "reax_logs",
         run_name: Optional[str] = None,
         tracking_uri: Optional[str] = os.getenv("MLFLOW_TRACKING_URI"),
+        *,
         tags: Optional[dict[str, Any]] = None,
         save_dir: Optional[str] = "./mlruns",
         log_model: Literal[True, False, "all"] = False,
@@ -118,10 +119,12 @@ class MlflowLogger(logger.Logger):
         synchronous: Optional[bool] = None,
     ):
         """Init function.
+
         :param experiment_name: The name of the experiment, defaults to "reax_logs".
         :type experiment_name: str, optional
-        :param run_name: Name of the new run. The `run_name` is internally stored as a ``mlflow.runName`` tag.
-            If the ``mlflow.runName`` tag has already been set in `tags`, the value is overridden by the `run_name`, defaults to None.
+        :param run_name: Name of the new run. The `run_name` is internally stored as a
+            ``mlflow.runName`` tag. If the ``mlflow.runName`` tag has already been set in `tags`,
+            the value is overridden by the `run_name`, defaults to ``None``.
         :type run_name: Optional[str], optional
         :param tracking_uri: Address of local or remote tracking server.
             If not provided
@@ -133,24 +136,25 @@ class MlflowLogger(logger.Logger):
 
             Has no effect if `tracking_uri` is provided, defaults to "./mlruns".
         :type save_dir: Optional[str], optional
-        :param log_model: Log checkpoints created by :class:`~reax.listeners.model_checkpoint.ModelCheckpoint`
-            as MLFlow artifacts.
+        :param log_model: Log checkpoints created by
+            :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` as MLFlow artifacts.
 
             * if ``log_model == 'all'``, checkpoints are logged during training.
             * if ``log_model == True``, checkpoints are logged at the end of training, except when
-        :paramref:`~reax.listeners.Checkpointer.save_top_k` ``== -1``
-            which also logs every checkpoint during training.
+                :paramref:`~reax.listeners.Checkpointer.save_top_k` ``== -1``
+                which also logs every checkpoint during training.
             * if ``log_model == False`` (default), no checkpoint is logged, defaults to False.
         :type log_model: Literal[True, False, "all"], optional
         :param prefix: A string to put at the beginning of metric keys, defaults to "".
         :type prefix: str, optional
-        :param artifact_location: The location to store run artifacts. If not provided, the server picks an appropriate
-            default, defaults to None.
+        :param artifact_location: The location to store run artifacts. If not provided, the server
+            picks an appropriate default, defaults to None.
         :type artifact_location: Optional[str], optional
-        :param run_id: The run identifier of the experiment. If not provided, a new run is started, defaults to None.
+        :param run_id: The run identifier of the experiment. If not provided, a new run is started,
+            defaults to None.
         :type run_id: Optional[str], optional
-        :param synchronous: Hints mlflow whether to block the execution for every logging call until complete where
-            applicable. Requires mlflow >= 2.8.0, defaults to None.
+        :param synchronous: Hints mlflow whether to block the execution for every logging call until
+            complete where applicable. Requires mlflow >= 2.8.0, defaults to None.
         :type synchronous: Optional[bool], optional
         :raises ModuleNotFoundError: If required MLFlow package is not installed on the device.
         """
@@ -211,7 +215,7 @@ class MlflowLogger(logger.Logger):
                 self._experiment_id = expt.experiment_id
             else:
                 _LOGGER.warning(
-                    f"Experiment with name {self._experiment_name} not found. Creating it."
+                    "Experiment with name %s not found. Creating it.", self._experiment_name
                 )
                 self._experiment_id = self._mlflow_client.create_experiment(
                     name=self._experiment_name, artifact_location=self._artifact_location
@@ -225,7 +229,9 @@ class MlflowLogger(logger.Logger):
 
                 if MLFLOW_RUN_NAME in self.tags:
                     _LOGGER.warning(
-                        f"The tag {MLFLOW_RUN_NAME} is found in tags. The value will be overridden by {self._run_name}."
+                        "The tag %s is found in tags. The value will be overridden by %s.",
+                        MLFLOW_RUN_NAME,
+                        self._run_name,
                     )
                 self.tags[MLFLOW_RUN_NAME] = self._run_name
 
@@ -240,6 +246,7 @@ class MlflowLogger(logger.Logger):
     @property
     def run_id(self) -> Optional[str]:
         """Create the experiment if it does not exist to get the run id.
+
         :return s: The run id.
         :rtype s: Optional[str]
         """
@@ -249,6 +256,7 @@ class MlflowLogger(logger.Logger):
     @property
     def experiment_id(self) -> Optional[str]:
         """Create the experiment if it does not exist to get the experiment id.
+
         :return s: The experiment id.
         :rtype s: Optional[str]
         """
@@ -257,7 +265,7 @@ class MlflowLogger(logger.Logger):
 
     @override
     @rank_zero.rank_zero_only
-    def log_hyperparams(self, params: Union[dict[str, Any], Namespace]) -> None:
+    def log_hyperparams(self, params: Union[dict[str, Any], Namespace], *_, **__) -> None:
         """Log hyperparams."""
         params = _utils.convert_params(params)
         params = _utils.flatten_dict(params)
@@ -265,7 +273,8 @@ class MlflowLogger(logger.Logger):
         from mlflow.entities import Param
 
         # Truncate parameter values to 250 characters.
-        # TODO: MLflow 1.28 allows up to 500 characters: https://github.com/mlflow/mlflow/releases/tag/v1.28.0
+        # TODO: MLflow 1.28 allows up to 500 characters:
+        #  https://github.com/mlflow/mlflow/releases/tag/v1.28.0
         params_list = [Param(key=k, value=str(v)[:250]) for k, v in params.items()]
 
         # Log in chunks of 100 parameters (the maximum allowed by MLflow).
@@ -343,6 +352,7 @@ class MlflowLogger(logger.Logger):
     @override
     def name(self) -> Optional[str]:
         """Get the experiment id.
+
         :return s: The experiment id.
         :rtype s: Optional[str]
         """
@@ -352,6 +362,7 @@ class MlflowLogger(logger.Logger):
     @override
     def version(self) -> Optional[str]:
         """Get the run id.
+
         :return s: The run id.
         :rtype s: Optional[str]
         """
@@ -378,7 +389,7 @@ class MlflowLogger(logger.Logger):
         checkpoints = _utils.scan_checkpoints(checkpoint_callback, self._logged_model_time)
 
         # log iteratively all new checkpoints
-        for timestamp, path, score, tag in checkpoints:
+        for timestamp, path, score, _tag in checkpoints:
             metadata = {
                 # Ensure .item() is called to store array contents
                 "score": score.item() if isinstance(score, jax.Array) else score,
@@ -413,17 +424,18 @@ class MlflowLogger(logger.Logger):
                 prefix="test", suffix="test", dir=os.getcwd()
             ) as tmp_dir:
                 # Log the metadata
-                with open(f"{tmp_dir}/metadata.yaml", "w") as tmp_file_metadata:
+                with open(f"{tmp_dir}/metadata.yaml", "w", encoding="utf-8") as tmp_file_metadata:
                     yaml.dump(metadata, tmp_file_metadata, default_flow_style=False)
 
                 # Log the aliases
-                with open(f"{tmp_dir}/aliases.txt", "w") as tmp_file_aliases:
+                with open(f"{tmp_dir}/aliases.txt", "w", encoding="utf-8") as tmp_file_aliases:
                     tmp_file_aliases.write(str(aliases))
 
                 # Log the metadata and aliases
                 self.experiment.log_artifacts(self._run_id, tmp_dir, artifact_path)
 
-            # remember logged models - timestamp needed in case filename didn't change (lastkckpt or custom name)
+            # remember logged models - timestamp needed in case filename didn't change (lastkckpt
+            # or custom name)
             self._logged_model_time[path] = timestamp
 
 

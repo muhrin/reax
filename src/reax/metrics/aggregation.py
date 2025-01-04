@@ -60,7 +60,7 @@ class Unique(utils.WithAccumulator, Aggregation):
 
 
 class NumUnique(utils.WithAccumulator, Aggregation):
-    """Count the number of unique values
+    """Count the number of unique values.
 
     .. warning::
        this cannot be used with JAX jit because it relies on dynamically-sized arrays.....

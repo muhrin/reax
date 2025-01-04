@@ -1,6 +1,4 @@
-"""
-Test loop
-"""
+"""Test loop."""
 
 import logging
 from typing import TYPE_CHECKING, Optional, Union

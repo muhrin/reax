@@ -43,7 +43,7 @@ class LitAutoEncoder(reax.Module):
         self.autoencoder = Autoencoder(hidden_dim=hidden_dim)
         self._learning_rate = learning_rate
 
-    def setup(self, stage: "reax.Stage", batch: Any) -> None:
+    def setup(self, stage: "reax.Stage", batch: Any, /) -> None:
         if self.parameters() is None:
             inputs = self._prepare_batch(batch)
             params = self.autoencoder.init(self.rng_key(), inputs)
@@ -55,7 +55,7 @@ class LitAutoEncoder(reax.Module):
     def forward(self, x):
         return self.autoencoder.apply(self.parameters(), x)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, batch_idx, /):
         x = self._prepare_batch(batch)
         loss, grads = jax.value_and_grad(self.loss_fn, argnums=0)(
             self.parameters(), x, self.autoencoder
@@ -64,12 +64,12 @@ class LitAutoEncoder(reax.Module):
         self.log("train_loss", loss, on_step=True, prog_bar=True)
         return loss, grads
 
-    def validation_step(self, batch, batch_idx: int):
+    def validation_step(self, batch, batch_idx: int, /):
         x = self._prepare_batch(batch)
         loss = self.loss_fn(self.parameters(), x, self.autoencoder)
         self.log("val_loss", loss, on_step=True, prog_bar=True)
 
-    def test_step(self, batch, batch_idx: int):
+    def test_step(self, batch, batch_idx: int, /):
         x = self._prepare_batch(batch)
         loss = self.loss_fn(self.parameters(), x, self.autoencoder)
         self.log("test_loss", loss, on_step=True, prog_bar=True)
@@ -108,8 +108,8 @@ def get_image_num_channels(img: Any) -> int:
 
 
 def to_array(pic) -> np.ndarray:
-    """Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor.
-    This function does not support torchscript.
+    """Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor. This function does not support
+    torchscript.
 
     See :class:`~torchvision.transforms.ToTensor` for more details.
 

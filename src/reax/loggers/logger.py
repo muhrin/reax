@@ -78,9 +78,8 @@ class Logger(abc.ABC):
 
     @property
     def log_dir(self) -> Optional[str]:
-        """Returns the directory used to store logs for the current experiment
-        Returns `None` if logger does not save locally.
-        """
+        """Returns the directory used to store logs for the current experiment or `None` if logger
+        does not save locally."""
         return None
 
     @property
@@ -91,6 +90,7 @@ class Logger(abc.ABC):
     @abc.abstractmethod
     def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
         """Log the passed metrics.
+
         :param metrics: Dictionary of metrics to log.
         :type metrics: dict[str, float]
         :param step: The current step, defaults to None.
@@ -102,6 +102,7 @@ class Logger(abc.ABC):
         self, params: Union[dict[str, Any], argparse.Namespace], *args: Any, **kwargs: Any
     ) -> None:
         """Log the passed hyperparameters.
+
         :param params: A `dict` or :class:`~argparse.Namespace` containing hyperparameters.
         :type params: Union[dict[str, Any], argparse.Namespace]
         :param *args: Additional optional args.
@@ -110,10 +111,10 @@ class Logger(abc.ABC):
 
     def log_graph(self, model: Callable, *args, **kwargs) -> None:
         """Log the model graph.
+
         :param model: The model function.
-        :type model: Callable
-        :param *args: The args to pass to the model.
-        :param **kwargs: The kwargs to pass to the model.
+        :type model: Callable :param *args: The args to pass to the model. :param **kwargs: The
+            kwargs to pass to the model.
         """
 
     def save(self) -> None:
@@ -121,6 +122,7 @@ class Logger(abc.ABC):
 
     def finalize(self, status: str) -> None:  # pylint: disable=unused-argument
         """Do postprocessing to be done at the end of an experiment.
+
         :param status: A status string indicating the outcome of the experiment.
         :type status: str
         """
@@ -128,6 +130,7 @@ class Logger(abc.ABC):
 
     def after_save_checkpoint(self, checkpoint_callback: "reax.listeners.ModelCheckpoint") -> None:
         """Called after model checkpoint callback saves a new checkpoint.
+
         :param checkpoint_callback: The model checkpoint callback instance.
         :type checkpoint_callback: "reax.listeners.ModelCheckpoint"
         """
@@ -202,9 +205,11 @@ def rank_zero_experiment(fn: Callable) -> Callable:
 
     @functools.wraps(fn)
     def experiment(self: Logger) -> Union[Any, _DummyExperiment]:
-        """Note:
-        ``self`` is a custom logger instance. The loggers typically wrap an ``experiment`` method
-        with a ``@rank_zero_experiment`` decorator.
+        """Get the experiment.
+
+        ..note::
+            ``self`` is a custom logger instance. The loggers typically wrap an ``experiment``
+            method with a ``@rank_zero_experiment`` decorator.
 
         ``Union[Any, _DummyExperiment]`` is used because the wrapped hooks have several return
         types that are specific to the custom logger. The return type here can be considered as
@@ -222,7 +227,6 @@ class _DummyExperiment:
 
     def nop(self, *args: Any, **kw: Any) -> None:
         """Nop function."""
-        pass
 
     def __getattr__(self, _: Any) -> Callable:
         """Getattr function."""
@@ -235,4 +239,3 @@ class _DummyExperiment:
 
     def __setitem__(self, *args: Any, **kwargs: Any) -> None:
         """Setitem function."""
-        pass

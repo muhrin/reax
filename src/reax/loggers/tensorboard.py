@@ -59,14 +59,15 @@ __all__ = ("TensorBoardLogger",)
 
 
 class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Logger):
-    r"""Log to local or remote file system in `TensorBoard <https://www.tensorflow.org/tensorboard>`_ format.
+    r"""Log to local or remote file system in
+    `TensorBoard <https://www.tensorflow.org/tensorboard>`_ format.
 
     Implemented using :class:`~tensorboardX.SummaryWriter`. Logs are saved to
     ``os.path.join(save_dir, name, version)``. This is the default logger in Lightning, it comes
     preinstalled.
 
-    This logger supports logging to remote filesystems via ``fsspec``. Make sure you have it installed
-    and you don't have tensorflow (otherwise it will use tf.io.gfile instead of fsspec).
+    This logger supports logging to remote filesystems via ``fsspec``. Make sure you have it
+    installed and you don't have tensorflow (otherwise it will use tf.io.gfile instead of fsspec).
 
     Example:
 
@@ -87,6 +88,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         self,
         log_dir: typing.Path,
         name: Optional[str] = "reax_logs",
+        *,
         version: Optional[Union[int, str]] = None,
         log_graph: bool = False,
         default_hp_metric: bool = True,
@@ -95,6 +97,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         **kwargs: Any,
     ):
         """Init function.
+
         :param **kwargs:
         :type **kwargs: Any
         :param log_dir:
@@ -112,8 +115,9 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
             the user has defined the `self.example_input_array` attribute in their
             model, defaults to False.
         :type log_graph: bool, optional
-        :param default_hp_metric: Enables a placeholder metric with key `hp_metric` when `log_hyperparams` is
-            called without a metric (otherwise calls to log_hyperparams without a metric are ignored), defaults to True.
+        :param default_hp_metric: Enables a placeholder metric with key `hp_metric` when
+            `log_hyperparams` is called without a metric (otherwise calls to log_hyperparams
+            without a metric are ignored), defaults to True.
         :type default_hp_metric: bool, optional
         :param prefix: A string to put at the beginning of metric keys, defaults to "".
         :type prefix: str, optional
@@ -121,10 +125,10 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
             then logs are saved in ``/save_dir/name/version/sub_dir/``.
             logs are saved in ``/save_dir/name/version/``, defaults to None.
         :type sub_dir: Optional[typing.Path], optional
-        :param kwargs: Additional arguments used by :class:`tensorboardX.SummaryWriter` can be passed as keyword
-            arguments in this logger. To automatically flush to disk, `max_queue` sets the size
-            of the queue for pending logs before flushing. `flush_secs` determines how many seconds
-            elapses before flushing.
+        :param kwargs: Additional arguments used by :class:`tensorboardX.SummaryWriter` can be
+            passed as keyword arguments in this logger. To automatically flush to disk, `max_queue`
+            sets the sizeof the queue for pending logs before flushing. `flush_secs` determines how
+            many seconds elapses before flushing.
         """
         super().__init__()
         self._root_dir = os.fspath(log_dir)
@@ -160,8 +164,8 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     def root_dir(self) -> str:
         """Parent directory for all tensorboard checkpoint subdirectories.
 
-        If the experiment name parameter is an empty string, no experiment subdirectory is used and the checkpoint will
-        be saved in "save_dir/version"
+        If the experiment name parameter is an empty string, no experiment subdirectory is used and
+        the checkpoint will be saved in "save_dir/version"
         """
         return os.path.join(self._root_dir, self.name)
 
@@ -170,8 +174,8 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     def log_dir(self) -> str:
         """The directory for this run's tensorboard checkpoint.
 
-        By default, it is named ``'version_${self.version}'`` but it can be overridden by passing a string value for the
-        constructor's version parameter instead of ``None`` or an int.
+        By default, it is named ``'version_${self.version}'`` but it can be overridden by passing a
+        string value for the constructor's version parameter instead of ``None`` or an int.
         """
         # create a pseudo standard path ala test-tube
         version = self.version if isinstance(self.version, str) else f"version_{self.version}"
@@ -192,6 +196,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     @override
     def save_dir(self) -> str:
         """Gets the save directory where the TensorBoard experiments are saved.
+
         :rtype: The local path to the save directory where the TensorBoard experiments are saved.
         """
         return self._root_dir
@@ -241,13 +246,14 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     ) -> None:
         """Record hyperparameters.
 
-        TensorBoard logs with and without saved hyperparameters are incompatible, thehyperparameters
-        are then not displayed in the TensorBoard. Please delete or move the previously saved logs
-        to display the new ones with hyperparameters.
+        TensorBoard logs with and without saved hyperparameters are incompatible, the
+        hyperparameters are then not displayed in the TensorBoard. Please delete or move the
+        previously saved logs to display the new ones with hyperparameters.
 
         :param params: A dictionary-like container with the hyperparameters.
         :type params: Union[dict[str, Any], argparse.Namespace]
-        :param metrics: Dictionary with metric names as keys and measured quantities as values, defaults to None.
+        :param metrics: Dictionary with metric names as keys and measured quantities as values,
+            defaults to None.
         :type metrics: Optional[dict[str, Any]], optional
         :param step: Optional global step number for the logged metrics.
         """

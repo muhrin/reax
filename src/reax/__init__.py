@@ -27,8 +27,8 @@ from .training import *
 from .utils.rngs import seed_everything
 
 __all__ = (
-    _evaluation.__all__,
-    modules.__all__
+    _evaluation.__all__
+    + modules.__all__
     + hooks.__all__
     + optimizers.__all__
     + saving.__all__

@@ -5,6 +5,8 @@ if TYPE_CHECKING:
 
 
 class ModuleHooks:
+    # pylint: disable=too-many-public-methods
+
     def on_fit_start(self, stage: "reax.stages.Fit", /) -> None:
         """A fitting stage is about to begin."""
 

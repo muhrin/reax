@@ -39,7 +39,7 @@ Monitor a metric and stop training when it stops improving.
 """
 from collections.abc import Callable
 import logging
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Final, Literal, Optional
 
 import beartype
 import jax.numpy as jnp
@@ -61,14 +61,18 @@ MonitorOp = Callable[[jax.typing.ArrayLike, jax.typing.ArrayLike], jax.typing.Ar
 
 
 class EarlyStopping(hooks.TrainerListener):
-    r"""Monitor a metric and stop training when it stops improving. :param monitor: Quantity to be
-    monitored. :type monitor: str :param min_delta: Minimum change in the monitored quantity to
-    qualify as an improvement, i.e. an absolute change of less than or equal to ``min_delta``, will
-    count as no improvement, defaults to 0.0. :type min_delta: float, optional :param patience:
-    Number of checks with no improvement after which training will be stopped. Under the default
-    configuration, one check happens after every training epoch. However, the frequency of
-    validation can be modified by setting various parameters on the ``Trainer``, for example
-    ``check_val_every_n_epoch`` and ``val_check_interval``.
+    r"""Monitor a metric and stop training when it stops improving.
+
+    :param monitor: Quantity to be monitored.
+    :type monitor: str
+    :param min_delta: Minimum change in the monitored quantity to qualify as an improvement, i.e.
+        an absolute change of less than or equal to ``min_delta``, will count as no improvement,
+        defaults to 0.0.
+    :type min_delta: float, optional
+    :param patience: Number of checks with no improvement after which training will be stopped.
+        Under the default configuration, one check happens after every training epoch.
+        However, the frequency of validation can be modified by setting various parameters on the
+        ``Trainer``, for example ``check_val_every_n_epoch`` and ``val_check_interval``.
 
         .. note::
 
@@ -119,6 +123,7 @@ class EarlyStopping(hooks.TrainerListener):
     def __init__(
         self,
         monitor: str,
+        *,
         min_delta: float = 0.0,
         patience: int = 3,
         verbose: bool = False,
@@ -131,15 +136,16 @@ class EarlyStopping(hooks.TrainerListener):
         log_rank_zero_only: bool = False,
     ):
         # Params
-        self._monitor = monitor
-        self._min_delta = min_delta
-        self._patience = patience
-        self._verbose = verbose
-        self._mode = mode
-        self._strict = strict
+        self._monitor: Final[str] = monitor
+        self._min_delta: Final[float] = min_delta
+        self._patience: Final[int] = patience
+        self._verbose: Final[bool] = verbose
+        self._mode: Final[Literal["min", "max"]] = mode
+        self._strict: Final[bool] = strict
         self._check_finite = check_finite
         self._stopping_threshold = stopping_threshold
         self._divergence_threshold = divergence_threshold
+        self._wait_count = 0
         self.__check_on_train_epoch_end = check_on_train_epoch_end
         self._log_rank_zero_only = log_rank_zero_only
 
@@ -147,6 +153,7 @@ class EarlyStopping(hooks.TrainerListener):
         self._check_on_train_epoch_end = check_on_train_epoch_end
         self._best_score = float("inf")
         self._wait_count: int = 0
+        self._stopped_epoch = 0
 
     @property
     def monitor_op(self) -> MonitorOp:
@@ -158,29 +165,33 @@ class EarlyStopping(hooks.TrainerListener):
         """Best score."""
         return self._best_score
 
+    @property
+    def stopped_epoch(self) -> int:
+        return self._stopped_epoch
+
     def _should_skip_check(self, trainer: "reax.Trainer") -> bool:
         """Should skip check."""
         return not isinstance(trainer.stage, stages.Fit)
 
     @override
-    def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit") -> None:
+    def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """On fit start."""
         if self.__check_on_train_epoch_end is None:
-            # if the user runs validation multiple times per training epoch or multiple training epochs without
-            # validation, then we run after validation instead of on train epoch end
+            # if the user runs validation multiple times per training epoch or multiple training
+            # epochs without validation, then we run after validation instead of on train epoch end
             self._check_on_train_epoch_end = (
                 stage.val_check_interval == 1.0 and stage.check_val_every_n_epoch == 1
             )
 
     @override
-    def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train") -> None:
+    def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
         """On train epoch end."""
         if not self._check_on_train_epoch_end or self._should_skip_check(trainer):
             return
         self._run_early_stopping_check(trainer, stage)
 
     @override
-    def on_validation_end(self, trainer: "reax.Trainer", stage: "reax.stages.Validate") -> None:
+    def on_validation_end(self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /) -> None:
         """On validation end."""
         if self._check_on_train_epoch_end or self._should_skip_check(trainer):
             return
@@ -202,7 +213,7 @@ class EarlyStopping(hooks.TrainerListener):
         # should_stop = trainer.strategy.reduce_boolean_decision(should_stop, all=False)
         trainer.should_stop = trainer.should_stop or should_stop
         if should_stop:
-            self.stopped_epoch = trainer.current_epoch
+            self._stopped_epoch = trainer.current_epoch
         if reason and self._verbose:
             self._log_info(trainer, reason, self._log_rank_zero_only)
 
@@ -243,17 +254,18 @@ class EarlyStopping(hooks.TrainerListener):
         ):
             should_stop = True
             reason = (
-                "Stopping threshold reached:"
-                f" {self._monitor} = {current} {self.order_dict[self._mode]} {self._stopping_threshold}."
-                " Signaling Trainer to stop."
+                f"Stopping threshold reached: {self._monitor} = {current} "
+                f"{self.order_dict[self._mode]} {self._stopping_threshold}. "
+                f"Signaling Trainer to stop."
             )
         elif self._divergence_threshold is not None and self.monitor_op(
-            -current, -self._divergence_threshold
+            -current,
+            -self._divergence_threshold,  # pylint: disable=invalid-unary-operand-type
         ):
             should_stop = True
             reason = (
-                "Divergence threshold reached:"
-                f" {self._monitor} = {current} {self.order_dict[self._mode]} {self._divergence_threshold}."
+                f"Divergence threshold reached: {self._monitor} = {current} "
+                f"{self.order_dict[self._mode]} {self._divergence_threshold}."
                 " Signaling Trainer to stop."
             )
         elif self.monitor_op(current - self._min_delta, self.best_score):
@@ -266,8 +278,9 @@ class EarlyStopping(hooks.TrainerListener):
             if self._wait_count >= self._patience:
                 should_stop = True
                 reason = (
-                    f"Monitored metric {self._monitor} did not improve in the last {self._wait_count} records."
-                    f" Best score: {self.best_score:.3f}. Signaling Trainer to stop."
+                    f"Monitored metric {self._monitor} did not improve in the last "
+                    f"{self._wait_count} records. "
+                    f"Best score: {self.best_score:.3f}. Signaling Trainer to stop."
                 )
 
         return should_stop, reason

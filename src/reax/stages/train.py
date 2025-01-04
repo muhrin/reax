@@ -73,7 +73,8 @@ class Train(stages.EpochStage):
             opts = self._module.configure_optimizers()
             if opts is None:
                 rank_zero.rank_zero_warn(
-                    "`LightningModule.configure_optimizers` returned `None`, this fit will run with no optimizer",
+                    "`LightningModule.configure_optimizers` returned `None`, this fit will run "
+                    "with no optimizer"
                 )
                 opt = optimizers_.mock_optimizer
                 opts = opt, opt.init(self._module.parameters())
@@ -157,7 +158,7 @@ class Train(stages.EpochStage):
             else:
                 self._warning_cache.info(
                     f"Trainer was signaled to stop but the required "
-                    f"`min_epochs={self.parent._min_iters!r}` or"
+                    f"`min_epochs={self.parent.min_iters!r}` or"
                     f" `min_steps={self._min_updates!r}` has not been met. "
                     f"Training will continue..."
                 )

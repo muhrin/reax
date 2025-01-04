@@ -22,13 +22,19 @@ class Predict(stages.EpochStage):
         strategy: "reax.Strategy",
         *,
         max_batches: Union[int, float] = float("inf"),
+        keep_predictions=True,
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
         super().__init__(
             "predict", module, dataloader, strategy, max_batches=max_batches, parent=parent
         )
+        self._keep_predictions = keep_predictions
         self._all_outputs = []
+
+    @property
+    def all_outputs(self) -> list[Any]:
+        return self._all_outputs
 
     @override
     def _step(self) -> "reax.stages.MetricResults":
@@ -36,6 +42,7 @@ class Predict(stages.EpochStage):
         return self._module.predict_step(self.batch, self._iter)
 
     @override
-    def _on_iteration_finishing(self, outputs: Any):
+    def _on_iteration_finishing(self, outputs: Any, /):
         """On iteration finishing."""
-        self._all_outputs.append(outputs)
+        if self._keep_predictions:
+            self._all_outputs.append(outputs)

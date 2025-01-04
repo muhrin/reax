@@ -25,7 +25,8 @@ def _prepare_mask(
 ) -> jt.Float[jax.Array, "n_elements ..."]:
     """Prepare a mask for use with jnp.where(mask, array, ...).
 
-    This needs to be done to make sure the mask is of the right shape to be compatible with such an operation.  The other alternative is
+    This needs to be done to make sure the mask is of the right shape to be compatible with such an
+    operation.  The other alternative is
 
     .. code-block::
 
@@ -33,6 +34,7 @@ def _prepare_mask(
 
     but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not
     sure why, but this approach seems to avoid the problem.
+
     :param mask: The mask to prepare.
     :type mask: jt.Bool[jax.Array, "n_elements"]
     :param array: The array the mask will be applied to.
@@ -129,8 +131,7 @@ class WithAccumulator(equinox.Module):
 
 class WithAccumulatorAndCount(WithAccumulator):
     """Helper class to group common functionality for metrics that can keep track using a total and
-    count accumulators
-    """
+    count accumulators."""
 
     Self = TypeVar("Self", bound="WithAccumulator")
 

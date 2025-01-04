@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 def convert_params(params: Optional[Union[dict[str, Any], argparse.Namespace]]) -> dict[str, Any]:
     """Ensure parameters are a dict or convert to dict if necessary.
+
     :param params: Object to be converted to `dict`.
     :type params: Optional[Union[dict[str, Any], argparse.Namespace]]
     """
@@ -41,6 +42,7 @@ def flatten_dict(
     params: Mapping[Any, Any], delimiter: str = "/", parent_key: str = ""
 ) -> dict[str, Any]:
     """Flatten hierarchical dict, e.g. ``{'a': {'b': 'c'}} -> {'a/b': 'c'}``.
+
     :param parent_key: defaults to "".
     :type parent_key: str, optional
     :param params: The mapping containing hyperparameters.
@@ -77,6 +79,7 @@ def add_prefix(
     metrics: Mapping[str, Union[jax.typing.ArrayLike, float]], prefix: str, separator: str
 ) -> Mapping[str, Union[jax.typing.ArrayLike, float]]:
     """Insert prefix before each key in a dict, separated by the separator.
+
     :param metrics: Dictionary with metric names as keys and measured quantities as values.
     :type metrics: Mapping[str, Union[jax.typing.ArrayLike, float]]
     :param prefix: Prefix to insert before each key.
@@ -96,6 +99,7 @@ def scan_checkpoints(
     checkpoint_callback: "reax.listeners.ModelCheckpoint", logged_model_time: dict
 ) -> list[tuple[float, str, float, str]]:
     """Return the checkpoints to be logged.
+
     :param checkpoint_callback: Checkpoint callback reference.
     :type checkpoint_callback: "reax.listeners.ModelCheckpoint"
     :param logged_model_time: Dictionary containing the logged model times.

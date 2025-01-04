@@ -28,6 +28,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
         self,
         save_dir: Optional[Path] = None,
         name: Optional[str] = "reax_logs",
+        *,
         fmt: str = DEFAULT_FORMAT,
         version: Optional[Union[int, str]] = None,
         prefix: str = "",

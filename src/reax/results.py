@@ -98,6 +98,7 @@ class ResultCollection(dict[str, ResultEntry]):
         name: str,
         value: Union[jax.typing.ArrayLike, "reax.Metric"],
         batch_idx: int,
+        *,
         prog_bar: bool = False,
         logger: bool = False,
         on_step: bool = False,

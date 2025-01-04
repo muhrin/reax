@@ -27,6 +27,7 @@ def save_hparams_to_yaml(
     config_yaml: typing.Path, hparams: Union[dict, argparse.Namespace], use_omegaconf: bool = True
 ) -> None:
     """Save the hparams to a yaml file.
+
     :param config_yaml: The path to save the hparams to.
     :type config_yaml: typing.Path
     :param hparams: The hparams to save.
@@ -83,6 +84,7 @@ def load_hparams_from_yaml(
     config_yaml: typing.Path, use_omegaconf: bool = True
 ) -> Union[dict[str, Any], "omegaconf.DictConfig"]:
     """Load hparams from a file.
+
     :param config_yaml: Path to the yaml file to be loaded.
     :type config_yaml: typing.Path
     :param use_omegaconf: If `omegaconf` is available and `use_omegaconf=True`, the hparams will

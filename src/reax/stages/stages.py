@@ -1,7 +1,5 @@
-"""
-Stages that perform the actions expected over the lifetime of a model e.g. training, testing,
-predicting etc.
-"""
+"""Stages that perform the actions expected over the lifetime of a model e.g. training, testing,
+predicting etc."""
 
 import abc
 import logging
@@ -85,6 +83,11 @@ class Stage(abc.ABC):
     def iteration(self) -> int:
         """Get the current stage iteration."""
         return self._iter
+
+    @property
+    def min_iters(self) -> int:
+        """Minimum number of iterations."""
+        return self._min_iters
 
     @property
     def max_iters(self) -> int:
@@ -189,7 +192,7 @@ class Stage(abc.ABC):
     def _step(self) -> Any:
         """The advance logic that should be implemented by subclasses."""
 
-    def _on_iteration_finishing(self, outputs: Any):
+    def _on_iteration_finishing(self, outputs: Any, /):
         """The iteration is about to finish."""
         if self._module is not None:
             self._module.on_stage_iter_ending(weakref.proxy(self), self._iter, outputs)
@@ -197,7 +200,7 @@ class Stage(abc.ABC):
             common.StageListener.on_stage_iter_ending, weakref.proxy(self), self._iter, outputs
         )
 
-    def _on_iteration_finished(self, outputs: Any):
+    def _on_iteration_finished(self, _outputs: Any, /):
         """The iteration has finished.
 
         Set ourselves up for the next iteration (if there is one).
@@ -248,6 +251,7 @@ class EpochStage(Stage, abc.ABC):
         module: Optional["reax.Module"],
         dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
+        *,
         min_batches: int = -1,
         max_batches: Union[int, float] = float("inf"),
         parent: Optional["reax.Stage"] = None,
@@ -390,10 +394,9 @@ class EpochStage(Stage, abc.ABC):
         super()._on_iteration_starting()
 
     @override
-    def _on_iteration_finishing(self, outputs: Any) -> None:
-        """Look through the logged metrics and extract those where a user logged a results during this
-        step and used the `on_step=True` option
-        """
+    def _on_iteration_finishing(self, outputs: Any, /) -> None:
+        """Look through the logged metrics and extract those where a user logged a results during
+        this step and used the `on_step=True` option."""
         metrics = {keys.PBAR: {}, keys.LOG: {}, keys.CALLBACK: {}}
         for _name, entry in self.metrics.items():
             if entry.meta.on_step:  # Here we are stepping
@@ -409,7 +412,7 @@ class EpochStage(Stage, abc.ABC):
         super()._on_iteration_finishing(outputs)
 
     @override
-    def _on_iteration_finished(self, outputs: Any) -> None:
+    def _on_iteration_finished(self, outputs: Any, /) -> None:
         """On iteration finished."""
         super()._on_iteration_finished(outputs)
         # Keep track of the total number of batches, even across multiple executions of this loop
@@ -417,9 +420,8 @@ class EpochStage(Stage, abc.ABC):
 
     @override
     def _on_stopping(self) -> None:
-        """Look through the logged metrics and extract those where a user logged a results during this
-        step and used the `on_epoch=True` option
-        """
+        """Look through the logged metrics and extract those where a user logged a results during
+        this step and used the `on_epoch=True` option."""
         metrics = {keys.PBAR: {}, keys.LOG: {}, keys.CALLBACK: {}}
         for _name, entry in self.metrics.items():
             if entry.meta.on_epoch:  # Here we are completing an epoch

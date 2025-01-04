@@ -29,6 +29,6 @@ class SingleDevice(_strategies.Strategy):
         return True
 
     @override
-    def broadcast(self, obj: _strategies.TBroadcast, src: int = 0) -> _strategies.TBroadcast:
+    def broadcast(self, obj: _strategies.BroadcastT, src: int = 0) -> _strategies.BroadcastT:
         """Broadcast function."""
         return obj

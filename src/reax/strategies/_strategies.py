@@ -36,7 +36,7 @@ from typing import Any, TypeVar
 __all__ = ("Strategy",)
 
 
-TBroadcast = TypeVar("TBroadcast")
+BroadcastT = TypeVar("BroadcastT")
 
 
 class Strategy(abc.ABC):
@@ -49,8 +49,9 @@ class Strategy(abc.ABC):
         """Get a value from the device and return it."""
 
     @abc.abstractmethod
-    def broadcast(self, obj: TBroadcast, src: int = 0) -> TBroadcast:
+    def broadcast(self, obj: BroadcastT, src: int = 0) -> BroadcastT:
         """Broadcasts an object to all processes.
+
         :param obj: The object to broadcast.
         :type obj: TBroadcast
         :param src: Source rank, defaults to 0.
@@ -60,4 +61,5 @@ class Strategy(abc.ABC):
     @property
     @abc.abstractmethod
     def is_global_zero(self) -> bool:
-        """Whether the current process is the rank zero process not only on the local node, but for all nodes."""
+        """Whether the current process is the rank zero process not only on the local node, but for
+        all nodes."""

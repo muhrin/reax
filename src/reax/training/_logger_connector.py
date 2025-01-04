@@ -32,7 +32,7 @@ class TrainerLogging(hooks.TrainerListener):
 
     @override
     def on_stage_iter_ending(
-        self, trainer: "reax.Trainer", stage: "reax.Stage", step: int, outputs: Any
+        self, trainer: "reax.Trainer", stage: "reax.Stage", step: int, outputs: Any, /
     ):
         """The stage just finished processing an iteration."""
         if isinstance(stage, stages.EpochStage):
@@ -41,7 +41,7 @@ class TrainerLogging(hooks.TrainerListener):
             self._logger_metrics.update(stage.logged_metrics)
 
     @override
-    def on_stage_ending(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
+    def on_stage_ending(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
         """The stage is about to finish."""
         if isinstance(stage, stages.EpochStage):
             self._progress_bar_metrics.update(stage.progress_bar_metrics)

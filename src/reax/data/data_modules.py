@@ -18,6 +18,7 @@ class DataModule:
         val_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
         test_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
         predict_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
+        *,
         batch_size: int = 1,
     ) -> "DataModule":
         """From datasets."""
@@ -49,6 +50,7 @@ class FromDatasets(DataModule):
         val_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
         test_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
         predict_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
+        *,
         batch_size: int = 1,
     ):
         """Init function."""

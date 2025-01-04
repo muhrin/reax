@@ -16,6 +16,7 @@ __all__ = ("TqdmProgressBar",)
 
 
 class TqdmProgressBar(progress_bar.ProgressBar):
+    # pylint: disable=too-many-public-methods
     BAR_FORMAT = (
         "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_noinv_fmt}{postfix}]"
     )
@@ -36,12 +37,17 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         """Train progress bar."""
         if self._train_progress_bar is None:
             raise TypeError(
-                f"The `{self.__class__.__name__}._train_progress_bar` reference has not been set yet."
+                f"The `{self.__class__.__name__}._train_progress_bar` reference has not been set "
+                f"yet."
             )
         return self._train_progress_bar
 
     @train_progress_bar.setter
-    def train_progress_bar(self, bar: tqdm.tqdm) -> None:
+    def train_progress_bar(
+        # pylint: disable=disallowed-name
+        self,
+        bar: tqdm.tqdm,
+    ) -> None:
         """Train progress bar."""
         self._train_progress_bar = bar
 
@@ -55,7 +61,11 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         return self._val_progress_bar
 
     @val_progress_bar.setter
-    def val_progress_bar(self, bar: tqdm.tqdm) -> None:
+    def val_progress_bar(
+        # pylint: disable=disallowed-name
+        self,
+        bar: tqdm.tqdm,
+    ) -> None:
         """Val progress bar."""
         self._val_progress_bar = bar
 
@@ -64,12 +74,17 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         """Test progress bar."""
         if self._test_progress_bar is None:
             raise TypeError(
-                f"The `{self.__class__.__name__}._test_progress_bar` reference has not been set yet."
+                f"The `{self.__class__.__name__}._test_progress_bar` reference has not been set "
+                f"yet."
             )
         return self._test_progress_bar
 
     @test_progress_bar.setter
-    def test_progress_bar(self, bar: tqdm.tqdm) -> None:
+    def test_progress_bar(
+        # pylint: disable=disallowed-name
+        self,
+        bar: tqdm.tqdm,
+    ) -> None:
         """Test progress bar."""
         self._test_progress_bar = bar
 
@@ -78,12 +93,17 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         """Predict progress bar."""
         if self._predict_progress_bar is None:
             raise TypeError(
-                f"The `{self.__class__.__name__}._predict_progress_bar` reference has not been set yet."
+                f"The `{self.__class__.__name__}._predict_progress_bar` reference has not been set "
+                f"yet."
             )
         return self._predict_progress_bar
 
     @predict_progress_bar.setter
-    def predict_progress_bar(self, bar: tqdm.tqdm) -> None:
+    def predict_progress_bar(
+        # pylint: disable=disallowed-name
+        self,
+        bar: tqdm.tqdm,
+    ) -> None:
         """Predict progress bar."""
         self._predict_progress_bar = bar
 
@@ -117,7 +137,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         """Enable function."""
         self._enabled = True
 
-    def init_train_tqdm(self, stage: "reax.stages.Train") -> tqdm.tqdm:
+    def init_train_tqdm(self, stage: "reax.stages.Fit") -> tqdm.tqdm:
         """Override this to customize the tqdm bar for training."""
         return tqdm.tqdm(
             desc=stage.name,
@@ -170,12 +190,12 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         )
 
     @override
-    def on_fit_start(self, _trainer: "reax.Trainer", stage: "reax.stages.Fit") -> None:
+    def on_fit_start(self, _trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """On fit start."""
         self.train_progress_bar = self.init_train_tqdm(stage)
 
     @override
-    def on_train_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train") -> None:
+    def on_train_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
         """On train epoch start."""
         self.train_progress_bar.reset(total=utils.convert_inf(stage.max_iters))
         self.train_progress_bar.initial = 0
@@ -189,6 +209,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         outputs: Any,
         batch: Any,
         batch_idx: int,
+        /,
     ) -> None:
         """On train batch end."""
         n = batch_idx + 1
@@ -197,13 +218,13 @@ class TqdmProgressBar(progress_bar.ProgressBar):
             self.train_progress_bar.set_postfix(trainer.progress_bar_metrics)
 
     @override
-    def on_train_epoch_end(self, trainer: "reax.Trainer", _stage: "reax.stages.Train") -> None:
+    def on_train_epoch_end(self, trainer: "reax.Trainer", _stage: "reax.stages.Train", /) -> None:
         """On train epoch end."""
         if not self.train_progress_bar.disable:
             self.train_progress_bar.set_postfix(trainer.progress_bar_metrics)
 
     @override
-    def on_fit_end(self, *_: Any) -> None:
+    def on_fit_end(self, _trainer: "reax.Trainer", _stage: "reax.stages.Fit", /) -> None:
         """On fit end."""
         self.train_progress_bar.close()
 
@@ -225,6 +246,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         outputs: Any,
         batch: Any,
         batch_idx: int,
+        /,
     ) -> None:
         """On validation batch end."""
         n = batch_idx + 1
@@ -233,7 +255,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
 
     @override
     def on_validation_epoch_end(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Validate"
+        self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /
     ) -> None:
         """On validation epoch end."""
         self.val_progress_bar.close()
@@ -241,17 +263,13 @@ class TqdmProgressBar(progress_bar.ProgressBar):
             self.train_progress_bar.set_postfix(trainer.progress_bar_metrics)
 
     @override
-    def on_test_epoch_start(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
+    def on_test_epoch_start(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
         """On test epoch start."""
         self.test_progress_bar = self.init_test_tqdm()
 
     @override
     def on_test_batch_start(
-        self,
-        trainer: "reax.Trainer",
-        stage: "reax.stages.Test",
-        batch: Any,
-        batch_idx: int,
+        self, trainer: "reax.Trainer", stage: "reax.stages.Test", batch: Any, batch_idx: int, /
     ) -> None:
         """On test batch start."""
         self.test_progress_bar.reset(total=utils.convert_inf(stage.max_iters))
@@ -266,6 +284,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         outputs: Any,
         batch: Any,
         batch_idx: int,
+        /,
     ) -> None:
         """On test batch end."""
         n = batch_idx + 1
@@ -273,13 +292,13 @@ class TqdmProgressBar(progress_bar.ProgressBar):
             _update_n(self.test_progress_bar, n)
 
     @override
-    def on_test_epoch_end(self, _trainer: "reax.Trainer", _stage: "reax.Stage") -> None:
+    def on_test_epoch_end(self, _trainer: "reax.Trainer", _stage: "reax.Stage", /) -> None:
         """On test epoch end."""
         self.test_progress_bar.close()
 
     @override
     def on_predict_epoch_start(
-        self, _trainer: "reax.Trainer", stage: "reax.stages.Predict"
+        self, _trainer: "reax.Trainer", stage: "reax.stages.Predict", /
     ) -> None:
         """On predict epoch start."""
         self.predict_progress_bar = self.init_predict_tqdm(stage)
@@ -295,6 +314,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         outputs: Any,
         batch: Any,
         batch_idx: int,
+        /,
     ) -> None:
         """On predict batch end."""
         n = batch_idx + 1
@@ -302,7 +322,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
             _update_n(self.predict_progress_bar, n)
 
     @override
-    def on_predict_epoch_end(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
+    def on_predict_epoch_end(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
         """On predict epoch end."""
         self.predict_progress_bar.close()
 
@@ -341,7 +361,11 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         return refresh_rate
 
 
-def _update_n(bar: tqdm.tqdm, value: int) -> None:
+def _update_n(
+    # pylint: disable=disallowed-name
+    bar: tqdm.tqdm,
+    value: int,
+) -> None:
     """Update n."""
     if not bar.disable:
         bar.n = value

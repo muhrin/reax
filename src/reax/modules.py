@@ -7,7 +7,7 @@ import jaxtyping as jt
 from lightning_utilities.core import rank_zero
 import optax
 
-from . import _module_hooks, hooks
+from . import _module_hooks
 
 if TYPE_CHECKING:
     import reax
@@ -123,6 +123,7 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
         self,
         name: str,
         value: MetricType,
+        *,
         prog_bar: bool = False,
         batch_size: Optional[int] = None,
         logger: Optional[bool] = None,
@@ -144,12 +145,11 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
             )
             return
 
-        # TODO: Need to bring this back once we have a logger
-        # if logger and trainer.logger is None:
-        #     rank_zero.rank_zero_warn(
-        #         f"You called `self.log({name!r}, ..., logger=True)` but have no logger configured. "
-        #         f"You can enable one by using `Trainer(logger=ALogger(...))`"
-        #     )
+        if logger and trainer.logger is None:
+            rank_zero.rank_zero_warn(
+                f"You called `self.log({name!r}, ..., logger=True)` but have no logger "
+                f"configured. You can enable one by using `Trainer(logger=ALogger(...))`"
+            )
         if logger is None:
             # we could set false here if there's no configured logger, however, we still need to
             # compute the "logged" metrics anyway because that's what the evaluation loops use as

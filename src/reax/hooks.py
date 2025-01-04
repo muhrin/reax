@@ -13,17 +13,17 @@ class TrainerListener:
     def setup(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
         """Called when a stage (fit, validate, test, predict) begins."""
 
-    def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit") -> None:
+    def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """A fitting stage is about to begin."""
 
-    def on_fit_end(self, trainer: "reax.Trainer", stage: "reax.stages.Fit") -> None:
+    def on_fit_end(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """A fitting stage is about to end."""
 
-    def on_train_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train") -> None:
+    def on_train_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
         """A training epoch is about to begin."""
 
     def on_train_batch_start(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Train", batch: Any, batch_idx: int
+        self, trainer: "reax.Trainer", stage: "reax.stages.Train", batch: Any, batch_idx: int, /
     ) -> None:
         """The training stage if about to process a batch."""
 
@@ -34,6 +34,7 @@ class TrainerListener:
         outputs: Any,
         batch: Any,
         batch_idx: int,
+        /,
     ) -> None:
         """The training stage has just finished processing a batch."""
 
@@ -51,7 +52,7 @@ class TrainerListener:
         """A validation epoch is about to begin."""
 
     def on_validation_batch_start(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Validate", batch: Any, batch_idx: int
+        self, trainer: "reax.Trainer", stage: "reax.stages.Validate", batch: Any, batch_idx: int, /
     ) -> None:
         """The validation stage if about to process a batch."""
 
@@ -62,6 +63,7 @@ class TrainerListener:
         outputs: Any,
         batch: Any,
         batch_idx: int,
+        /,
     ) -> None:
         """The validation stage has just finished processing a batch."""
 
@@ -73,11 +75,11 @@ class TrainerListener:
     def on_validation_end(self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /) -> None:
         """Validation has ended."""
 
-    def on_test_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Test") -> None:
+    def on_test_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Test", /) -> None:
         """A test epoch is about to begin."""
 
     def on_test_batch_start(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Test", batch: Any, batch_idx: int
+        self, trainer: "reax.Trainer", stage: "reax.stages.Test", batch: Any, batch_idx: int, /
     ) -> None:
         """The test stage if about to process a batch."""
 
@@ -88,6 +90,7 @@ class TrainerListener:
         outputs: Any,
         batch: Any,
         batch_idx: int,
+        /,
     ) -> None:
         """The test stage has just finished processing a batch."""
 
@@ -100,7 +103,7 @@ class TrainerListener:
         """A predict epoch is about to begin."""
 
     def on_predict_batch_start(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Predict", batch: Any, batch_idx: int
+        self, trainer: "reax.Trainer", stage: "reax.stages.Predict", batch: Any, batch_idx: int, /
     ) -> None:
         """The test stage if about to process a batch."""
 
@@ -111,6 +114,7 @@ class TrainerListener:
         outputs: Any,
         batch: Any,
         batch_idx: int,
+        /,
     ) -> None:
         """The predict stage has just finished processing a batch."""
 
@@ -128,11 +132,12 @@ class TrainerListener:
         stage: "reax.stages.EpochStage",
         batch_idx: int,
         metrics: dict,
+        /,
     ) -> None:
         """A batch has just been processed."""
 
     def on_epoch_ending(
-        self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage", metrics: dict
+        self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage", metrics: dict, /
     ) -> None:
         """An epoch is ending."""
 
@@ -145,19 +150,19 @@ class TrainerListener:
         """A trainer has started."""
 
     def on_stage_iter_starting(
-        self, trainer: "reax.Trainer", stage: "reax.Stage", step: int
+        self, trainer: "reax.Trainer", stage: "reax.Stage", step: int, /
     ) -> None:
         """A stage is about to start an interation."""
 
     def on_stage_iter_ending(
-        self, trainer: "reax.Trainer", stage: "reax.Stage", step: int, outputs: Any
+        self, trainer: "reax.Trainer", stage: "reax.Stage", step: int, outputs: Any, /
     ):
         """The stage just finished processing an iteration."""
 
-    def on_stage_ending(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
+    def on_stage_ending(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
         """The stage is about to finish."""
 
-    def on_stage_ended(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
+    def on_stage_ended(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
         """The stage has ended."""
 
     # endregion

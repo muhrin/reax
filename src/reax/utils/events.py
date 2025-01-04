@@ -46,7 +46,12 @@ class EventGenerator(Generic[ListenerT]):
         """Get a listener using its handle."""
         return self._event_listeners[handle]
 
-    def find(self, *, type: type[T]) -> list[T]:
+    def find(
+        # pylint: disable=redefined-builtin
+        self,
+        *,
+        type: type[T],
+    ) -> list[T]:
         """Find listeners matching the passed filter(s)."""
         return [
             listener for listener in self._event_listeners.values() if isinstance(listener, type)

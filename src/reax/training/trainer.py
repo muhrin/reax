@@ -2,7 +2,7 @@ import contextlib
 import functools
 import logging
 import os
-import pickle
+import pickle  # nosec
 import signal
 import sys
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Optional, Union, cast
@@ -32,10 +32,13 @@ __all__ = ("Trainer",)
 
 
 class Trainer(stages.StageListener):
+    # pylint: disable=too-many-public-methods
+
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         module: modules.Module,
+        *,
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = None,
         fast_dev_run: Union[int, bool] = False,
@@ -134,7 +137,6 @@ class Trainer(stages.StageListener):
             def training_step(self, batch, batch_idx):
                 if self.trainer.is_global_zero:
                     print("in node 0, accelerator 0")
-
         """
         return self.strategy.is_global_zero
 
@@ -183,8 +185,7 @@ class Trainer(stages.StageListener):
     @property
     def default_root_dir(self) -> str:
         """Get the fallback directory used for loggers and other components when not explicitly
-        specified
-        """
+        specified."""
         if _is_local_file_protocol(self._default_root_dir):
             return os.path.normpath(os.path.expanduser(self._default_root_dir))
 
@@ -193,31 +194,27 @@ class Trainer(stages.StageListener):
     @property
     def early_stopping_callback(self) -> Optional[listeners_.EarlyStopping]:
         """The first :class:`~reax.listeners.early_stopping.EarlyStopping` callback in the
-        Trainer.callbacks list, or ``None`` if it doesn't exist.
-        """
+        Trainer.callbacks list, or ``None`` if it doesn't exist."""
         callbacks = self.early_stopping_callbacks
         return callbacks[0] if len(callbacks) > 0 else None
 
     @property
     def early_stopping_callbacks(self) -> list[listeners_.EarlyStopping]:
-        """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in the
-        Trainer.callbacks list.
-        """
+        """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in
+        the Trainer.callbacks list."""
         return self._events.find(type=listeners_.EarlyStopping)
 
     @property
     def checkpoint_callback(self) -> Optional["reax.listeners.Checkpointer"]:
         """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` callback in the
-        Trainer.callbacks list, or ``None`` if it doesn't exist.
-        """
+        Trainer.callbacks list, or ``None`` if it doesn't exist."""
         callbacks = self.checkpoint_callbacks
         return callbacks[0] if len(callbacks) > 0 else None
 
     @property
     def checkpoint_callbacks(self) -> list["reax.listeners.Checkpointer"]:
-        """A list of all instances of :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` found in
-        the Trainer.listeners list.
-        """
+        """A list of all instances of :class:`~reax.listeners.model_checkpoint.ModelCheckpoint`
+        found in the Trainer.listeners list."""
         return self._events.find(type=listeners_.Checkpointer)
 
     @property
@@ -240,17 +237,16 @@ class Trainer(stages.StageListener):
 
     @property
     def log_dir(self) -> Optional[str]:
-        """Log dir."""
         """The directory for the current experiment. Use this to save images to, etc...
 
-        .. note:: You must call this on all processes. Failing to do so will cause your program to stall forever.
+        .. note:: You must call this on all processes. Failing to do so will cause your program to
+            stall forever.
 
-         .. code-block:: python
+        .. code-block:: python
 
-             def training_step(self, batch, batch_idx):
-                 img = ...
-                 save_img(img, self.trainer.log_dir)
-
+            def training_step(self, batch, batch_idx):
+                img = ...
+                save_img(img, self.trainer.log_dir)
         """
         if len(self.loggers) > 0:
             if not isinstance(self.loggers[0], loggers_.TensorBoardLogger):
@@ -328,6 +324,7 @@ class Trainer(stages.StageListener):
         self,
         name: str,
         value,
+        *,
         prog_bar: bool = False,
         batch_size: Optional[int] = None,
         logger: bool = None,
@@ -359,6 +356,7 @@ class Trainer(stages.StageListener):
         self,
         train_dataloaders: "Optional[reax.DataLoader]" = None,
         val_dataloaders: "Optional[reax.DataLoader]" = None,
+        *,
         datamodule: "Optional[reax.DataModule]" = None,
         max_epochs: Union[int, float] = 1_000,
         min_epochs: int = -1,
@@ -494,11 +492,21 @@ class Trainer(stages.StageListener):
         if self._fast_dev_run:
             limit_batches = 1
 
+        if return_predictions is None:
+            return_predictions = True
+
         predict = stages.Predict(
-            self._module, dataloaders, self._strategy, max_batches=limit_batches
+            self._module,
+            dataloaders,
+            self._strategy,
+            max_batches=limit_batches,
+            keep_predictions=return_predictions,
         )
         self._run_stage(predict)
-        return predict._all_outputs
+        if return_predictions:
+            return predict.all_outputs
+
+        return None
 
     def _run_stage(self, stage: stages.Stage) -> stages.Stage:
         """Run stage."""
@@ -529,7 +537,7 @@ class Trainer(stages.StageListener):
             self._stage = None
 
     @override
-    def on_stage_starting(self, stage: "stages.Stage") -> None:
+    def on_stage_starting(self, stage: "stages.Stage", /) -> None:
         """The stage is about to start."""
         if not self._optimizers and isinstance(stage, stages.Train):
             self._optimizers = stage.optimizers
@@ -554,7 +562,7 @@ class Trainer(stages.StageListener):
             self._events.fire_event(event, stage)
 
     @override
-    def on_stage_iter_starting(self, stage: "stages.Stage", step: int):
+    def on_stage_iter_starting(self, stage: "stages.Stage", step: int, /):
         """On stage iter starting."""
         self._events.fire_event(hooks.TrainerListener.on_stage_iter_starting, stage, step)
 
@@ -576,8 +584,8 @@ class Trainer(stages.StageListener):
             self._events.fire_event(
                 hooks.TrainerListener.on_batch_ending,
                 stage,
-                batch_idx=step,
-                metrics=outputs,
+                step,
+                outputs,
             )
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_iter_ending)
@@ -590,7 +598,7 @@ class Trainer(stages.StageListener):
             self._current_epoch += 1
 
     @override
-    def on_stage_ending(self, stage: "stages.Stage") -> None:
+    def on_stage_ending(self, stage: "stages.Stage", /) -> None:
         """On stage ending."""
         if isinstance(stage, stages.EpochStage):
             self._events.fire_event(
@@ -675,19 +683,14 @@ def _is_local_file_protocol(path: typing.Path) -> bool:
     return fsspec.utils.get_protocol(str(path)) == "file"
 
 
-_BATCH = Any
-_OUTPUTS = Any
-_BATCH_IDX = int
-
-
 @functools.singledispatch
-def hook_map(stage) -> dict[Callable, Callable]:
+def hook_map(_stage) -> dict[Callable, Callable]:
     """Hook map."""
     return dict()
 
 
 @hook_map.register
-def _(stage: stages.Train) -> dict[Callable, Callable]:
+def _(_stage: stages.Train) -> dict[Callable, Callable]:
     """Function."""
     return {
         hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_train_epoch_start,
@@ -698,12 +701,12 @@ def _(stage: stages.Train) -> dict[Callable, Callable]:
 
 
 @hook_map.register
-def _(stage: stages.Validate) -> dict[Callable, Callable]:
+def _(_stage: stages.Validate) -> dict[Callable, Callable]:
     """Function."""
     return {
         hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_validation_start,
         hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_validation_epoch_start,
-        hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_validation_batch_start,
+        hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_validation_batch_start,  # pylint: disable=line-too-long
         hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_validation_batch_end,
         hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_validation_epoch_end,
         hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_validation_end,
@@ -711,7 +714,7 @@ def _(stage: stages.Validate) -> dict[Callable, Callable]:
 
 
 @hook_map.register
-def _(stage: stages.Test) -> dict[Callable, Callable]:
+def _(_stage: stages.Test) -> dict[Callable, Callable]:
     """Function."""
     return {
         hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_test_epoch_start,
@@ -722,7 +725,7 @@ def _(stage: stages.Test) -> dict[Callable, Callable]:
 
 
 @hook_map.register
-def _(stage: stages.Predict) -> dict[Callable, Callable]:
+def _(_stage: stages.Predict) -> dict[Callable, Callable]:
     """Function."""
     return {
         hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_predict_epoch_start,
@@ -733,7 +736,7 @@ def _(stage: stages.Predict) -> dict[Callable, Callable]:
 
 
 @hook_map.register
-def _(stage: stages.Fit) -> dict[Callable, Callable]:
+def _(_stage: stages.Fit) -> dict[Callable, Callable]:
     """Function."""
     return {
         hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_fit_start,

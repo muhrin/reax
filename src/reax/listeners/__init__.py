@@ -1,6 +1,4 @@
-"""
-Collection of built-in listeners
-"""
+"""Collection of built-in listeners."""
 
 from . import checkpointer, early_stopping, model_checkpoint, progress, utils
 from .checkpointer import *

@@ -108,8 +108,9 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
 
 class CachingLoader(Iterable):
     """Caching loader is useful, for example, if you don't want to shuffle data every time but at
-    some interval defined by ``reset_every``.  This means you need to have enough memory to
-    accommodate all the data.
+    some interval defined by ``reset_every``.
+
+    This means you need to have enough memory to accommodate all the data.
     """
 
     def __init__(self, loader: _types.DataLoader, reset_every: int):

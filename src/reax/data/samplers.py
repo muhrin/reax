@@ -15,9 +15,9 @@ IdxT = TypeVar("IdxT", bound=Hashable)
 
 
 class SequentialSampler(_types.Sampler[int]):
-    """
-    Sequentially sample integers index samples up to a given ``length``. Equivalent to
-    ``range(length)``.
+    """Sequentially sample integers index samples up to a given `length`.
+
+    Equivalent to `range(length)`.
     """
 
     def __init__(self, length: int) -> None:

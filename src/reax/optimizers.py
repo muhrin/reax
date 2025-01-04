@@ -35,6 +35,7 @@ class Optimizer(equinox.Module):
     # @equinox.filter_jit
     def update(self, params: optax.Params, grad: jt.PyTree) -> tuple[Any, "Optimizer"]:
         """Return an updated version of the passed parameters using the passed gradients.
+
         :return: A tuple of the updated parameters and an instance of this optimizer updated with
             the new state.
         :rtype: tuple[Any, "Optimizer"]
@@ -47,6 +48,7 @@ class Optimizer(equinox.Module):
 
     def update_module(self, module: "reax.Module", grad: jt.PyTree) -> "Optimizer":
         """Perform an inplace update of the module parameters given the passed gradients.
+
         :return: An instance of this optimizer updated with the new state.
         :rtype: "Optimizer"
         """

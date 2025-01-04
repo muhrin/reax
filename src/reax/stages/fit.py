@@ -105,7 +105,7 @@ class FitEpoch(train.Train):
             self._module.set_parameters(params)
 
     @override
-    def _on_iteration_finished(self, outputs: Any) -> None:
+    def _on_iteration_finished(self, outputs: Any, /) -> None:
         """On iteration finished."""
         super()._on_iteration_finished(outputs)
 
@@ -197,9 +197,10 @@ class FitEpoch(train.Train):
             if val_check_batch > max_batches and check_val_every_n_epoch is not None:
                 raise ValueError(
                     f" `val_check_interval` ({val_check_interval}) must be less than or equal"
-                    f" to the number of the training batches ({max_batches})."
-                    " If you want to disable validation set `limit_val_batches` to 0.0 instead."
-                    " If you want to validate based on the total training batches, set `check_val_every_n_epoch=None`."
+                    f" to the number of the training batches ({max_batches}). "
+                    "If you want to disable validation set `limit_val_batches` to 0.0 instead."
+                    "If you want to validate based on the total training batches, set "
+                    "`check_val_every_n_epoch=None`."
                 )
         else:
             dataloader_size = data.sized_len(dataloader)
@@ -218,10 +219,10 @@ class FitEpoch(train.Train):
                 val_check_batch = max(1, val_check_batch)
 
         # if loggers and max_batches < log_every_n_steps and not fast_dev_run:
-        #     rank_zero_warn(
-        #         f"The number of training batches ({max_batches}) is smaller than the logging interval"
-        #         f" Trainer(log_every_n_steps={log_every_n_steps}). Set a lower value for log_every_n_steps if"
-        #         " you want to see logs for the training epoch.",
+        #     rank_zero.rank_zero_warn(
+        #         f"The number of training batches ({max_batches}) is smaller than the logging "
+        #         f"interval. Trainer(log_every_n_steps={log_every_n_steps}). Set a lower value "
+        #         f"for log_every_n_steps if you want to see logs for the training epoch.",
         #         category=PossibleUserWarning,
         #     )
 

@@ -8,7 +8,7 @@ import numpy as np
 import optax
 from typing_extensions import override
 
-from reax import data, modules, stages
+from reax import data, modules
 
 __all__ = "BoringModel", "RandomDataset"
 
@@ -27,7 +27,6 @@ class BoringModel(modules.Module):
         class TestModel(BoringModel):
             def training_step(self, ...):
                 ...  # do your own thing
-
     """
 
     def __init__(self) -> None:
@@ -36,7 +35,7 @@ class BoringModel(modules.Module):
         self.layer = linen.Dense(2)
 
     @override
-    def setup(self, stage, batch: Any) -> None:
+    def setup(self, stage, batch: Any, /) -> None:
         """Setup function."""
         if self.parameters() is None:
             params = self.layer.init(self.rng_key(), batch[0])
@@ -64,20 +63,20 @@ class BoringModel(modules.Module):
         output = model.apply(parameters, batch)
         return BoringModel.loss(output)
 
-    def training_step(self, batch: Any, batch_idx: int) -> Any:
+    def training_step(self, batch: Any, batch_idx: int, /) -> Any:
         """Training step."""
         loss, grad = jax.value_and_grad(self.step, argnums=1)(self.layer, self.parameters(), batch)
         return {"loss": loss, "grad": grad}
 
-    def validation_step(self, batch: Any, batch_idx: int) -> Any:
+    def validation_step(self, batch: Any, batch_idx: int, /) -> Any:
         """Validation step."""
         return {"x": self.step(self.layer, self.parameters(), batch)}
 
-    def test_step(self, batch: Any, batch_idx: int) -> Any:
+    def test_step(self, batch: Any, batch_idx: int, /) -> Any:
         """Test step."""
         return {"y": self.step(self.layer, self.parameters(), batch)}
 
-    def predict_step(self, batch: Any, batch_idx: int) -> Any:
+    def predict_step(self, batch: Any, batch_idx: int, /) -> Any:
         """Predict step."""
         return self.forward(batch)
 

@@ -99,6 +99,5 @@ def _ensure_metric(metric: "reax.Metric") -> metric_.Metric:
 
 def combine(*metric: metric_.Metric) -> MetricCollection:
     """Combine multiple metrics with the same signature into a collection that can be used to
-    calculate multiple metrics at once
-    """
+    calculate multiple metrics at once."""
     return MetricCollection(metric)
