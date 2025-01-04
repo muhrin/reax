@@ -23,8 +23,7 @@ class ReduceFn(Protocol):
 def _prepare_mask(
     mask: jt.Bool[jax.Array, "n_elements"], array: jt.Float[jax.Array, "..."]
 ) -> jt.Float[jax.Array, "n_elements ..."]:
-    """
-    Prepare a mask for use with jnp.where(mask, array, ...).
+    """Prepare a mask for use with jnp.where(mask, array, ...).
 
     This needs to be done to make sure the mask is of the right shape to be compatible with such an operation.  The other alternative is
 

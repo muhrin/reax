@@ -1,3 +1,40 @@
+# Copyright (C) 2024  Martin Uhrin
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# Most of this file is covered by the following license.  To find what has been modified you
+# can perform a diff with the file at:
+# https://github.com/Lightning-AI/pytorch-lightning/blob/0324a20f00235c7a10a235a44326811ba42b6ae4/src/lightning/pytorch/loggers/tensorboard.py
+#
+# Copyright The Lightning AI team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+TensorBoard Logger
+------------------
+"""
+
 import argparse
 import os
 from typing import Any, Callable, Final, Mapping, Optional, Union
@@ -22,6 +59,27 @@ __all__ = ("TensorBoardLogger",)
 
 
 class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Logger):
+    r"""Log to local or remote file system in `TensorBoard <https://www.tensorflow.org/tensorboard>`_ format.
+
+    Implemented using :class:`~tensorboardX.SummaryWriter`. Logs are saved to
+    ``os.path.join(save_dir, name, version)``. This is the default logger in Lightning, it comes
+    preinstalled.
+
+    This logger supports logging to remote filesystems via ``fsspec``. Make sure you have it installed
+    and you don't have tensorflow (otherwise it will use tf.io.gfile instead of fsspec).
+
+    Example:
+
+    .. testcode::
+        :skipif: not _TENSORBOARD_AVAILABLE or not _TENSORBOARDX_AVAILABLE
+
+        from reax import Trainer
+        from reax.loggers import TensorBoardLogger
+
+        logger = TensorBoardLogger("tb_logs", name="my_model")
+        trainer = Trainer(logger=logger)
+    """
+
     LOGGER_JOIN_CHAR: Final[str] = "-"
     NAME_HPARAMS_FILE: Final[str] = "hparams.yaml"
 
@@ -36,7 +94,38 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         sub_dir: Optional[typing.Path] = None,
         **kwargs: Any,
     ):
-        """Init function."""
+        """Init function.
+        :param **kwargs:
+        :type **kwargs: Any
+        :param log_dir:
+        :type log_dir: typing.Path
+        :param save_dir: Save directory.
+        :param name: Experiment name.  If it is the empty string then no per-experiment
+            subdirectory is used, defaults to "reax_logs".
+        :type name: Optional[str], optional
+        :param version: Experiment version. If version is not specified the logger inspects the save
+            directory for existing versions, then automatically assigns the next available version.
+            If it is a string then it is used as the run-specific subdirectory name,
+            otherwise ``'version_${version}'`` is used, defaults to None.
+        :type version: Optional[Union[int, str]], optional
+        :param log_graph: Adds the computational graph to tensorboard. This requires that
+            the user has defined the `self.example_input_array` attribute in their
+            model, defaults to False.
+        :type log_graph: bool, optional
+        :param default_hp_metric: Enables a placeholder metric with key `hp_metric` when `log_hyperparams` is
+            called without a metric (otherwise calls to log_hyperparams without a metric are ignored), defaults to True.
+        :type default_hp_metric: bool, optional
+        :param prefix: A string to put at the beginning of metric keys, defaults to "".
+        :type prefix: str, optional
+        :param sub_dir: Sub-directory to group TensorBoard logs. If a sub_dir argument is passed
+            then logs are saved in ``/save_dir/name/version/sub_dir/``.
+            logs are saved in ``/save_dir/name/version/``, defaults to None.
+        :type sub_dir: Optional[typing.Path], optional
+        :param kwargs: Additional arguments used by :class:`tensorboardX.SummaryWriter` can be passed as keyword
+            arguments in this logger. To automatically flush to disk, `max_queue` sets the size
+            of the queue for pending logs before flushing. `flush_secs` determines how many seconds
+            elapses before flushing.
+        """
         super().__init__()
         self._root_dir = os.fspath(log_dir)
         self._name = name or ""
@@ -69,13 +158,21 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     @property
     @override
     def root_dir(self) -> str:
-        """Root dir."""
+        """Parent directory for all tensorboard checkpoint subdirectories.
+
+        If the experiment name parameter is an empty string, no experiment subdirectory is used and the checkpoint will
+        be saved in "save_dir/version"
+        """
         return os.path.join(self._root_dir, self.name)
 
     @property
     @override
     def log_dir(self) -> str:
-        """Log dir."""
+        """The directory for this run's tensorboard checkpoint.
+
+        By default, it is named ``'version_${self.version}'`` but it can be overridden by passing a string value for the
+        constructor's version parameter instead of ``None`` or an int.
+        """
         # create a pseudo standard path ala test-tube
         version = self.version if isinstance(self.version, str) else f"version_{self.version}"
         log_dir = os.path.join(self.root_dir, version)
@@ -94,7 +191,9 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     @property
     @override
     def save_dir(self) -> str:
-        """Save dir."""
+        """Gets the save directory where the TensorBoard experiments are saved.
+        :rtype: The local path to the save directory where the TensorBoard experiments are saved.
+        """
         return self._root_dir
 
     @property
@@ -140,7 +239,18 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         params: Union[dict[str, Any], argparse.Namespace],
         metrics: Optional[dict[str, Any]] = None,
     ) -> None:
-        """Log hyperparams."""
+        """Record hyperparameters.
+
+        TensorBoard logs with and without saved hyperparameters are incompatible, thehyperparameters
+        are then not displayed in the TensorBoard. Please delete or move the previously saved logs
+        to display the new ones with hyperparameters.
+
+        :param params: A dictionary-like container with the hyperparameters.
+        :type params: Union[dict[str, Any], argparse.Namespace]
+        :param metrics: Dictionary with metric names as keys and measured quantities as values, defaults to None.
+        :type metrics: Optional[dict[str, Any]], optional
+        :param step: Optional global step number for the logged metrics.
+        """
         params = _utils.convert_params(params)
 
         if omegaconf is not None and isinstance(params, omegaconf.Container):

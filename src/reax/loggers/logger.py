@@ -1,15 +1,53 @@
+# Copyright (C) 2024  Martin Uhrin
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# Most of this file is covered by the following license.  To find what has been modified you
+# can perform a diff with the file at:
+# https://github.com/Lightning-AI/pytorch-lightning/blob/9177ec09caadcf88859e1f1e3e10a18e8832069a/src/lightning/fabric/loggers/logger.py
+#
+# Copyright The Lightning AI team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Abstract base class used to build new loggers."""
+
 import abc
 import argparse
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
+import functools
+from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, TypeVar, Union
 
 from reax.lightning import rank_zero
+
+if TYPE_CHECKING:
+    import reax
 
 __all__ = ("Logger",)
 
 Exp = TypeVar("Exp")  # Experiment type
 
 
-class Logger(metaclass=abc.ABCMeta):
+class Logger(abc.ABC):
     """Base class for REAX loggers."""
 
     @property
@@ -67,9 +105,7 @@ class Logger(metaclass=abc.ABCMeta):
         :param params: A `dict` or :class:`~argparse.Namespace` containing hyperparameters.
         :type params: Union[dict[str, Any], argparse.Namespace]
         :param *args: Additional optional args.
-        :type *args: Any
         :param **kwargs: Additional optional kwargs.
-        :type **kwargs: Any
         """
 
     def log_graph(self, model: Callable, *args, **kwargs) -> None:
@@ -90,8 +126,14 @@ class Logger(metaclass=abc.ABCMeta):
         """
         self.save()
 
+    def after_save_checkpoint(self, checkpoint_callback: "reax.listeners.ModelCheckpoint") -> None:
+        """Called after model checkpoint callback saves a new checkpoint.
+        :param checkpoint_callback: The model checkpoint callback instance.
+        :type checkpoint_callback: "reax.listeners.ModelCheckpoint"
+        """
 
-class WithDdp(Generic[Exp], metaclass=abc.ABCMeta):
+
+class WithDdp(Generic[Exp], abc.ABC):
     """Mixins that allows a logger to be compatible with DPP strategy."""
 
     @property
@@ -153,6 +195,26 @@ class WithDdp(Generic[Exp], metaclass=abc.ABCMeta):
     def _finalize(self, status: str) -> None:  # pylint: disable=unused-argument
         """Finalize implementation."""
         self._save()
+
+
+def rank_zero_experiment(fn: Callable) -> Callable:
+    """Returns the real experiment on rank 0 and otherwise the _DummyExperiment."""
+
+    @functools.wraps(fn)
+    def experiment(self: Logger) -> Union[Any, _DummyExperiment]:
+        """Note:
+        ``self`` is a custom logger instance. The loggers typically wrap an ``experiment`` method
+        with a ``@rank_zero_experiment`` decorator.
+
+        ``Union[Any, _DummyExperiment]`` is used because the wrapped hooks have several return
+        types that are specific to the custom logger. The return type here can be considered as
+        ``Union[return type of logger.experiment, _DummyExperiment]``.
+        """
+        if rank_zero.rank_zero_only.rank > 0:
+            return _DummyExperiment()
+        return fn(self)
+
+    return experiment
 
 
 class _DummyExperiment:

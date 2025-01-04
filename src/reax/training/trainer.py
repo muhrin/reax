@@ -68,7 +68,7 @@ class Trainer(stages.StageListener):
         self._current_epoch: int = 0
         self._global_updates: int = 0
 
-        self.events = events.EventGenerator[hooks.TrainerListener](
+        self._events = events.EventGenerator[hooks.TrainerListener](
             default_args=(weakref.proxy(self),)
         )
 
@@ -79,16 +79,16 @@ class Trainer(stages.StageListener):
         self._loggers = _init_loggers(logger, self.default_root_dir)
 
         self._logging = _logger_connector.TrainerLogging()
-        self.events.add_listener(self._logging)
+        self._events.add_listener(self._logging)
 
         if isinstance(listeners, hooks.TrainerListener):
             listeners = [listeners]
         if listeners:
             for listener in listeners:
-                self.events.add_listener(listener)
+                self._events.add_listener(listener)
 
         if enable_progress_bar:
-            self.events.add_listener(listeners_.TqdmProgressBar())
+            self._events.add_listener(listeners_.TqdmProgressBar())
 
         if enable_model_summary:
             _LOGGER.warning("`enable_model_summary` is not supported yet, ignoring")
@@ -101,7 +101,7 @@ class Trainer(stages.StageListener):
                 )
         elif enable_checkpointing:
             # Create the default checkpointer
-            self.events.add_listener(listeners_.ModelCheckpoint())
+            self._events.add_listener(listeners_.ModelCheckpoint())
 
     def finalize(self):
         """Clean up the trainer.
@@ -113,12 +113,30 @@ class Trainer(stages.StageListener):
 
         if self._module.trainer is self:
             self._module.trainer = None
-        self.events = None
+        self._events = None
         self._loggers = None
 
     def __del__(self):
         """Del function."""
         self.finalize()
+
+    @property
+    def strategy(self) -> strategies.Strategy:
+        """Strategy function."""
+        return self._strategy
+
+    @property
+    def is_global_zero(self) -> bool:
+        """Whether this process is the global zero in multi-node training.
+
+        .. code-block:: python
+
+            def training_step(self, batch, batch_idx):
+                if self.trainer.is_global_zero:
+                    print("in node 0, accelerator 0")
+
+        """
+        return self.strategy.is_global_zero
 
     @property
     def fast_dev_run(self) -> Union[int, bool]:
@@ -185,11 +203,26 @@ class Trainer(stages.StageListener):
         """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in the
         Trainer.callbacks list.
         """
-        return self.events.find(listeners_.EarlyStopping)
+        return self._events.find(type=listeners_.EarlyStopping)
 
     @property
-    def logger(self) -> "reax.Logger":
-        r"""Get the first (and main) logge."""
+    def checkpoint_callback(self) -> Optional["reax.listeners.Checkpointer"]:
+        """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` callback in the
+        Trainer.callbacks list, or ``None`` if it doesn't exist.
+        """
+        callbacks = self.checkpoint_callbacks
+        return callbacks[0] if len(callbacks) > 0 else None
+
+    @property
+    def checkpoint_callbacks(self) -> list["reax.listeners.Checkpointer"]:
+        """A list of all instances of :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` found in
+        the Trainer.listeners list.
+        """
+        return self._events.find(type=listeners_.Checkpointer)
+
+    @property
+    def logger(self) -> Optional["reax.Logger"]:
+        r"""Get the first (and main) logger."""
         if not self._loggers:
             return None
 
@@ -207,27 +240,33 @@ class Trainer(stages.StageListener):
 
     @property
     def log_dir(self) -> Optional[str]:
-        """The directory for the current experiment.
+        """Log dir."""
+        """The directory for the current experiment. Use this to save images to, etc...
 
-        Use this to save images to, etc...
+        .. note:: You must call this on all processes. Failing to do so will cause your program to stall forever.
+
+         .. code-block:: python
+
+             def training_step(self, batch, batch_idx):
+                 img = ...
+                 save_img(img, self.trainer.log_dir)
+
         """
         if len(self.loggers) > 0:
-            dirpath = self.loggers[0].log_dir
+            if not isinstance(self.loggers[0], loggers_.TensorBoardLogger):
+                dirpath = self.loggers[0].save_dir
+            else:
+                dirpath = self.loggers[0].log_dir
         else:
             dirpath = self.default_root_dir
 
-        # dirpath = self.strategy.broadcast(dirpath)
+        dirpath = self._strategy.broadcast(dirpath)
         return dirpath
 
     @property
     def stage(self) -> "Optional[reax.Stage]":
         """Get the current stage if there is one running, otherwise None."""
         return self._stage
-
-    @property
-    def checkpoint_callbacks(self) -> list[listeners_.Checkpointer]:
-        """A list of all instances of :class:`~reax.listeners.Checkpointer` found in the Trainer.events list."""
-        return self.events.find(type=listeners_.Checkpointer)
 
     @property
     def progress_bar_metrics(self) -> dict:
@@ -271,12 +310,16 @@ class Trainer(stages.StageListener):
 
     @property
     def train_dataloader(self) -> Optional:
+        """Train dataloader."""
         if self._stage is not None:
             return getattr(self._stage, "train_dataloader", None)
         return None
 
     def rng_key(self, num=1) -> jax.Array:
-        """Get a new RNG key. This will update the state in the `Trainer`."""
+        """Get a new RNG key.
+
+        This will update the state in the `Trainer`.
+        """
         self._rng_key, subkey = jax.random.split(self._rng_key, num=num + 1)
         return subkey
 
@@ -468,6 +511,9 @@ class Trainer(stages.StageListener):
             # Disable further Ctrl+C presses while we respond to this one
             signal.signal(signal.SIGINT, signal.SIG_IGN)
             sys.exit(1)
+        else:
+            for logger in self.loggers:
+                logger.finalize("success")
 
         return stage
 
@@ -490,32 +536,32 @@ class Trainer(stages.StageListener):
 
         if stage.is_root:
             # Only setup for the root loop
-            self.events.fire_event(hooks.TrainerListener.setup, stage)
+            self._events.fire_event(hooks.TrainerListener.setup, stage)
 
-        self.events.fire_event(hooks.TrainerListener.on_stage_starting, stage)
+        self._events.fire_event(hooks.TrainerListener.on_stage_starting, stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_starting)
         if event is not None:
-            self.events.fire_event(event, stage)
+            self._events.fire_event(event, stage)
 
     @override
     def on_stage_started(self, stage: "reax.Stage", /):
         """On stage started."""
-        self.events.fire_event(hooks.TrainerListener.on_stage_started, stage)
+        self._events.fire_event(hooks.TrainerListener.on_stage_started, stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_started)
         if event is not None:
-            self.events.fire_event(event, stage)
+            self._events.fire_event(event, stage)
 
     @override
     def on_stage_iter_starting(self, stage: "stages.Stage", step: int):
         """On stage iter starting."""
-        self.events.fire_event(hooks.TrainerListener.on_stage_iter_starting, stage, step)
+        self._events.fire_event(hooks.TrainerListener.on_stage_iter_starting, stage, step)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_iter_starting)
         if event is not None:
             stage = cast(stages.EpochStage, stage)
-            self.events.fire_event(event, stage, stage.batch, step)
+            self._events.fire_event(event, stage, stage.batch, step)
 
     @override
     def on_stage_iter_ending(self, stage: "stages.Stage", step: int, outputs: Any, /):
@@ -527,7 +573,7 @@ class Trainer(stages.StageListener):
                 logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
                 logger.save()
 
-            self.events.fire_event(
+            self._events.fire_event(
                 hooks.TrainerListener.on_batch_ending,
                 stage,
                 batch_idx=step,
@@ -537,7 +583,7 @@ class Trainer(stages.StageListener):
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_iter_ending)
         if event is not None:
             stage = cast(stages.EpochStage, stage)
-            self.events.fire_event(event, stage, outputs, stage.batch, step)
+            self._events.fire_event(event, stage, outputs, stage.batch, step)
 
         if isinstance(stage, stages.Fit):
             # Keep track of the number of completed training epochs
@@ -547,7 +593,7 @@ class Trainer(stages.StageListener):
     def on_stage_ending(self, stage: "stages.Stage") -> None:
         """On stage ending."""
         if isinstance(stage, stages.EpochStage):
-            self.events.fire_event(
+            self._events.fire_event(
                 hooks.TrainerListener.on_epoch_ending, stage, stage.callback_metrics
             )
 
@@ -559,31 +605,31 @@ class Trainer(stages.StageListener):
                     logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
                     logger.save()
 
-        self.events.fire_event(hooks.TrainerListener.on_stage_ending, stage)
+        self._events.fire_event(hooks.TrainerListener.on_stage_ending, stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_ending)
         if event is not None:
             stage = cast(stages.EpochStage, stage)
-            self.events.fire_event(event, stage)
+            self._events.fire_event(event, stage)
 
     @override
     def on_stage_ended(self, stage: "reax.Stage", /):
         """On stage ended."""
-        self.events.fire_event(hooks.TrainerListener.on_stage_ended, stage)
+        self._events.fire_event(hooks.TrainerListener.on_stage_ended, stage)
 
         event = hook_map(stage).get(hooks.TrainerListener.on_stage_ended)
         if event is not None:
             stage = cast(stages.EpochStage, stage)
-            self.events.fire_event(event, stage)
+            self._events.fire_event(event, stage)
 
     # region Checkpointing
 
     def save_checkpoint(self, filepath: typing.Path):
-        """
-        For now, we just save the model weights.
+        """For now, we just save the model weights.
 
         The user has to store the model definition themselves.
         """
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "wb") as file:
             pickle.dump(self._module.parameters(), file)
 

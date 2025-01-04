@@ -95,7 +95,10 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
         return optimizers
 
     def setup(self, stage: "reax.Stage", batch: Any, /) -> None:
-        """Called at the beginning of each stage.  A chance to perform some setup on the module."""
+        """Called at the beginning of each stage.
+
+        A chance to perform some setup on the module.
+        """
 
     def training_step(self, batch: BatchT, batch_idx: int, /) -> Optional[TrainOutput]:
         """Train step."""

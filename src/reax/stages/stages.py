@@ -63,6 +63,7 @@ class Stage(abc.ABC):
         self._child: Optional["reax.Stage"] = None
 
     def __str__(self) -> str:
+        """Str function."""
         return self.name
 
     @property
@@ -72,10 +73,12 @@ class Stage(abc.ABC):
 
     @property
     def is_root(self) -> bool:
+        """Returns ``True`` if this is the root stage, ``False`` otherwise."""
         return self._parent is None
 
     @property
     def module(self) -> Optional["reax.Module"]:
+        """Module function."""
         return self._module
 
     @property

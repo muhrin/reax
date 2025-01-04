@@ -31,7 +31,10 @@ class StageListener:
         """The stage is about to finish."""
 
     def on_stage_ended(self, stage: "reax.Stage", /):
-        """The stage has ended. It will not be mutated after this point until it is starting again."""
+        """The stage has ended.
+
+        It will not be mutated after this point until it is starting again.
+        """
 
 
 class MetricResults(TypedDict):
@@ -41,7 +44,7 @@ class MetricResults(TypedDict):
 
 
 class Stopper:
-    """Class used by loops to manage their stop conditions"""
+    """Class used by loops to manage their stop conditions."""
 
     def __init__(self):
         """Init function."""
@@ -84,7 +87,6 @@ def batches_limit(
     the batches limit.
 
     .. note:: Will return `float("inf")` if there is no limit.
-
     :param batch_limit: The batches limit.
     :type batch_limit: Union[int, float]
     :param dataloader: The dataloader.

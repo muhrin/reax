@@ -75,6 +75,7 @@ class FitEpoch(train.Train):
 
     @property
     def train_dataloader(self) -> "reax.DataLoader":
+        """Train dataloader."""
         return self.dataloader
 
     @property
@@ -298,6 +299,7 @@ class Fit(stages.Stage):
 
     @property
     def train_dataloader(self) -> "reax.DataLoader":
+        """Train dataloader."""
         return self._fit_epoch.train_dataloader
 
     @override

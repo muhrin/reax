@@ -1,6 +1,7 @@
 from typing import Any
 
 import jax
+from typing_extensions import override
 
 from . import _strategies
 
@@ -20,3 +21,14 @@ class SingleDevice(_strategies.Strategy):
     def from_device(self, value: Any) -> Any:
         """From device."""
         return jax.device_get(value)
+
+    @property
+    @override
+    def is_global_zero(self) -> bool:
+        """Is global zero."""
+        return True
+
+    @override
+    def broadcast(self, obj: _strategies.TBroadcast, src: int = 0) -> _strategies.TBroadcast:
+        """Broadcast function."""
+        return obj

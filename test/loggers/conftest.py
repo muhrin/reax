@@ -15,7 +15,7 @@
 #
 # Most of this file is covered by the following license.  To find what has been modified you
 # can perform a diff with the file at:
-# https://github.com/Lightning-AI/pytorch-lightning/blob/0324a20f00235c7a10a235a44326811ba42b6ae4/src/lightning/pytorch/strategies/strategy.py
+# https://github.com/Lightning-AI/pytorch-lightning/blob/0324a20f00235c7a10a235a44326811ba42b6ae4/tests/tests_pytorch/loggers/conftest.py
 #
 # Copyright The Lightning AI team.
 #
@@ -30,34 +30,33 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import abc
-from typing import Any, TypeVar
+import sys
+import types
+from unittest import mock
 
-__all__ = ("Strategy",)
-
-
-TBroadcast = TypeVar("TBroadcast")
+import pytest
 
 
-class Strategy(abc.ABC):
-    @abc.abstractmethod
-    def to_device(self, value: Any) -> Any:
-        """Move the value to the device and return it."""
+@pytest.fixture()
+def mlflow_mock(monkeypatch):
+    mlflow = types.ModuleType("mlflow")
+    mlflow.set_tracking_uri = mock.Mock()
+    monkeypatch.setitem(sys.modules, "mlflow", mlflow)
 
-    @abc.abstractmethod
-    def from_device(self, value: Any) -> Any:
-        """Get a value from the device and return it."""
+    mlflow_tracking = types.ModuleType("tracking")
+    mlflow_tracking.MlflowClient = mock.Mock()
+    mlflow_tracking.artifact_utils = mock.Mock()
+    monkeypatch.setitem(sys.modules, "mlflow.tracking", mlflow_tracking)
 
-    @abc.abstractmethod
-    def broadcast(self, obj: TBroadcast, src: int = 0) -> TBroadcast:
-        """Broadcasts an object to all processes.
-        :param obj: The object to broadcast.
-        :type obj: TBroadcast
-        :param src: Source rank, defaults to 0.
-        :type src: int, optional
-        """
+    mlflow_entities = types.ModuleType("entities")
+    mlflow_entities.Metric = mock.Mock()
+    mlflow_entities.Param = mock.Mock()
+    mlflow_entities.time = mock.Mock()
+    monkeypatch.setitem(sys.modules, "mlflow.entities", mlflow_entities)
 
-    @property
-    @abc.abstractmethod
-    def is_global_zero(self) -> bool:
-        """Whether the current process is the rank zero process not only on the local node, but for all nodes."""
+    mlflow.tracking = mlflow_tracking
+    mlflow.entities = mlflow_entities
+
+    monkeypatch.setattr("reax.loggers.mlflow._MLFLOW_AVAILABLE", True)
+    monkeypatch.setattr("reax.loggers.mlflow._MLFLOW_SYNCHRONOUS_AVAILABLE", True)
+    return mlflow

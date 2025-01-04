@@ -97,20 +97,10 @@ class Accuracy(_metric.Metric):
         fn: jax.Array = None,
     ):
         """Init function.
-        :param fn:
-            Defaults to None.
-        :type fn: jax.Array, optional
-        :param tn:
-            Defaults to None.
-        :type tn: jax.Array, optional
-        :param fp:
-            Defaults to None.
-        :type fp: jax.Array, optional
-        :param tp:
-            Defaults to None.
-        :type tp: jax.Array, optional
-        :param mode:
-            Defaults to jm.DataType.MULTICLASS.
+        :param subset_accuracy:
+            Defaults to False.
+        :type subset_accuracy: bool, optional
+        :param mode:, defaults to jm.DataType.MULTICLASS.
         :type mode: Union[str, jm.DataType], optional
         :param threshold: Threshold for transforming probability or logit predictions to binary (0,1) predictions,, defaults to 0.5.
         :type threshold: float, optional
@@ -164,25 +154,18 @@ class Accuracy(_metric.Metric):
             Should be left at default (`None`) for all other types of inputs, defaults to None.
         :type top_k: Optional[int], optional
         :param multiclass: Used only in certain special cases, where you want to treat inputs as a different type
-            than what they appear to be. See the parameter's
-        :ref:`documentation section <references/modules:using the multiclass parameter>`
-            for a more detailed explanation and examples, defaults to None.
+            than what they appear to be. See the parameter's, defaults to None.
         :type multiclass: Optional[bool], optional
-        :param subset_accuracy: Whether to compute subset accuracy for multi-label and multidimensional
-            multi-class inputs (has no effect for other input types).
 
-            - For multi-label inputs, if the parameter is set to `True`, then all target for
-            each sample must be correctly predicted for the sample to count as correct. If it
-            is set to `False`, then all target are counted separately - this is equivalent to
-            flattening inputs beforehand (i.e. `preds = preds.flatten()` and same for `target`).
+        :param fn: Only used when merging, defaults to None.
+        :type fn: jax.Array, optional
+        :param tn:Only used when merging, defaults to None.
+        :type tn: jax.Array, optional
+        :param fp: Only used when merging, defaults to None.
+        :type fp: jax.Array, optional
+        :param tp: Only used when merging, defaults to None.
+        :type tp: jax.Array, optional
 
-            - For multidimensional multi-class inputs, if the parameter is set to `True`, then all
-            subsample (on the extra axis) must be correct for the sample to be counted as correct.
-            If it is set to `False`, then all subsamples are counter separately - this is equivalent,
-            in the case of label predictions, to flattening the inputs beforehand (i.e.
-            `preds = preds.flatten()` and same for `target`). Note that the `top_k` parameter
-            still applies in both cases, if set, defaults to False.
-        :type subset_accuracy: bool, optional
         :raises ValueError: If `top_k` is not an `integer` larger than `0`.
         :raises ValueError: If `average` is none of `"micro"`, `"macro"`, `"weighted"`, `"samples"`, `"none"`, `None`.
         :raises ValueError: If two different input modes are provided, e.g. using `multi-label` with `multi-class`.
@@ -285,8 +268,11 @@ class Accuracy(_metric.Metric):
     @override
     def create(self, preds: jax.Array, target: jax.Array, **_) -> "Accuracy":
         """Updates Accuracy metric state.
+        :param **_:
         :param preds: Predictions from model (logits, probabilities, or target).
+        :type preds: jax.Array
         :param target: Ground truth target.
+        :type target: jax.Array
 
         Example:
 
@@ -324,7 +310,8 @@ class Accuracy(_metric.Metric):
     @override
     def compute(self) -> jax.Array:
         """Computes accuracy based on inputs passed in to `update` previously.
-        :returns: The accuracy score.
+        :return s: The accuracy score.
+        :rtype s: jax.Array
         """
         # if self.mode is None:
         #     raise RuntimeError("You have to have determined mode.")

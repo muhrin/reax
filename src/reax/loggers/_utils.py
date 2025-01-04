@@ -1,14 +1,19 @@
 import argparse
 import dataclasses
-from typing import Any, Mapping, Optional, Union
+import pathlib
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
 
 import jax.numpy as jnp
 import jax.typing
+
+if TYPE_CHECKING:
+    import reax
 
 
 def convert_params(params: Optional[Union[dict[str, Any], argparse.Namespace]]) -> dict[str, Any]:
     """Ensure parameters are a dict or convert to dict if necessary.
     :param params: Object to be converted to `dict`.
+    :type params: Optional[Union[dict[str, Any], argparse.Namespace]]
     """
     # in case converting from namespace
     if isinstance(params, argparse.Namespace):
@@ -36,10 +41,12 @@ def flatten_dict(
     params: Mapping[Any, Any], delimiter: str = "/", parent_key: str = ""
 ) -> dict[str, Any]:
     """Flatten hierarchical dict, e.g. ``{'a': {'b': 'c'}} -> {'a/b': 'c'}``.
-    :param parent_key:
-        Defaults to "".
+    :param parent_key: defaults to "".
+    :type parent_key: str, optional
     :param params: The mapping containing hyperparameters.
+    :type params: Mapping[Any, Any]
     :param delimiter: The delimiter to express hierarchy, defaults to "/".
+    :type delimiter: str, optional
 
     Examples:
 
@@ -71,11 +78,59 @@ def add_prefix(
 ) -> Mapping[str, Union[jax.typing.ArrayLike, float]]:
     """Insert prefix before each key in a dict, separated by the separator.
     :param metrics: Dictionary with metric names as keys and measured quantities as values.
+    :type metrics: Mapping[str, Union[jax.typing.ArrayLike, float]]
     :param prefix: Prefix to insert before each key.
+    :type prefix: str
     :param separator: Separates prefix and original key name.
-    :returns: Dictionary with prefix and separator inserted before each key
+    :type separator: str
+    :return s: Dictionary with prefix and separator inserted before each key.
+    :rtype s: Mapping[str, Union[jax.typing.ArrayLike, float]]
     """
     if not prefix:
         return metrics
 
     return {f"{prefix}{separator}{key}": val for key, val in metrics.items()}
+
+
+def scan_checkpoints(
+    checkpoint_callback: "reax.listeners.ModelCheckpoint", logged_model_time: dict
+) -> list[tuple[float, str, float, str]]:
+    """Return the checkpoints to be logged.
+    :param checkpoint_callback: Checkpoint callback reference.
+    :type checkpoint_callback: "reax.listeners.ModelCheckpoint"
+    :param logged_model_time: Dictionary containing the logged model times.
+    :type logged_model_time: dict
+    """
+    # get checkpoints to be saved with associated score
+    checkpoints = {}
+    if hasattr(checkpoint_callback, "last_model_path") and hasattr(
+        checkpoint_callback, "current_score"
+    ):
+        checkpoints[checkpoint_callback.last_model_path] = (
+            checkpoint_callback.current_score,
+            "latest",
+        )
+
+    if hasattr(checkpoint_callback, "best_model_path") and hasattr(
+        checkpoint_callback, "best_model_score"
+    ):
+        checkpoints[checkpoint_callback.best_model_path] = (
+            checkpoint_callback.best_model_score,
+            "best",
+        )
+
+    if hasattr(checkpoint_callback, "best_k_models"):
+        for key, value in checkpoint_callback.best_k_models.items():
+            checkpoints[key] = (value, "best_k")
+
+    checkpoints = sorted(
+        (pathlib.Path(path).stat().st_mtime, path, s, tag)
+        for path, (s, tag) in checkpoints.items()
+        if pathlib.Path(path).is_file()
+    )
+    checkpoints = [
+        ckpt
+        for ckpt in checkpoints
+        if ckpt[1] not in logged_model_time or logged_model_time[ckpt[1]] < ckpt[0]
+    ]
+    return checkpoints
