@@ -8,6 +8,8 @@ __all__ = ("TrainerListener",)
 
 
 class TrainerListener:
+    # pylint: disable=too-many-public-methods
+
     def setup(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
         """Called when a stage (fit, validate, test, predict) begins."""
 

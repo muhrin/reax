@@ -61,42 +61,45 @@ MonitorOp = Callable[[jax.typing.ArrayLike, jax.typing.ArrayLike], jax.typing.Ar
 
 
 class EarlyStopping(hooks.TrainerListener):
-    r"""Monitor a metric and stop training when it stops improving.
-    :param monitor: Quantity to be monitored.
-    :type monitor: str
-    :param min_delta: Minimum change in the monitored quantity to qualify as an improvement, i.e. an absolute
-        change of less than or equal to `min_delta`, will count as no improvement, defaults to 0.0.
-    :type min_delta: float, optional
-    :param patience: Number of checks with no improvement
-        after which training will be stopped. Under the default configuration, one check happens after
-        every training epoch. However, the frequency of validation can be modified by setting various parameters on
-        the ``Trainer``, for example ``check_val_every_n_epoch`` and ``val_check_interval``.
+    r"""Monitor a metric and stop training when it stops improving. :param monitor: Quantity to be
+    monitored. :type monitor: str :param min_delta: Minimum change in the monitored quantity to
+    qualify as an improvement, i.e. an absolute change of less than or equal to ``min_delta``, will
+    count as no improvement, defaults to 0.0. :type min_delta: float, optional :param patience:
+    Number of checks with no improvement after which training will be stopped. Under the default
+    configuration, one check happens after every training epoch. However, the frequency of
+    validation can be modified by setting various parameters on the ``Trainer``, for example
+    ``check_val_every_n_epoch`` and ``val_check_interval``.
 
         .. note::
 
         It must be noted that the patience parameter counts the number of validation checks with
         no improvement, and not the number of training epochs. Therefore, with parameters
-        ``check_val_every_n_epoch=10`` and ``patience=3``, the trainer will perform at least 40 training
-        epochs before being stopped, defaults to 3.
+        ``check_val_every_n_epoch=10`` and ``patience=3``, the trainer will perform at least 40
+        training epochs before being stopped, defaults to 3.
     :type patience: int, optional
     :param verbose: Verbosity mode, defaults to False.
     :type verbose: bool, optional
-    :param mode: One of ``'min'``, ``'max'``. In ``'min'`` mode, training will stop when the quantity
-        monitored has stopped decreasing and in ``'max'`` mode it will stop when the quantity
-        monitored has stopped increasing, defaults to "min".
+    :param mode: One of ``'min'``, ``'max'``. In ``'min'`` mode, training will stop when the
+        quantity monitored has stopped decreasing and in ``'max'`` mode it will stop when the
+        quantity monitored has stopped increasing, defaults to "min".
     :type mode: Literal["min", "max"], optional
-    :param strict: Whether to crash the training if `monitor` is not found in the validation metrics, defaults to True.
+    :param strict: Whether to crash the training if `monitor` is not found in the validation
+        metrics, defaults to True.
     :type strict: bool, optional
-    :param check_finite: When set ``True``, stops training when the monitor becomes NaN or infinite, defaults to True.
+    :param check_finite: When set ``True``, stops training when the monitor becomes NaN or infinite,
+        defaults to True.
     :type check_finite: bool, optional
-    :param stopping_threshold: Stop training immediately once the monitored quantity reaches this threshold, defaults to None.
+    :param stopping_threshold: Stop training immediately once the monitored quantity reaches this
+        threshold, defaults to None.
     :type stopping_threshold: Optional[float], optional
-    :param divergence_threshold: Stop training as soon as the monitored quantity becomes worse than this threshold, defaults to None.
+    :param divergence_threshold: Stop training as soon as the monitored quantity becomes worse than
+        this threshold, defaults to None.
     :type divergence_threshold: Optional[float], optional
     :param check_on_train_epoch_end: Whether to run early stopping at the end of the training epoch.
         If this is ``False``, then the check runs at the end of the validation, defaults to None.
     :type check_on_train_epoch_end: bool, optional
-    :param log_rank_zero_only: When set ``True``, logs the status of the early stopping callback only for rank 0 process, defaults to False.
+    :param log_rank_zero_only: When set ``True``, logs the status of the early stopping callback
+        only for rank 0 process, defaults to False.
     :type log_rank_zero_only: bool, optional
     :raises MisconfigurationException: If ``mode`` is none of ``"min"`` or ``"max"``.
     :raises RuntimeError: If the metric ``monitor`` is not available.
@@ -270,7 +273,8 @@ class EarlyStopping(hooks.TrainerListener):
         return should_stop, reason
 
     def _improvement_message(self, current: jax.typing.ArrayLike) -> str:
-        """Formats a log message that informs the user about an improvement in the monitored score."""
+        """Formats a log message that informs the user about an improvement in the monitored
+        score."""
         if jnp.isfinite(self.best_score):
             msg = (
                 f"Metric {self._monitor} improved by {abs(self.best_score - current):.3f} >="

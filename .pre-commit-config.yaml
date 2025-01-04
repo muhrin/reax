@@ -36,6 +36,13 @@ repos:
         args: [ "-c", "pyproject.toml" ]
         additional_dependencies: [ '.[toml]' ]
 
+  - repo: https://github.com/PyCQA/docformatter
+    rev: v1.7.5
+    hooks:
+      - id: docformatter
+        additional_dependencies: [ tomli ]
+        args: [ --in-place --config ./pyproject.toml ]
+
   - repo: https://github.com/PyCQA/pylint
     # Configuration help can be found here:
     # https://pylint.pycqa.org/en/latest/user_guide/installation/pre-commit-integration.html

@@ -130,8 +130,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         save_top_k: int = 1,
         enable_version_counter: bool = True,
     ):
-        """Init function.
-        :param dirpath: Directory to save the model file.
+        """Init function. :param dirpath: Directory to save the model file.
 
             Example::
 
@@ -141,8 +140,8 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
 
             specified by :class:`~reax.Trainer`'s
-        :paramref:`~reax.Trainer.default_root_dir` argument,
-            and if the Trainer uses a logger, the path will also contain logger name and version, defaults to None.
+        :paramref:`~reax.Trainer.default_root_dir` argument, and if the Trainer uses a logger, the
+            path will also contain logger name and version, defaults to None.
         :type dirpath: Optional[Union[str, pathlib.Path]], optional
         :param filename: Checkpoint filename. Can contain named formatting options to be autofilled.
 
@@ -161,9 +160,9 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         :param monitor: Quantity to monitor, defaults to None.
         :type monitor: Optional[str], optional
         :param verbose: Verbosity mode, defaults to ``False``.
-        :param save_last: When ``True``, saves a `last.ckpt` copy whenever a checkpoint file gets saved. Can be set to
-            ``'link'`` on a local filesystem to create a symbolic link. This allows accessing the latest checkpoint
-            in a deterministic manner, defaults to None.
+        :param save_last: When ``True``, saves a `last.ckpt` copy whenever a checkpoint file gets
+            saved. Can be set to ``'link'`` on a local filesystem to create a symbolic link. This
+            allows accessing the latest checkpoint in a deterministic manner, defaults to None.
         :type save_last: Optional[bool], optional
         :param save_top_k: If ``save_top_k == k``,
             the best k models according to the quantity monitored will be saved.

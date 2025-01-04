@@ -130,6 +130,10 @@ skips = ["B101"]
 [tool.black]
 line-length = 100
 
+[tool.docformatter]
+wrap-summaries = 100
+wrap-descriptions = 100
+
 [pytest]
 log_cli = "True"
 log_cli_level = "DEBUG"
