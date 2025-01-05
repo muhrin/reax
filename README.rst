@@ -65,7 +65,7 @@ Define the training workflow. Here's a toy example:
 
 
     # --------------------------------
-    # Step 1: Define a LightningModule
+    # Step 1: Define a REAX Module
     # --------------------------------
     # A ReaxModule (nn.Module subclass) defines a full *system*
     # (ie: an LLM, diffusion model, autoencoder, or simple image classifier).

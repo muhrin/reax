@@ -46,7 +46,7 @@ from time import time
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 
 import jax
-from lightning_utilities.core.imports import RequirementCache
+from lightning_utilities.core import imports
 from typing_extensions import override
 import yaml
 
@@ -65,8 +65,8 @@ __all__ = ("MlflowLogger",)
 
 _LOGGER = logging.getLogger(__name__)
 LOCAL_FILE_URI_PREFIX = "file:"
-_MLFLOW_AVAILABLE = RequirementCache("mlflow>=1.0.0", "mlflow")
-_MLFLOW_SYNCHRONOUS_AVAILABLE = RequirementCache("mlflow>=2.8.0", "mlflow")
+_MLFLOW_AVAILABLE = imports.RequirementCache("mlflow>=1.0.0", "mlflow")
+_MLFLOW_SYNCHRONOUS_AVAILABLE = imports.RequirementCache("mlflow>=2.8.0", "mlflow")
 TagsDict = dict[str, str]
 
 
@@ -247,8 +247,8 @@ class MlflowLogger(logger.Logger):
     def run_id(self) -> Optional[str]:
         """Create the experiment if it does not exist to get the run id.
 
-        :return s: The run id.
-        :rtype s: Optional[str]
+        :returns: The run id.
+        :rtype: Optional[str]
         """
         _ = self.experiment
         return self._run_id
