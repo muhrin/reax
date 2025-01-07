@@ -45,4 +45,5 @@ class Predict(stages.EpochStage):
     def _on_iteration_finishing(self, outputs: Any, /):
         """On iteration finishing."""
         if self._keep_predictions:
+
             self._all_outputs.append(outputs)

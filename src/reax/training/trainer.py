@@ -5,7 +5,7 @@ import os
 import pickle  # nosec
 import signal
 import sys
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Final, Iterable, Literal, Optional, Union, cast
 import weakref
 
 import beartype
@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     import reax
 
 _LOGGER = logging.getLogger(__name__)
-
 
 __all__ = ("Trainer",)
 
@@ -54,10 +53,11 @@ class Trainer(stages.StageListener):
         self._accelerator = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         )
+        # Params
+        self._fast_dev_run: Final[Union[int, bool]] = fast_dev_run
+        self._log_every_n_steps: Final[int] = log_every_n_steps
 
         self._strategy = strategies.SingleDevice(self._accelerator)
-        self._fast_dev_run = fast_dev_run
-        self._log_every_n_steps = log_every_n_steps
         self._rng_key = rng_key if rng_key is not None else jax.random.key(0)
         self._default_root_dir = (
             os.fspath(default_root_dir) if default_root_dir is not None else os.getcwd()
@@ -67,10 +67,11 @@ class Trainer(stages.StageListener):
         self._optimizers = []
         self._stage: Optional[stages.Stage] = None
 
-        # State indexes
+        # State
         self._current_epoch: int = 0
         self._global_updates: int = 0
 
+        # Init
         self._events = events.EventGenerator[hooks.TrainerListener](
             default_args=(weakref.proxy(self),)
         )
@@ -510,18 +511,19 @@ class Trainer(stages.StageListener):
 
     def _run_stage(self, stage: stages.Stage) -> stages.Stage:
         """Run stage."""
-        try:
-            with self._attach(stage):
-                self._logging.reset_metrics()
-                with stage.events.listen_context(self):
-                    stage.run()
-        except KeyboardInterrupt:
-            # Disable further Ctrl+C presses while we respond to this one
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
-            sys.exit(1)
-        else:
-            for logger in self.loggers:
-                logger.finalize("success")
+        with jax.default_device(jax.devices("cpu")[0]):
+            try:
+                with self._attach(stage):
+                    self._logging.reset_metrics()
+                    with stage.events.listen_context(self):
+                        stage.run()
+            except KeyboardInterrupt:
+                # Disable further Ctrl+C presses while we respond to this one
+                signal.signal(signal.SIGINT, signal.SIG_IGN)
+                sys.exit(1)
+            else:
+                for logger in self.loggers:
+                    logger.finalize("success")
 
         return stage
 
@@ -706,7 +708,8 @@ def _(_stage: stages.Validate) -> dict[Callable, Callable]:
     return {
         hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_validation_start,
         hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_validation_epoch_start,
-        hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_validation_batch_start,  # pylint: disable=line-too-long
+        # pylint: disable=line-too-long
+        hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_validation_batch_start,
         hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_validation_batch_end,
         hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_validation_epoch_end,
         hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_validation_end,

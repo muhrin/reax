@@ -43,7 +43,7 @@ from pathlib import Path
 import re
 import tempfile
 from time import time
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Final, Literal, Optional, Union
 
 import jax
 from lightning_utilities.core import imports
@@ -166,17 +166,20 @@ class MlflowLogger(logger.Logger):
         if not tracking_uri:
             tracking_uri = f"{LOCAL_FILE_URI_PREFIX}{save_dir}"
 
-        self._experiment_name = experiment_name
+        # Params
+        self._experiment_name: Final[str] = experiment_name
+        self._prefix: Final[str] = prefix
+        self._log_model: Final[Literal[True, False, "all"]] = log_model
+        self._artifact_location: Final[Optional[str]] = artifact_location
+
+        # State
         self._experiment_id: Optional[str] = None
         self._tracking_uri = tracking_uri
         self._run_name = run_name
         self._run_id = run_id
         self.tags = tags
-        self._log_model = log_model
         self._logged_model_time: dict[str, float] = {}
         self._checkpoint_callback: Optional[reax.listeners.ModelCheckpoint] = None
-        self._prefix = prefix
-        self._artifact_location = artifact_location
         self._log_batch_kwargs = {} if synchronous is None else {"synchronous": synchronous}
         self._initialized = False
         self._warning_cache = rank_zero.WarningCache()

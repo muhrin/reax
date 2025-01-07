@@ -111,11 +111,11 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         Read more: :ref:`Persisting Callback State <extensions/callbacks_state:save callback state>`
     """
 
-    CHECKPOINT_JOIN_CHAR = "-"
-    CHECKPOINT_EQUALS_CHAR = "="
-    CHECKPOINT_NAME_LAST = "last"
-    FILE_EXTENSION = ".ckpt"
-    STARTING_VERSION = 1
+    CHECKPOINT_JOIN_CHAR: Final[str] = "-"
+    CHECKPOINT_EQUALS_CHAR: Final[str] = "="
+    CHECKPOINT_NAME_LAST: Final[str] = "last"
+    FILE_EXTENSION: Final[str] = ".ckpt"
+    STARTING_VERSION: Final[int] = 1
 
     def __init__(
         self,
@@ -260,24 +260,28 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             training, only ``best_model_path`` will be reloaded and a warning will be issued.
         """
         super().__init__()
+        every_n_train_steps, every_n_epochs = self.__init_triggers(
+            every_n_train_steps, every_n_epochs
+        )
         # Params
-        self._monitor = monitor
-        self._mode = mode
-        self._auto_insert_metric_name = auto_insert_metric_name
-        self._every_n_epochs = every_n_epochs
-        self._save_on_train_epoch_end = save_on_train_epoch_end
-        self._enable_version_counter = enable_version_counter
-        self._current_score: Optional[jax.Array] = None
+        self._monitor: Final[Optional[str]] = monitor
+        self._mode: Final[Literal["min", "max"]] = mode
+        self._auto_insert_metric_name: Final[bool] = auto_insert_metric_name
+        self._save_on_train_epoch_end: Final[Optional[int]] = save_on_train_epoch_end
+        self._enable_version_counter: Final[bool] = enable_version_counter
         self._save_last: Final[Optional[bool]] = save_last
         self._save_top_k: Final[int] = save_top_k
+        self.filename: Optional[str] = filename
+        self._every_n_train_steps: Final[int] = every_n_train_steps
+        self._every_n_epochs: Final[int] = every_n_epochs
+
+        # State
+        self._kth_value: jax.Array = self.__init_monitor_mode(mode)
         self._dirpath: Optional[str] = (
             os.path.realpath(os.path.expanduser(dirpath)) if dirpath else dirpath
         )
-        self.filename: Optional[str] = filename
-        self.__init_triggers(every_n_train_steps, every_n_epochs)
-
-        # State
         self.last_model_path = ""
+        self._current_score: Optional[jax.Array] = None
         self._last_checkpoint_saved = ""
         self._best_model_path = ""
         self._best_k_models: dict[str, jax.Array] = {}
@@ -286,14 +290,12 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         # Keep track of the global number of optimizer steps
         self._last_global_step_saved = 0
 
-        self._kth_value, self._mode = self.__init_monitor_mode(mode)
-
+    @staticmethod
     def __init_triggers(
-        self,
         every_n_train_steps: Optional[int],
         every_n_epochs: Optional[int],
         # train_time_interval: Optional[timedelta],
-    ) -> None:
+    ) -> [int, int]:
         """Init triggers."""
         # Default to running once after each validation epoch if neither
         # every_n_train_steps nor every_n_epochs is set
@@ -307,15 +309,13 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             every_n_epochs = every_n_epochs or 0
             every_n_train_steps = every_n_train_steps or 0
 
-        # self._train_time_interval: Optional[timedelta] = train_time_interval
-        self._every_n_epochs: int = every_n_epochs
-        self._every_n_train_steps: int = every_n_train_steps
+        return every_n_train_steps, every_n_epochs  # , train_time_interval
 
     @staticmethod
-    def __init_monitor_mode(mode: str) -> tuple[jax.Array, str]:
+    def __init_monitor_mode(mode: str) -> jax.Array:
         """Init monitor mode."""
         jnp_info = jnp.array(float("inf" if mode == "min" else "-inf"))
-        mode_dict = {"min": (jnp_info, "min"), "max": (-jnp_info, "max")}
+        mode_dict = {"min": jnp_info, "max": -jnp_info}
 
         if mode not in mode_dict:
             raise exceptions.MisconfigurationException(
@@ -506,7 +506,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         if isinstance(current, jax.Array) and jnp.isnan(current):
             current = jnp.array(float("inf" if self._mode == "min" else "-inf"))
 
-        filepath = self._get_metric_interpolated_filepath_name(
+        filepath: Final[str] = self._get_metric_interpolated_filepath_name(
             trainer, monitor_candidates, del_filepath
         )
 
