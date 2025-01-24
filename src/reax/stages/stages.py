@@ -49,7 +49,7 @@ class Stage(abc.ABC):
         self._max_iters = max_iters
 
         # State
-        self._module = module
+        self._module: Optional["reax.Module"] = module
         self._warning_cache = rank_zero.WarningCache()
         self._iter = -1
         self._stopper = common.Stopper()

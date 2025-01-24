@@ -101,6 +101,20 @@ class ModuleHooks:
     def on_predict_epoch_end(self, stage: "reax.stages.Train", /) -> None:
         """A predict epoch is about to end."""
 
+    def on_before_optimizer_step(
+        self, optimizer: "reax.Optimizer", grad: dict[str, Any], /
+    ) -> None:
+        """Called before ``optimizer.step()``.
+
+        If using gradient accumulation, the hook is called once the gradients have been accumulated.
+        See: :paramref:`~reax.Trainer.accumulate_grad_batches`.
+
+        If clipping gradients, the gradients will not have been clipped yet.
+
+        :param optimizer: Current optimizer being used.
+        :param grad: The gradients dictionary from JAX
+        """
+
     # endregion
 
     # region Generic stage messages
