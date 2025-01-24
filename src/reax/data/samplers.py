@@ -1,8 +1,8 @@
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Hashable, Iterable, Iterator, Sequence
 import contextlib
 import functools
 import itertools
-from typing import Hashable, TypeVar, Union
+from typing import TypeVar, Union
 
 import numpy as np
 

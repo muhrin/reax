@@ -222,7 +222,7 @@ def test_early_stopping_no_val_step(tmp_path):
     model.val_dataloader = None
 
     stopping = listeners.EarlyStopping(
-        monitor="train_loss", min_delta=0.001, patience=0, check_on_train_epoch_end=True
+        monitor="train_loss", min_delta=0.1, patience=0, check_on_train_epoch_end=True
     )
     trainer = reax.Trainer(model, default_root_dir=tmp_path, listeners=[stopping])
     trainer.fit(

@@ -137,7 +137,6 @@ class EarlyStopping(hooks.TrainerListener):
     ):
         # Params
         self._monitor: Final[str] = monitor
-        self._min_delta: Final[float] = min_delta
         self._patience: Final[int] = patience
         self._verbose: Final[bool] = verbose
         self._mode: Final[Literal["min", "max"]] = mode
@@ -148,6 +147,7 @@ class EarlyStopping(hooks.TrainerListener):
         self._wait_count = 0
         self.__check_on_train_epoch_end = check_on_train_epoch_end
         self._log_rank_zero_only = log_rank_zero_only
+        self._min_delta: Final[float] = min_delta if mode == "max" else -min_delta
 
         # State
         self._check_on_train_epoch_end = check_on_train_epoch_end
