@@ -360,9 +360,9 @@ class Trainer(stages.StageListener):
         *,
         datamodule: "Optional[reax.DataModule]" = None,
         max_epochs: Union[int, float] = 1_000,
-        min_epochs: int = -1,
-        min_updates: int = -1,
-        max_updates: Union[int, float] = float("inf"),
+        min_epochs: int = 0,
+        min_updates: int = 0,
+        max_updates: Union[int, type(keys.NO_LIMIT)] = keys.NO_LIMIT,
         limit_train_batches: Optional[Union[int, float]] = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: Optional[Union[int, float]] = 1.0,
@@ -371,12 +371,10 @@ class Trainer(stages.StageListener):
         num_sanity_val_steps: Optional[int] = None,
     ):
         """Fit function."""
-        if max_updates < -1:
-            raise ValueError("`max_updates` must be a non-negative integer or -1")
-        if max_epochs is None:
-            max_epochs = -1
-        elif max_epochs < -1:
-            raise ValueError("`max_epochs` must be a non-negative integer or -1")
+        if max_updates < 0:
+            raise ValueError("`max_updates` must be a non-negative integer")
+        if max_epochs < 0:
+            raise ValueError(f"`max_epochs` must be a non-negative integer or {keys.NO_LIMIT}")
         if num_sanity_val_steps:
             _LOGGER.warning("`num_sanity_val_steps` is not supported yet, ignoring.")
 
@@ -430,11 +428,12 @@ class Trainer(stages.StageListener):
         # Update state variables
         self._global_updates += fit.updates
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def validate(
         self,
         dataloaders=None,
         datamodule=None,
-        max_batches: Union[int, float] = -1,
+        max_batches: Union[int, type(keys.NO_LIMIT)] = keys.NO_LIMIT,
     ):
         """Test function."""
         if datamodule is not None:
@@ -451,6 +450,7 @@ class Trainer(stages.StageListener):
             stages.Validate(self._module, dataloaders, self._strategy, max_batches=max_batches)
         )
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def test(
         self,
         dataloaders=None,
@@ -469,12 +469,13 @@ class Trainer(stages.StageListener):
 
         self._run_stage(stages.Test(self._module, dataloaders, self._strategy))
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def predict(
         self,
         dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
         return_predictions: Optional[bool] = None,
-        limit_batches=float("inf"),
+        limit_batches: Union[int, float] = keys.NO_LIMIT,
     ) -> Optional[Union[list[Any], list[list[Any]]]]:
         r"""Run inference on the data.
 

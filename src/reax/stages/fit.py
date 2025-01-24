@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Final, Optional, Union
 import weakref
 
 import beartype
@@ -8,7 +8,7 @@ from lightning_utilities.core import overrides
 from typing_extensions import override
 
 from . import common, stages, train, validation
-from .. import data, exceptions, modules
+from .. import data, exceptions, keys, modules
 
 if TYPE_CHECKING:
     import reax
@@ -27,7 +27,7 @@ class FitEpoch(train.Train):
         strategy: "reax.Strategy",
         *,
         min_updates: Optional[int] = None,
-        max_updates: Union[int, float] = float("inf"),
+        max_updates: Union[int, float] = keys.NO_LIMIT,
         limit_train_batches: Optional[Union[int, float]] = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: Optional[Union[int, float]] = 1.0,
@@ -50,9 +50,9 @@ class FitEpoch(train.Train):
             stopper=stopper,
         )
         # Params
-        self._val_check_interval = val_check_interval
-        self._check_val_every_n_epoch = check_val_every_n_epoch
-        self._val_check_batch = self._setup_val_check_batch_(
+        self._val_check_interval: Final[Union[int, float]] = val_check_interval
+        self._check_val_every_n_epoch: Final[int] = check_val_every_n_epoch
+        self._val_check_batch: Final[Optional[Union[int, float]]] = self._setup_val_check_batch_(
             val_check_interval, self.max_batches, check_val_every_n_epoch, train_dataloaders
         )
 
@@ -150,7 +150,7 @@ class FitEpoch(train.Train):
             return False
 
         # val_check_batch is inf for iterable datasets with no length defined
-        is_infinite_dataset = self._val_check_batch == float("inf")
+        is_infinite_dataset = self._val_check_batch == keys.NO_LIMIT
         is_last_batch = self.batch_progress.is_last_batch
         if is_last_batch and is_infinite_dataset:
             return True
@@ -164,7 +164,7 @@ class FitEpoch(train.Train):
         is_val_check_batch = is_last_batch
         if isinstance(self.max_batches, int) and is_infinite_dataset:
             is_val_check_batch = (self.batch_idx + 1) % self.max_batches == 0
-        elif self._val_check_batch != float("inf"):
+        elif self._val_check_batch != keys.NO_LIMIT:
             # if `check_val_every_n_epoch is `None`, run a validation loop every n training batches
             # else condition it based on the batch_idx of the current epoch
             current_iteration = (
@@ -207,7 +207,7 @@ class FitEpoch(train.Train):
             has_len_all_ranks_ = dataloader_size is not None
             if not has_len_all_ranks_:
                 if val_check_interval == 1.0:
-                    val_check_batch = float("inf")
+                    val_check_batch = keys.NO_LIMIT
                 else:
                     raise exceptions.MisconfigurationException(
                         "When using an IterableDataset for `train_dataloader`,"
@@ -239,10 +239,10 @@ class Fit(stages.Stage):
         optimizers: list["reax.Optimizer"],
         strategy: "reax.Strategy",
         *,
-        max_epochs: Union[int, float] = float("inf"),
-        min_epochs: int = -1,
-        min_updates: int = -1,
-        max_updates: Union[int, float] = float("inf"),
+        max_epochs: Union[int, float] = keys.NO_LIMIT,
+        min_epochs: int = 0,
+        min_updates: int = 0,
+        max_updates: Union[int, float] = keys.NO_LIMIT,
         limit_train_batches: Optional[Union[int, float]] = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: Optional[Union[int, float]] = 1.0,

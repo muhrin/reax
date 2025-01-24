@@ -38,8 +38,8 @@ class Stage(abc.ABC):
         module: Optional["reax.Module"],
         strategy: "reax.Strategy",
         *,
-        max_iters: Union[int, float] = float("inf"),
-        min_iters: int = -1,
+        max_iters: Union[int, float] = keys.NO_LIMIT,
+        min_iters: int = 0,
         parent: Optional["reax.Stage"] = None,
     ):
         # Params
@@ -252,8 +252,8 @@ class EpochStage(Stage, abc.ABC):
         dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
         *,
-        min_batches: int = -1,
-        max_batches: Union[int, float] = float("inf"),
+        min_batches: int = 0,
+        max_batches: Union[int, float] = keys.NO_LIMIT,
         parent: Optional["reax.Stage"] = None,
     ):
         max_batches = common.batches_limit(max_batches, dataloader)

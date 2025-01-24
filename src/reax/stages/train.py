@@ -7,7 +7,7 @@ import optax
 from typing_extensions import override
 
 from . import common, stages
-from .. import exceptions
+from .. import exceptions, keys
 from .. import optimizers as optimizers_
 from ..lightning import rank_zero
 
@@ -28,9 +28,9 @@ class Train(stages.EpochStage):
         strategy: "reax.Strategy",
         optimizers: "list[reax.Optimizer]",
         *,
-        min_updates: int = -1,
-        max_updates: Union[int, float] = float("inf"),
-        max_batches: Union[int, float] = float("inf"),
+        min_updates: int = 0,
+        max_updates: Union[int, float] = keys.NO_LIMIT,
+        max_batches: Union[int, float] = keys.NO_LIMIT,
         accumulate_grad_batches: int = 1,
         parent: Optional["reax.Stage"] = None,
         stopper: Optional[common.Stopper] = None,

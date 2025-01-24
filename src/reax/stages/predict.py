@@ -5,6 +5,7 @@ import jaxtyping as jt
 from typing_extensions import override
 
 from . import stages
+from .. import keys
 
 if TYPE_CHECKING:
     import reax
@@ -21,7 +22,7 @@ class Predict(stages.EpochStage):
         dataloader,
         strategy: "reax.Strategy",
         *,
-        max_batches: Union[int, float] = float("inf"),
+        max_batches: Union[int, float] = keys.NO_LIMIT,
         keep_predictions=True,
         parent: Optional["reax.Stage"] = None,
     ):

@@ -4,6 +4,7 @@ import weakref
 from typing_extensions import override
 
 from . import stages
+from .. import keys
 
 if TYPE_CHECKING:
     import reax
@@ -19,7 +20,7 @@ class Validate(stages.EpochStage):
         dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
         *,
-        max_batches: Union[int, float] = -1,
+        max_batches: Union[int, float] = keys.NO_LIMIT,
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""

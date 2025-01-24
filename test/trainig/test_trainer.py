@@ -96,7 +96,7 @@ def test_trainer_max_steps_and_epochs(tmp_path):
 @pytest.mark.parametrize(
     ("max_epochs", "max_updates", "incorrect_variable"),
     [
-        (-100, -1, "max_epochs"),
+        (-100, 0, "max_epochs"),
         (1, -2, "max_updates"),
     ],
 )
@@ -104,7 +104,7 @@ def test_trainer_max_steps_and_epochs_validation(max_epochs, max_updates, incorr
     """Don't allow `max_epochs` or `max_updates` to be less than -1 or a float."""
     with pytest.raises(
         ValueError,
-        match=f"`{incorrect_variable}` must be a non-negative integer or -1",
+        match=f"`{incorrect_variable}` must be a non-negative integer",
     ):
         reax.Trainer(demos.BoringModel()).fit(max_epochs=max_epochs, max_updates=max_updates)
 
@@ -196,7 +196,7 @@ def test_trainer_min_steps_and_min_epochs_not_reached(tmp_path, caplog):
 
     message = (
         f"Trainer was signaled to stop but the required "
-        f"`min_epochs={min_epochs!r}` or `min_steps=-1` has not been met. "
+        f"`min_epochs={min_epochs!r}` or `min_steps=0` has not been met. "
         f"Training will continue..."
     )
     num_messages = sum(1 for record in caplog.records if message in record.message)

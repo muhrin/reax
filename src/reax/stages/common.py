@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, Callable, TypedDict, Union, cast
 
 import jax
 
-from .. import data
+from .. import data, keys
 from ..utils import events
 
 if TYPE_CHECKING:
@@ -102,10 +102,10 @@ def batches_limit(
         return min(batch_limit, dataloader_size)
 
     if isinstance(batch_limit, float):
-        if batch_limit == float("inf") or batch_limit == 1.0:
+        if batch_limit in (keys.NO_LIMIT, 1.0):
             if dataloader_size is not None:
                 return dataloader_size
-            return float("inf")
+            return keys.NO_LIMIT
 
         if dataloader_size is not None:
             # batch_limit is a finite float and we have a dataloader size
@@ -118,4 +118,4 @@ def batches_limit(
         )
 
     # We can't say anything other than just 'go to the end'
-    return float("inf")
+    return keys.NO_LIMIT
