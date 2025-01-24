@@ -106,11 +106,11 @@ class Std(Aggregation):
         if mask is None:
             mask = jnp.ones(values.shape[0], dtype=jnp.bool)
 
-        mask = utils.prepare_mask(values, mask)
+        mask, num_elements = utils.prepare_mask(values, mask, return_count=True)
         return type(self)(
             total=values.sum(),
             sum_of_squares=jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
-            count=mask.sum(),
+            count=num_elements,
         )
 
     def update(
@@ -125,12 +125,12 @@ class Std(Aggregation):
         if mask is None:
             mask = jnp.ones(values.shape[0], dtype=jnp.bool)
 
-        mask = utils.prepare_mask(values, mask)
+        mask, num_elements = utils.prepare_mask(values, mask, return_count=True)
         return type(self)(
             total=self.total + values.sum(),
             sum_of_squares=self.sum_of_squares
             + jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
-            count=self.count + mask.sum(),
+            count=self.count + num_elements,
         )
 
     def merge(self, other: "Std") -> "Std":

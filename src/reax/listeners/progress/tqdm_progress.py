@@ -3,7 +3,7 @@ import sys
 from typing import TYPE_CHECKING, Any, Optional
 
 from lightning_utilities.core import rank_zero
-import tqdm
+import tqdm.auto as tqdm
 from typing_extensions import override
 
 from . import progress_bar
