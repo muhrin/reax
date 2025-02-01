@@ -2,6 +2,7 @@ import jax
 from jax import random
 import jax.numpy as jnp
 import optax
+import pytest
 
 from reax import metrics
 import reax.data
@@ -28,11 +29,11 @@ def test_mean_square_error(rng_key):
     assert isinstance(metrics.get("mse"), metrics.MeanSquaredError)
 
 
-def test_root_mean_square_error(rng_key):
+@pytest.mark.parametrize("shape", [(4, 10), (4, 3, 3)])
+def test_root_mean_square_error(shape, rng_key):
     rng_key, *keys = random.split(rng_key, 3)
-    n_batches = 4
-    predictions = random.uniform(keys[0], (n_batches, 10))
-    targets = random.uniform(keys[1], (n_batches, 10))
+    predictions = random.uniform(keys[0], shape)
+    targets = random.uniform(keys[1], shape)
 
     mse = metrics.RootMeanSquareError()
     for prediction, target in zip(predictions, targets):

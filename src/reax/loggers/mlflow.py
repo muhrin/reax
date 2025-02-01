@@ -305,7 +305,7 @@ class MlflowLogger(logger.Logger):
 
             new_k = re.sub("[^a-zA-Z0-9_/. -]+", "", name)
             if name != new_k:
-                rank_zero.rank_zero_warn(
+                self._warning_cache.warn(
                     "MLFlow only allows '_', '/', '.' and ' ' special characters in metric name."
                     f" Replacing {name} with {new_k}.",
                     category=RuntimeWarning,

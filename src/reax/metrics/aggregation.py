@@ -13,7 +13,7 @@ __all__ = ("Average", "Std", "Min", "Max", "Unique", "NumUnique")
 class Aggregation(Metric[jax.Array], abc.ABC):
     """Interface that defines an aggregation metric.
 
-    This takes a single array and possibly as ask and calculates a metric.
+    This takes a single array and possibly a mask and calculates a metric.
     """
 
     Self = TypeVar("Self", bound="Aggregation")
