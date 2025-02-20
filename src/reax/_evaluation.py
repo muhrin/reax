@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, TypeVar, Union
 
 import beartype
 import jax
@@ -12,6 +12,9 @@ if TYPE_CHECKING:
     import reax
 
 __all__ = ("evaluate_stats",)
+
+
+OutT = TypeVar("OutT")
 
 
 class StatsEvaluator(stages.EpochStage):
@@ -41,10 +44,15 @@ class StatsEvaluator(stages.EpochStage):
 
 
 def evaluate_stats(
-    stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
+    stats: Union["reax.Metric[OutT]", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
     dataloader: "reax.DataLoader",
-) -> typing.MetricsDict:
+) -> Union[OutT, typing.MetricsDict]:
     """Evaluate stats."""
+    single_metric = isinstance(stats, metrics.Metric)
     evaluator = StatsEvaluator(stats, dataloader)
     evaluator.run()
+    if single_metric:
+        res: OutT = list(evaluator.logged_metrics.values())[0]
+        return res
+
     return evaluator.logged_metrics

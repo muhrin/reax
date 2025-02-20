@@ -104,14 +104,14 @@ def test_num_unique(rng_key):
     res = reax.evaluate_stats(
         metrics.NumUnique(), reax.data.ArrayLoader(values, batch_size=batch_size)
     )
-    assert res["NumUnique"] == len(jnp.unique(values))
+    assert res == len(jnp.unique(values))
 
     # Test the masking functionality
     mask = values == 2
     res = reax.evaluate_stats(
         metrics.NumUnique(), reax.data.ArrayLoader((values, mask), batch_size=batch_size)
     )
-    assert res["NumUnique"] == len(jnp.unique(values[mask]))
+    assert res == len(jnp.unique(values[mask]))
 
 
 def test_unique(rng_key):
@@ -126,7 +126,7 @@ def test_unique(rng_key):
 
     values = random.randint(rng_key, (40,), minval=0, maxval=10)
     res = reax.evaluate_stats(metrics.Unique(), reax.data.ArrayLoader(values, batch_size=9))
-    assert jnp.all(jnp.array(res["Unique"]) == jnp.unique(values))
+    assert jnp.all(jnp.array(res) == jnp.unique(values))
 
 
 def test_metric_collection(rng_key):

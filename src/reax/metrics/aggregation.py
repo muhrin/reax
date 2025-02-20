@@ -11,9 +11,9 @@ __all__ = ("Average", "Std", "Min", "Max", "Unique", "NumUnique")
 
 
 class Aggregation(Metric[jax.Array], abc.ABC):
-    """Interface that defines an aggregation metric.
-
-    This takes a single array and possibly a mask and calculates a metric.
+    """
+    Interface that defines an aggregation metric i.e. one that take raw array-like data and an
+    optional mask.
     """
 
     Self = TypeVar("Self", bound="Aggregation")
@@ -77,6 +77,8 @@ class NumUnique(utils.WithAccumulator, Aggregation):
 
 
 class Average(utils.WithAccumulatorAndCount, Aggregation):
+    """Compute an average"""
+
     reduce_fn = jnp.sum
 
 

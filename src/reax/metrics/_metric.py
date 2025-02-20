@@ -9,6 +9,18 @@ OutT = TypeVar("OutT")
 
 
 class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
+    """The base class for all metrics.
+
+    To be compatible with JAX Metrics are designed to be immutable meaning that when we 'update'
+    them, the update will return a new instance with the results of the update.
+
+    To create a new instance, use the ``.create()`` method with the data the metric will be
+    calculated on.
+
+    Updating can be done either with the ``.update()`` call when updating from raw data, or the
+    ``.merge()`` call when merging an existing metric instance.
+    """
+
     @classmethod
     def from_fun(cls, function: Callable) -> type["FromFun[OutT]"]:
         """Create a new metric from this one where a function is called before passing it on to this

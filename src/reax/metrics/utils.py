@@ -21,9 +21,7 @@ class ReduceFn(Protocol):
         """Perform reduction on the passed values."""
 
 
-def _prepare_mask(
-    mask: jt.Bool[jax.Array, "n_elements"], array: jt.Float[jax.Array, "..."]
-) -> jt.Bool[jax.Array, "n_elements ..."]:
+def _prepare_mask(mask: typing.ArrayMask, array: jt.Float[jt.Array, "..."]) -> typing.ArrayMask:
     """Prepare a mask for use with jnp.where(mask, array, ...).
 
     This needs to be done to make sure the mask is of the right shape to be compatible with such an
@@ -55,7 +53,21 @@ def prepare_mask(
     Optional[typing.ArrayMask],
     tuple[Optional[typing.ArrayMask], Union[int, jt.Int[jax.typing.ArrayLike, ""]]],
 ]:
-    """Prepare mask."""
+    """
+    Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure the
+    mask is of the right shape to be compatible with such an operation.  The other alternative is
+
+        ``jnp.where(mask, array.T, ...).T``
+
+    but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not
+    sure why, but this approach seems to avoid the problem.
+
+    :param values: the array the mask will be applied to
+    :param mask: the mask to prepare
+    :param return_count: is ``True``, returns a tuple where the second element is the number of
+        masked elements
+    :return: the prepared mask, typically this is just padded with extra dimensions (or reduced)
+    """
     if mask is None:
         if return_count:
             return None, values.size
@@ -79,7 +91,8 @@ def prepare_mask(
                 f"and values of dimension {values.shape}."
             )
 
-    clu.internal.utils.check_param(mask, dtype=bool, ndim=values.ndim)
+    mask = jnp.astype(mask, jnp.bool)
+    clu.internal.utils.check_param(mask, dtype=jnp.bool, ndim=values.ndim)
     if return_count:
         # Calculate the number of non-masked elements in total
         count = values.size if mask is None else jnp.array([mask.sum(), *values.shape[1:]]).prod()
