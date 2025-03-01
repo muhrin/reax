@@ -1,16 +1,29 @@
-from typing import TYPE_CHECKING, Any, Callable, TypedDict, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Generic,
+    Iterable,
+    Optional,
+    TypedDict,
+    TypeVar,
+    Union,
+    cast,
+)
 
+import beartype
 import jax
+import jaxtyping as jt
 
-from .. import data, keys
+from .. import data
 from ..utils import events
 
 if TYPE_CHECKING:
     import reax
 
-
 __all__ = ("MetricResults", "StageListener")
 
+_T_co = TypeVar("_T_co", covariant=True)
 StageEvents = events.EventGenerator["StageListener"]
 
 
@@ -25,6 +38,9 @@ class StageListener:
         """The stage is about to start an iteration."""
 
     def on_stage_iter_ending(self, stage: "reax.Stage", step: int, outputs: Any, /):
+        """The stage just finished processing an iteration."""
+
+    def on_stage_iter_ended(self, stage: "reax.Stage", step: int, outputs: Any, /):
         """The stage just finished processing an iteration."""
 
     def on_stage_ending(self, stage: "reax.Stage", /):
@@ -78,21 +94,22 @@ class Stopper:
         self._conditions.append(condition)
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def batches_limit(
-    batch_limit: Union[int, float], dataloader: "reax.DataLoader"
-) -> Union[int, float]:
+    batch_limit: Optional[Union[int, float]], dataloader: "reax.DataLoader"
+) -> Optional[int]:
     """Return a maximum number of batches given a dataloader and an optional batches limit.
 
     If the dataloader has fewer entries than the batch limit, then this will be used, otherwise
     the batches limit.
 
-    .. note:: Will return `float("inf")` if there is no limit.
+    .. note:: Will return `None` if there is no limit.
+
     :param batch_limit: The batches limit.
     :type batch_limit: Union[int, float]
     :param dataloader: The dataloader.
     :type dataloader: "reax.DataLoader"
     :return: The maximum number of batches.
-    :rtype: Union[int, float]
     """
     dataloader_size = data.sized_len(dataloader)
     if isinstance(batch_limit, int):
@@ -102,10 +119,10 @@ def batches_limit(
         return min(batch_limit, dataloader_size)
 
     if isinstance(batch_limit, float):
-        if batch_limit in (keys.NO_LIMIT, 1.0):
+        if batch_limit in (None, 1.0):
             if dataloader_size is not None:
                 return dataloader_size
-            return keys.NO_LIMIT
+            return None
 
         if dataloader_size is not None:
             # batch_limit is a finite float and we have a dataloader size
@@ -118,4 +135,62 @@ def batches_limit(
         )
 
     # We can't say anything other than just 'go to the end'
-    return keys.NO_LIMIT
+    return None
+
+
+class DataSourceManager(Generic[_T_co]):
+    class LoaderProxy(data.DataLoader[_T_co]):
+        def __init__(self, manager: "DataSourceManager[_T_co]", method_name: str):
+            self._manager = manager
+            self._method_name = method_name
+
+        def __iter__(self):
+            return iter(self.dataloader)
+
+        def __len__(self):
+            return len(self.dataloader)
+
+        def __getitem__(self, index):
+            return self.dataloader.__getitem__(index)
+
+        @property
+        def dataloader(self) -> Iterable[_T_co]:
+            return getattr(self._manager.source, self._method_name)()
+
+    def __init__(self, source: "reax.data.DataSource[_T_co]"):
+        self._source: "reax.data.DataSource[_T_co]" = source
+        self._ready: bool = False
+
+    def get_loader_proxy(self, method_name: str) -> LoaderProxy[_T_co]:
+        return DataSourceManager.LoaderProxy(self, method_name)
+
+    @property
+    def source(self) -> "reax.data.DataSource[_T_co]":
+        if not self._ready:
+            raise RuntimeError(
+                "`prepare_and_setup` has not been called, this must be done before accessing the "
+                "dataset"
+            )
+        return self._source
+
+    def prepare_and_setup(self, stage) -> None:
+        if self._ready:
+            # Already done
+            return
+
+        self._source.prepare_data()
+        self._source.setup(stage)
+        self._ready = True
+
+
+def get_datasource(
+    datamodule: "Optional[reax.DataModule[_T_co]]" = None,
+    module: Optional["reax.Module"] = None,
+) -> Optional[DataSourceManager[_T_co]]:
+    if datamodule is not None:
+        return DataSourceManager(datamodule)
+
+    if module is not None:
+        return DataSourceManager(module)
+
+    return None

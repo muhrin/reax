@@ -12,7 +12,7 @@ class TrainerLogging(hooks.TrainerListener):
     def __init__(self):
         """Init function."""
         self._progress_bar_metrics = {}
-        self._callback_metrics = {}
+        self._listener_metrics = {}
         self._logger_metrics = {}
 
     @property
@@ -23,7 +23,12 @@ class TrainerLogging(hooks.TrainerListener):
     @property
     def callback_metrics(self) -> dict:
         """Callback metrics."""
-        return self._callback_metrics
+        return self._listener_metrics
+
+    @property
+    def listener_metrics(self) -> dict:
+        """Listener metrics."""
+        return self._listener_metrics
 
     @property
     def logger_metrics(self) -> dict:
@@ -37,7 +42,7 @@ class TrainerLogging(hooks.TrainerListener):
         """The stage just finished processing an iteration."""
         if isinstance(stage, stages.EpochStage):
             self._progress_bar_metrics.update(stage.progress_bar_metrics)
-            self._callback_metrics.update(stage.callback_metrics)
+            self._listener_metrics.update(stage.listener_metrics)
             self._logger_metrics.update(stage.logged_metrics)
 
     @override
@@ -45,11 +50,11 @@ class TrainerLogging(hooks.TrainerListener):
         """The stage is about to finish."""
         if isinstance(stage, stages.EpochStage):
             self._progress_bar_metrics.update(stage.progress_bar_metrics)
-            self._callback_metrics.update(stage.callback_metrics)
+            self._listener_metrics.update(stage.callback_metrics)
             self._logger_metrics.update(stage.logged_metrics)
 
     def reset_metrics(self):
         """Reset metrics."""
         self._progress_bar_metrics = {}
-        self._callback_metrics = {}
+        self._listener_metrics = {}
         self._logger_metrics = {}

@@ -35,8 +35,8 @@ class BoringModel(modules.Module):
         self.layer = linen.Dense(2)
 
     @override
-    def setup(self, stage, batch: Any, /) -> None:
-        """Setup function."""
+    def configure_model(self, stage, batch: Any, /) -> None:
+        """Configure our model."""
         if self.parameters() is None:
             params = self.layer.init(self.rng_key(), batch[0])
             self.set_parameters(params)

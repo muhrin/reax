@@ -102,7 +102,7 @@ class EarlyStopping(hooks.TrainerListener):
     :param check_on_train_epoch_end: Whether to run early stopping at the end of the training epoch.
         If this is ``False``, then the check runs at the end of the validation, defaults to None.
     :type check_on_train_epoch_end: bool, optional
-    :param log_rank_zero_only: When set ``True``, logs the status of the early stopping callback
+    :param log_rank_zero_only: When set ``True``, logs the status of the early stopping listener
         only for rank 0 process, defaults to False.
     :type log_rank_zero_only: bool, optional
     :raises MisconfigurationException: If ``mode`` is none of ``"min"`` or ``"max"``.
@@ -199,7 +199,7 @@ class EarlyStopping(hooks.TrainerListener):
 
     def _run_early_stopping_check(self, trainer: "reax.Trainer", *_) -> None:
         """Check the early stopping condition and tell the Trainer to stop if needed."""
-        logs = trainer.callback_metrics
+        logs = trainer.listener_metrics
 
         if trainer.fast_dev_run or not self._validate_condition_metric(
             logs
@@ -223,7 +223,7 @@ class EarlyStopping(hooks.TrainerListener):
 
         error_msg = (
             f"Early stopping conditioned on metric `{self._monitor}` which is not available."
-            " Pass in or modify your `EarlyStopping` callback to use any of the following:"
+            " Pass in or modify your `EarlyStopping` listener to use any of the following:"
             f' `{"`, `".join(list(logs.keys()))}`'
         )
 

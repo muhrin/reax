@@ -372,17 +372,17 @@ class MlflowLogger(logger.Logger):
         return self.run_id
 
     @override
-    def after_save_checkpoint(self, checkpoint_callback: "reax.listeners.ModelCheckpoint") -> None:
+    def after_save_checkpoint(self, checkpoint_listener: "reax.listeners.ModelCheckpoint") -> None:
         """After save checkpoint."""
         # log checkpoints as artifacts
         if (
             self._log_model == "all"
             or self._log_model is True
-            and checkpoint_callback.save_top_k == -1
+            and checkpoint_listener.save_top_k == -1
         ):
-            self._scan_and_log_checkpoints(checkpoint_callback)
+            self._scan_and_log_checkpoints(checkpoint_listener)
         elif self._log_model is True:
-            self._checkpoint_callback = checkpoint_callback
+            self._checkpoint_callback = checkpoint_listener
 
     def _scan_and_log_checkpoints(
         self, checkpoint_callback: "reax.listeners.ModelCheckpoint"

@@ -115,19 +115,19 @@ def test_tensorboard_log_sub_dir(tmp_path):
     # no sub_dir specified
     save_dir = tmp_path / "logs"
     logger = TestLogger(save_dir)
-    trainer = reax.Trainer(demos.BoringModel(), **trainer_args, logger=logger)
+    trainer = reax.Trainer(**trainer_args, logger=logger)
     assert trainer.logger.log_dir == os.path.join(save_dir, "name", "version")
 
     # sub_dir specified
     logger = TestLogger(save_dir, sub_dir="sub_dir")
-    trainer = reax.Trainer(demos.BoringModel(), **trainer_args, logger=logger)
+    trainer = reax.Trainer(**trainer_args, logger=logger)
     assert trainer.logger.log_dir == os.path.join(save_dir, "name", "version", "sub_dir")
 
     # test home dir (`~`) handling
     save_dir = "~/tmp"
     explicit_save_dir = os.path.expanduser(save_dir)
     logger = TestLogger(save_dir, sub_dir="sub_dir")
-    trainer = reax.Trainer(demos.BoringModel(), **trainer_args, logger=logger)
+    trainer = reax.Trainer(**trainer_args, logger=logger)
     assert trainer.logger.log_dir == os.path.join(explicit_save_dir, "name", "version", "sub_dir")
 
     with mock.patch.dict(os.environ, {}):
@@ -137,7 +137,7 @@ def test_tensorboard_log_sub_dir(tmp_path):
         save_dir = "$TEST_ENV_DIR/tmp"
         explicit_save_dir = f"{test_env_dir}/tmp"
         logger = TestLogger(save_dir, sub_dir="sub_dir")
-        trainer = reax.Trainer(demos.BoringModel(), **trainer_args, logger=logger)
+        trainer = reax.Trainer(**trainer_args, logger=logger)
         assert trainer.logger.log_dir == os.path.join(
             explicit_save_dir, "name", "version", "sub_dir"
         )
@@ -262,12 +262,12 @@ def test_tensorboard_with_accummulated_gradients(mock_log_metrics, tmp_path):
     model = TestModel()
     logger_0 = loggers.tensorboard.TensorBoardLogger(tmp_path, default_hp_metric=False)
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
         logger=[logger_0],
         log_every_n_steps=3,
     )
     trainer.fit(
+        model,
         max_epochs=3,
         limit_train_batches=12,
         limit_val_batches=0,
@@ -305,9 +305,9 @@ def test_tensorboard_finalize(monkeypatch, tmp_path):
 def test_tensorboard_save_hparams_to_yaml_once(tmp_path):
     model = demos.BoringModel()
     logger = loggers.tensorboard.TensorBoardLogger(log_dir=tmp_path, default_hp_metric=False)
-    trainer = reax.Trainer(model, default_root_dir=tmp_path, logger=logger)
+    trainer = reax.Trainer(default_root_dir=tmp_path, logger=logger)
     assert trainer.log_dir == trainer.logger.log_dir
-    trainer.fit(max_updates=1)
+    trainer.fit(model, max_updates=1)
 
     hparams_file = "hparams.yaml"
     assert os.path.isfile(os.path.join(trainer.log_dir, hparams_file))

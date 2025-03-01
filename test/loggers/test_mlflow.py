@@ -182,20 +182,20 @@ def test_mlflow_log_dir(mlflow_mock, tmp_path):
 
     model = demos.BoringModel()
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
         logger=logger,
     )
     assert trainer.log_dir == logger.save_dir
     trainer.fit(
+        model,
         max_epochs=1,
         limit_train_batches=1,
         limit_val_batches=3,
     )
-    assert trainer.checkpoint_callback.dirpath == str(
+    assert trainer.checkpoint_listener.dirpath == str(
         tmp_path / "exp-id" / "run-id" / "checkpoints"
     )
-    assert set(os.listdir(trainer.checkpoint_callback.dirpath)) == {"epoch=0-step=1.ckpt"}
+    assert set(os.listdir(trainer.checkpoint_listener.dirpath)) == {"epoch=0-step=1.ckpt"}
     assert trainer.log_dir == logger.save_dir
 
 
@@ -224,11 +224,11 @@ def test_mlflow_logger_dirs_creation(tmp_path):
     model = CustomModel()
     limit_batches = 5
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
         logger=logger,
     )
     trainer.fit(
+        model,
         max_epochs=1,
         limit_train_batches=limit_batches,
         limit_val_batches=limit_batches,
@@ -236,8 +236,8 @@ def test_mlflow_logger_dirs_creation(tmp_path):
     assert set(os.listdir(tmp_path / exp_id)) == {run_id, "meta.yaml"}
     assert "epoch" in os.listdir(tmp_path / exp_id / run_id / "metrics")
     # TODO: assert set(os.listdir(tmp_path / exp_id / run_id / "params")) == model.hparams.keys()
-    assert trainer.checkpoint_callback.dirpath == str(tmp_path / exp_id / run_id / "checkpoints")
-    assert os.listdir(trainer.checkpoint_callback.dirpath) == [f"epoch=0-step={limit_batches}.ckpt"]
+    assert trainer.checkpoint_listener.dirpath == str(tmp_path / exp_id / run_id / "checkpoints")
+    assert os.listdir(trainer.checkpoint_listener.dirpath) == [f"epoch=0-step={limit_batches}.ckpt"]
 
 
 @mock.patch("reax.loggers.mlflow._get_resolve_tags", Mock())
@@ -436,11 +436,11 @@ def test_mlflow_log_model(mlflow_mock, log_model, tmp_path):
     logger = mock_mlflow_run_creation(logger, experiment_id="test-id")
 
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
         logger=logger,
     )
     trainer.fit(
+        model,
         max_epochs=2,
         limit_train_batches=3,
         limit_val_batches=3,

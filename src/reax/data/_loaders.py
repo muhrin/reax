@@ -86,7 +86,6 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
             first_array, batch_size=batch_size, shuffle=shuffle
         )
 
-    @jt.jaxtyped(typechecker=beartype.beartype)
     def __iter__(self) -> Iterator[ArrayOrArrayTuple]:
         """Iter function."""
         for idx in self._sampler:
@@ -96,7 +95,6 @@ class ArrayLoader(Iterable[ArrayOrArrayTuple]):
             else:
                 yield self._arrays.take(idx, axis=0)
 
-    @jt.jaxtyped(typechecker=beartype.beartype)
     def __len__(self) -> int:
         """Len function."""
         return len(self._sampler)

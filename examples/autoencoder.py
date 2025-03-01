@@ -43,7 +43,7 @@ class ReaxAutoEncoder(reax.Module):
         self.autoencoder = Autoencoder(hidden_dim=hidden_dim)
         self._learning_rate = learning_rate
 
-    def setup(self, stage: "reax.Stage", batch: Any, /) -> None:
+    def configure_model(self, _stage: "reax.Stage", batch: Any, /) -> None:
         if self.parameters() is None:
             inputs = self._prepare_batch(batch)
             params = self.autoencoder.init(self.rng_key(), inputs)
@@ -169,6 +169,6 @@ if __name__ == "__main__":
     datamodule = MyDataModule()
     autoencoder = ReaxAutoEncoder()
 
-    trainer = reax.Trainer(autoencoder)
-    trainer.fit(datamodule=datamodule, max_epochs=10)  # pylint: disable=not-callable
-    trainer.test(datamodule=datamodule)  # pylint: disable=not-callable
+    trainer = reax.Trainer()
+    trainer.fit(autoencoder, datamodule=datamodule, max_epochs=10)  # pylint: disable=not-callable
+    trainer.test(autoencoder, datamodule=datamodule)  # pylint: disable=not-callable

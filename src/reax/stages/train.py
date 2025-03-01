@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 import weakref
 
 import beartype
@@ -7,14 +7,18 @@ import optax
 from typing_extensions import override
 
 from . import common, stages
-from .. import exceptions, keys
+from .. import exceptions
 from .. import optimizers as optimizers_
 from ..lightning import rank_zero
 
 if TYPE_CHECKING:
     import reax
 
+
 __all__ = ("Train",)
+
+
+_T_co = TypeVar("_T_co", covariant=True)
 
 
 class Train(stages.EpochStage):
@@ -24,19 +28,36 @@ class Train(stages.EpochStage):
     def __init__(
         self,
         module: "reax.Module",
-        dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
         optimizers: "list[reax.Optimizer]",
         *,
+        dataloader: "Optional[reax.DataLoader]" = None,
+        datamodule: "Optional[reax.DataModule]" = None,
         min_updates: int = 0,
-        max_updates: Union[int, float] = keys.NO_LIMIT,
-        max_batches: Union[int, float] = keys.NO_LIMIT,
+        max_updates: Optional[Union[int, float]] = None,
+        max_batches: Optional[Union[int, float]] = None,
         accumulate_grad_batches: int = 1,
         parent: Optional["reax.Stage"] = None,
         stopper: Optional[common.Stopper] = None,
+        datamanager: "Optional[common.DataSourceManager]" = None,
     ):
+        if datamanager is None:
+            if dataloader is None:
+                datamanager = common.get_datasource(datamodule, module)
+                dataloader = datamanager.get_loader_proxy("val_dataloader")
+            else:
+                datamanager = None
+        else:
+            assert dataloader is not None
+
         super().__init__(
-            "train epoch", module, dataloader, strategy, max_batches=max_batches, parent=parent
+            "fit",
+            module,
+            dataloader,
+            strategy,
+            max_batches=max_batches,
+            parent=parent,
+            datamanager=datamanager,
         )
         # Params
         self._min_updates = min_updates
@@ -124,7 +145,7 @@ class Train(stages.EpochStage):
             self._optimizers = [opt]
 
         if (self._min_updates is None or self.updates >= self._min_updates) and (
-            self.updates >= self._max_updates
+            self._max_updates is not None and self.updates >= self._max_updates
         ):
             self.stop("Max updates reached")
 
@@ -139,13 +160,13 @@ class Train(stages.EpochStage):
     @override
     def _done(self) -> bool:
         """Done function."""
-        if self.batch_idx >= self.max_batches:
+        if self.max_batches is not None and self.batch_idx >= self.max_batches:
             rank_zero.rank_zero_debug(
                 f"`{type(self).__name__}` done: max_batches.{self.max_batches!r}` reached."
             )
             return True
 
-        if self.updates >= self._max_updates:
+        if self._max_updates is not None and self.updates >= self._max_updates:
             rank_zero.rank_zero_debug(
                 f"`{type(self).__name__}` done: `max_updates={self._max_updates!r}` reached."
             )

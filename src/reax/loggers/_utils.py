@@ -96,35 +96,35 @@ def add_prefix(
 
 
 def scan_checkpoints(
-    checkpoint_callback: "reax.listeners.ModelCheckpoint", logged_model_time: dict
+    checkpoint_listener: "reax.listeners.ModelCheckpoint", logged_model_time: dict
 ) -> list[tuple[float, str, float, str]]:
     """Return the checkpoints to be logged.
 
-    :param checkpoint_callback: Checkpoint callback reference.
-    :type checkpoint_callback: "reax.listeners.ModelCheckpoint"
+    :param checkpoint_listener: Checkpoint listener reference.
+    :type checkpoint_listener: "reax.listeners.ModelCheckpoint"
     :param logged_model_time: Dictionary containing the logged model times.
     :type logged_model_time: dict
     """
     # get checkpoints to be saved with associated score
     checkpoints = {}
-    if hasattr(checkpoint_callback, "last_model_path") and hasattr(
-        checkpoint_callback, "current_score"
+    if hasattr(checkpoint_listener, "last_model_path") and hasattr(
+        checkpoint_listener, "current_score"
     ):
-        checkpoints[checkpoint_callback.last_model_path] = (
-            checkpoint_callback.current_score,
+        checkpoints[checkpoint_listener.last_model_path] = (
+            checkpoint_listener.current_score,
             "latest",
         )
 
-    if hasattr(checkpoint_callback, "best_model_path") and hasattr(
-        checkpoint_callback, "best_model_score"
+    if hasattr(checkpoint_listener, "best_model_path") and hasattr(
+        checkpoint_listener, "best_model_score"
     ):
-        checkpoints[checkpoint_callback.best_model_path] = (
-            checkpoint_callback.best_model_score,
+        checkpoints[checkpoint_listener.best_model_path] = (
+            checkpoint_listener.best_model_score,
             "best",
         )
 
-    if hasattr(checkpoint_callback, "best_k_models"):
-        for key, value in checkpoint_callback.best_k_models.items():
+    if hasattr(checkpoint_listener, "best_k_models"):
+        for key, value in checkpoint_listener.best_k_models.items():
             checkpoints[key] = (value, "best_k")
 
     checkpoints = sorted(

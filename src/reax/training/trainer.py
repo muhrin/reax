@@ -16,10 +16,10 @@ from lightning_utilities.core import rank_zero
 from typing_extensions import override
 
 from . import _logger_connector
-from .. import exceptions, hooks, keys
+from .. import data, exceptions, hooks, keys
 from .. import listeners as listeners_
 from .. import loggers as loggers_
-from .. import modules, stages, strategies, typing
+from .. import modules, stages, strategies, typing, utils
 from ..utils import events
 
 if TYPE_CHECKING:
@@ -36,9 +36,9 @@ class Trainer(stages.StageListener):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        module: modules.Module,
         *,
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
+        devices: Union[list[int], str, int] = "auto",
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = None,
         fast_dev_run: Union[int, bool] = False,
         listeners: "Optional[list[reax.TrainerListener], reax.TrainerListener]" = None,
@@ -46,10 +46,16 @@ class Trainer(stages.StageListener):
         enable_checkpointing: Optional[bool] = True,
         enable_progress_bar: bool = True,
         enable_model_summary: Optional[bool] = None,
+        deterministic: bool = False,
         rng_key: jax.Array = None,
         default_root_dir: Optional[typing.Path] = None,
     ):
         """Init function."""
+        if deterministic:
+            _LOGGER.warning("`deterministic=True` is not supported yet, ignoring.")
+        if devices != "auto":
+            _LOGGER.warning("`devices` other than 'auto' is not supported yet, ignoring.")
+
         self._accelerator = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         )
@@ -58,7 +64,6 @@ class Trainer(stages.StageListener):
         self._log_every_n_steps: Final[int] = log_every_n_steps
 
         self._strategy = strategies.SingleDevice(self._accelerator)
-        self._rng_key = rng_key if rng_key is not None else jax.random.key(0)
         self._default_root_dir = (
             os.fspath(default_root_dir) if default_root_dir is not None else os.getcwd()
         )
@@ -68,6 +73,7 @@ class Trainer(stages.StageListener):
         self._stage: Optional[stages.Stage] = None
 
         # State
+        self._rng = utils.rngs.Generator(key=rng_key if rng_key is not None else jax.random.key(0))
         self._current_epoch: int = 0
         self._global_updates: int = 0
 
@@ -75,10 +81,6 @@ class Trainer(stages.StageListener):
         self._events = events.EventGenerator[hooks.TrainerListener](
             default_args=(weakref.proxy(self),)
         )
-
-        # Attach the trainer to the module
-        self._module: modules.Module = module
-        module.trainer = self
 
         self._loggers = _init_loggers(logger, self.default_root_dir)
 
@@ -97,11 +99,11 @@ class Trainer(stages.StageListener):
         if enable_model_summary:
             _LOGGER.warning("`enable_model_summary` is not supported yet, ignoring")
 
-        if self.checkpoint_callbacks:
+        if self.checkpoint_listeners:
             if not enable_checkpointing:
                 raise exceptions.MisconfigurationException(
                     "Trainer was configured with `enable_checkpointing=False`"
-                    " but found `ModelCheckpoint` in callbacks list."
+                    " but found `ModelCheckpoint` in listeners list."
                 )
         elif enable_checkpointing:
             # Create the default checkpointer
@@ -112,11 +114,6 @@ class Trainer(stages.StageListener):
 
         After this called this object should no longer be interacted with.
         """
-        if self._module is None:
-            return
-
-        if self._module.trainer is self:
-            self._module.trainer = None
         self._events = None
         self._loggers = None
 
@@ -193,30 +190,56 @@ class Trainer(stages.StageListener):
         return self._default_root_dir
 
     @property
+    def early_stopping_listener(self) -> Optional[listeners_.EarlyStopping]:
+        """The first :class:`~reax.listeners.early_stopping.EarlyStopping` listener in the
+        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        listeners = self.early_stopping_listeners
+        return listeners[0] if len(listeners) > 0 else None
+
+    @property
+    def early_stopping_listeners(self) -> list[listeners_.EarlyStopping]:
+        """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in
+        the Trainer.listeners list."""
+        return self._events.find(type=listeners_.EarlyStopping)
+
+    @property
     def early_stopping_callback(self) -> Optional[listeners_.EarlyStopping]:
-        """The first :class:`~reax.listeners.early_stopping.EarlyStopping` callback in the
+        """The first :class:`~reax.listeners.early_stopping.EarlyStopping` listener in the
         Trainer.callbacks list, or ``None`` if it doesn't exist."""
-        callbacks = self.early_stopping_callbacks
-        return callbacks[0] if len(callbacks) > 0 else None
+        return self.early_stopping_listener
 
     @property
     def early_stopping_callbacks(self) -> list[listeners_.EarlyStopping]:
         """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in
         the Trainer.callbacks list."""
-        return self._events.find(type=listeners_.EarlyStopping)
+        return self.early_stopping_listeners
 
     @property
-    def checkpoint_callback(self) -> Optional["reax.listeners.Checkpointer"]:
-        """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` callback in the
-        Trainer.callbacks list, or ``None`` if it doesn't exist."""
-        callbacks = self.checkpoint_callbacks
-        return callbacks[0] if len(callbacks) > 0 else None
+    def checkpoint_listeners(self) -> list["reax.listeners.Checkpointer"]:
+        """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` listener in the
+        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        return self._events.find(type=listeners_.Checkpointer)
+
+    @property
+    def checkpoint_listener(self) -> Optional["reax.listeners.Checkpointer"]:
+        """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` listener in the
+        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        listeners = self.checkpoint_listeners
+        return listeners[0] if len(listeners) > 0 else None
 
     @property
     def checkpoint_callbacks(self) -> list["reax.listeners.Checkpointer"]:
         """A list of all instances of :class:`~reax.listeners.model_checkpoint.ModelCheckpoint`
         found in the Trainer.listeners list."""
-        return self._events.find(type=listeners_.Checkpointer)
+        # Kept for compatibility with Lightning
+        return self.checkpoint_listeners
+
+    @property
+    def checkpoint_callback(self) -> Optional["reax.listeners.Checkpointer"]:
+        """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` callback in the
+        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        # Kept for compatibility with Lightning
+        return self.checkpoint_listener
 
     @property
     def logger(self) -> Optional["reax.Logger"]:
@@ -271,9 +294,15 @@ class Trainer(stages.StageListener):
         return self._logging.progress_bar_metrics
 
     @property
+    def listener_metrics(self) -> dict:
+        """Callback metrics."""
+        return self._logging.listener_metrics
+
+    @property
     def callback_metrics(self) -> dict:
         """Callback metrics."""
-        return self._logging.callback_metrics
+        # Kept for compatibility with Lightning
+        return self.listener_metrics
 
     @property
     def logger_metrics(self) -> dict:
@@ -312,13 +341,22 @@ class Trainer(stages.StageListener):
             return getattr(self._stage, "train_dataloader", None)
         return None
 
-    def rng_key(self, num=1) -> jax.Array:
+    @property
+    def _module(self) -> "reax.Module":
+        if self._stage is None:
+            raise AttributeError("There is no stage running, so module is not available")
+        if self._stage.module is None:
+            raise AttributeError(
+                f"The running stage '{self._stage.__class__.__name__}', does not have a module"
+            )
+        return self._stage.module
+
+    def rng_key(self, num: Union[int, tuple[int, ...]] = 1) -> jax.Array:
         """Get a new RNG key.
 
         This will update the state in the `Trainer`.
         """
-        self._rng_key, subkey = jax.random.split(self._rng_key, num=num + 1)
-        return subkey
+        return self._rng.make_key(num=num)
 
     def log(
         # pylint: disable=unused-argument
@@ -355,14 +393,15 @@ class Trainer(stages.StageListener):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def fit(
         self,
+        module: modules.Module,
         train_dataloaders: "Optional[reax.DataLoader]" = None,
         val_dataloaders: "Optional[reax.DataLoader]" = None,
         *,
         datamodule: "Optional[reax.DataModule]" = None,
-        max_epochs: Union[int, float] = 1_000,
+        max_epochs: Optional[int] = 1_000,
         min_epochs: int = 0,
         min_updates: int = 0,
-        max_updates: Union[int, type(keys.NO_LIMIT)] = keys.NO_LIMIT,
+        max_updates: Union[int, float] = None,
         limit_train_batches: Optional[Union[int, float]] = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: Optional[Union[int, float]] = 1.0,
@@ -371,29 +410,12 @@ class Trainer(stages.StageListener):
         num_sanity_val_steps: Optional[int] = None,
     ):
         """Fit function."""
-        if max_updates < 0:
+        if max_updates is not None and max_updates < 0:
             raise ValueError("`max_updates` must be a non-negative integer")
-        if max_epochs < 0:
+        if max_epochs is not None and max_epochs < 0:
             raise ValueError(f"`max_epochs` must be a non-negative integer or {keys.NO_LIMIT}")
         if num_sanity_val_steps:
             _LOGGER.warning("`num_sanity_val_steps` is not supported yet, ignoring.")
-
-        # Must choose either a datamodule or train/val dataloaders
-        if datamodule is not None:
-            if train_dataloaders is not None or val_dataloaders is not None:
-                raise ValueError(
-                    "You cannot pass `train_dataloader` or `val_dataloaders` and `datamodule` to "
-                    "`Trainer.fit()`"
-                )
-            train_dataloaders = datamodule.train_dataloader()
-            val_dataloaders = datamodule.val_dataloader()
-
-        # Fallbacks
-        if train_dataloaders is None:
-            train_dataloaders = self._module.train_dataloader()
-
-        if val_dataloaders is None:
-            val_dataloaders = self._module.val_dataloader()
 
         if self._fast_dev_run:
             num_batches = 1
@@ -409,11 +431,12 @@ class Trainer(stages.StageListener):
             )
 
         fit = stages.Fit(
-            self._module,
-            train_dataloaders,
-            val_dataloaders,
-            optimizers=self.optimizers,
-            strategy=self._strategy,
+            module,
+            self.optimizers,
+            self._strategy,
+            train_dataloaders=train_dataloaders,
+            val_dataloaders=val_dataloaders,
+            datamodule=datamodule,
             max_epochs=max_epochs,
             min_epochs=min_epochs,
             min_updates=min_updates,
@@ -431,47 +454,38 @@ class Trainer(stages.StageListener):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def validate(
         self,
+        module: modules.Module,
         dataloaders=None,
         datamodule=None,
         max_batches: Union[int, type(keys.NO_LIMIT)] = keys.NO_LIMIT,
     ):
         """Test function."""
-        if datamodule is not None:
-            if dataloaders is not None:
-                raise ValueError("Cannot supply dataloaders and datamodule to Trainer.test()")
-
-            dataloaders = datamodule.test_dataloader()
-
-        # Fallback
-        if dataloaders is None:
-            dataloaders = self._module.val_dataloader()
-
         self._run_stage(
-            stages.Validate(self._module, dataloaders, self._strategy, max_batches=max_batches)
+            stages.Validate(
+                module,
+                self._strategy,
+                dataloader=dataloaders,
+                datamodule=datamodule,
+                max_batches=max_batches,
+            )
         )
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def test(
         self,
+        module: modules.Module,
         dataloaders=None,
         datamodule=None,
     ):
         """Test function."""
-        if datamodule is not None:
-            if dataloaders is not None:
-                raise ValueError("Cannot supply dataloaders and datamodule to Trainer.test()")
-
-            dataloaders = datamodule.test_dataloader()
-
-        # Fallback
-        if dataloaders is None:
-            dataloaders = self._module.test_dataloader()
-
-        self._run_stage(stages.Test(self._module, dataloaders, self._strategy))
+        self._run_stage(
+            stages.Test(module, self._strategy, dataloader=dataloaders, datamodule=datamodule)
+        )
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def predict(
         self,
+        module: modules.Module,
         dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
         return_predictions: Optional[bool] = None,
@@ -481,16 +495,6 @@ class Trainer(stages.StageListener):
 
         Logging is disabled in the predict hooks.
         """
-        if datamodule is not None:
-            if dataloaders is not None:
-                raise ValueError("Cannot supply dataloaders and datamodule to Trainer.test()")
-
-            dataloaders = datamodule.predict_dataloader()
-
-        # Fallback
-        if dataloaders is None:
-            dataloaders = self._module.predict_dataloader()
-
         if self._fast_dev_run:
             limit_batches = 1
 
@@ -498,9 +502,10 @@ class Trainer(stages.StageListener):
             return_predictions = True
 
         predict = stages.Predict(
-            self._module,
-            dataloaders,
+            module,
             self._strategy,
+            dataloader=dataloaders,
+            datamodule=datamodule,
             max_batches=limit_batches,
             keep_predictions=return_predictions,
         )
@@ -534,10 +539,14 @@ class Trainer(stages.StageListener):
     def _attach(self, stage: stages.Stage):
         """Attach function."""
         self._stage = stage
+        if stage.module is not None:
+            stage.module.trainer = self
         try:
             yield
         finally:
             self._stage = None
+            if stage.module is not None:
+                stage.module.trainer = None
 
     @override
     def on_stage_starting(self, stage: "stages.Stage", /) -> None:
@@ -605,7 +614,7 @@ class Trainer(stages.StageListener):
         """On stage ending."""
         if isinstance(stage, stages.EpochStage):
             self._events.fire_event(
-                hooks.TrainerListener.on_epoch_ending, stage, stage.callback_metrics
+                hooks.TrainerListener.on_epoch_ending, stage, stage.listener_metrics
             )
 
             metrics = stage.results
@@ -635,18 +644,20 @@ class Trainer(stages.StageListener):
 
     # region Checkpointing
 
-    def save_checkpoint(self, filepath: typing.Path):
+    def save_checkpoint(self, filepath: typing.Path, weights_only: bool = True):
         """For now, we just save the model weights.
 
         The user has to store the model definition themselves.
         """
+        if not weights_only:
+            _LOGGER.warning("`weights_only=False` is not supported yet, ignoring")
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "wb") as file:
             pickle.dump(self._module.parameters(), file)
 
     def _get_checkpoint_path(self) -> Optional[str]:
         """Get checkpoint path."""
-        checkpointers = self.checkpoint_callbacks
+        checkpointers = self.checkpoint_listeners
         if not checkpointers:
             return None
 
@@ -654,7 +665,7 @@ class Trainer(stages.StageListener):
             fn = self._get_checkpoint_path
             rank_zero.rank_zero_warn(
                 f'`.{fn}(ckpt_path="best")` found Trainer with multiple `ModelCheckpoint`'
-                " callbacks. The best checkpoint path from first checkpoint callback will be used."
+                " listeners. The best checkpoint path from first checkpoint listener will be used."
             )
 
         checkpointer = checkpointers[0]

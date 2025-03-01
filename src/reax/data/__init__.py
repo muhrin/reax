@@ -1,14 +1,18 @@
-from . import _loaders, _types, data_loaders, data_modules, samplers, utils
+from . import _datasources, _loaders, _types, dataloaders, datamodules, datasets, samplers, utils
+from ._datasources import *
 from ._loaders import *
 from ._types import *
-from .data_loaders import *
-from .data_modules import *
+from .dataloaders import *
+from .datamodules import *
+from .datasets import *
 from .samplers import *
 from .utils import *
 
 __all__ = (
-    data_loaders.__all__
-    + data_modules.__all__
+    _datasources.__all__
+    + datasets.__all__
+    + dataloaders.__all__
+    + datamodules.__all__
     + samplers.__all__
     + _loaders.__all__
     + _types.__all__

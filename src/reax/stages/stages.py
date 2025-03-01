@@ -3,7 +3,7 @@ predicting etc."""
 
 import abc
 import logging
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Final, Optional, TypeVar, Union
 import weakref
 
 import beartype
@@ -26,6 +26,7 @@ __all__ = "Stage", "EpochStage"
 
 
 _LOGGER = logging.getLogger(__name__)
+_T_co = TypeVar("_T_co", covariant=True)
 
 
 class Stage(abc.ABC):
@@ -38,15 +39,15 @@ class Stage(abc.ABC):
         module: Optional["reax.Module"],
         strategy: "reax.Strategy",
         *,
-        max_iters: Union[int, float] = keys.NO_LIMIT,
+        max_iters: Optional[int] = None,
         min_iters: int = 0,
         parent: Optional["reax.Stage"] = None,
     ):
         # Params
         self._name = name
         self._strategy = strategy
-        self._min_iters = min_iters
-        self._max_iters = max_iters
+        self._min_iters: Final[int] = min_iters
+        self._max_iters: Final[Optional[int]] = max_iters
 
         # State
         self._module: Optional["reax.Module"] = module
@@ -90,7 +91,7 @@ class Stage(abc.ABC):
         return self._min_iters
 
     @property
-    def max_iters(self) -> int:
+    def max_iters(self) -> Optional[int]:
         """Max iters."""
         return self._max_iters
 
@@ -135,21 +136,47 @@ class Stage(abc.ABC):
     def step(self) -> None:
         """Advance the loop by one iteration."""
         if self._iter == -1:
+            # Starting
             self._on_starting()
+            self.events.fire_event(common.StageListener.on_stage_starting, weakref.proxy(self))
+            # Started
             self._on_started()
+            self.events.fire_event(common.StageListener.on_stage_started, weakref.proxy(self))
 
         try:
             if self._done():
                 raise StopIteration
 
+            # Iteration
             self._on_iteration_starting()
-            result = self._step()
-            self._on_iteration_finishing(result)
-            self._on_iteration_finished(result)
+            self.events.fire_event(
+                common.StageListener.on_stage_iter_starting, weakref.proxy(self), self._iter
+            )
+
+            res = self._step()
+
+            # Iteration finishing
+            self._on_iteration_finishing(res)
+            self.events.fire_event(
+                common.StageListener.on_stage_iter_ending, weakref.proxy(self), self._iter, res
+            )
+
+            # Iteration finished
+            self._on_iteration_finished(res)
+            self.events.fire_event(
+                common.StageListener.on_stage_iter_ended, weakref.proxy(self), self._iter, res
+            )
+
         except StopIteration as exc:
             self._stop_reason = str(exc)
+            # Stopping
             self._on_stopping()
+            self.events.fire_event(common.StageListener.on_stage_ending, weakref.proxy(self))
+
+            # Stopped
             self._on_stopped()
+            self.events.fire_event(common.StageListener.on_stage_ended, weakref.proxy(self))
+
             raise
 
     @abc.abstractmethod
@@ -172,21 +199,16 @@ class Stage(abc.ABC):
         # Events
         if self._module is not None:
             self._module.on_stage_starting(weakref.proxy(self))
-        self.events.fire_event(common.StageListener.on_stage_starting, weakref.proxy(self))
 
     def _on_started(self):
         """On started."""
         if self._module is not None:
             self._module.on_stage_started(weakref.proxy(self))
-        self.events.fire_event(common.StageListener.on_stage_started, weakref.proxy(self))
 
     def _on_iteration_starting(self):
         """On iteration starting."""
         if self._module is not None:
             self._module.on_stage_iter_starting(weakref.proxy(self), self._iter)
-        self.events.fire_event(
-            common.StageListener.on_stage_iter_starting, weakref.proxy(self), self._iter
-        )
 
     @abc.abstractmethod
     def _step(self) -> Any:
@@ -196,9 +218,6 @@ class Stage(abc.ABC):
         """The iteration is about to finish."""
         if self._module is not None:
             self._module.on_stage_iter_ending(weakref.proxy(self), self._iter, outputs)
-        self.events.fire_event(
-            common.StageListener.on_stage_iter_ending, weakref.proxy(self), self._iter, outputs
-        )
 
     def _on_iteration_finished(self, _outputs: Any, /):
         """The iteration has finished.
@@ -216,15 +235,13 @@ class Stage(abc.ABC):
         """The stage is stopping."""
         self._iter = -1
         self._run_count += 1
-        self.events.fire_event(common.StageListener.on_stage_ending, weakref.proxy(self))
 
     def _on_stopped(self):
         """On stopped."""
-        self.events.fire_event(common.StageListener.on_stage_ended, weakref.proxy(self))
 
     def _done(self) -> bool:
         """Done function."""
-        if self._iter >= self.max_iters:
+        if self.max_iters is not None and self._iter >= self.max_iters:
             return True
 
         if self._stopper.do_stop():
@@ -249,24 +266,27 @@ class EpochStage(Stage, abc.ABC):
         self,
         name: str,
         module: Optional["reax.Module"],
-        dataloader: "reax.DataLoader",
+        dataloader: "reax.DataLoader[_T_co]",
         strategy: "reax.Strategy",
         *,
         min_batches: int = 0,
-        max_batches: Union[int, float] = keys.NO_LIMIT,
+        max_batches: Optional[Union[int, float]] = None,
         parent: Optional["reax.Stage"] = None,
+        datamanager: Optional = None,
     ):
-        max_batches = common.batches_limit(max_batches, dataloader)
+        self._max_batches = max_batches
         super().__init__(
-            name, module, strategy, min_iters=min_batches, max_iters=max_batches, parent=parent
+            name,
+            module,
+            strategy,
+            min_iters=min_batches,
+            max_iters=None,
+            parent=parent,
         )
-        if dataloader is None:
-            raise ValueError(f"Stage {name} requires a data loader, got `None`")
-
-        # Params
-        self._dataloader = dataloader
 
         # State
+        self._dataloader: "reax.DataLoader[_T_co]" = dataloader
+        self._datamanager: Optional = datamanager
         self._iterator = None
         self._batch: Optional[Any] = None
         self._total_batch_idx: int = 0
@@ -300,9 +320,14 @@ class EpochStage(Stage, abc.ABC):
         return self._run_count
 
     @property
+    def max_iters(self) -> Optional[int]:
+        """Get the current maximum number of iterations."""
+        return common.batches_limit(self._max_batches, self.dataloader)
+
+    @property
     def max_batches(self) -> Optional[int]:
         """Max batches."""
-        return self._max_iters
+        return self.max_iters
 
     @property
     def metrics(self) -> "reax.results.ResultCollection":
@@ -320,7 +345,15 @@ class EpochStage(Stage, abc.ABC):
         if not self._metrics_results:
             return dict()
 
-        return self._metrics_results[keys.CALLBACK]
+        return self._metrics_results[keys.LISTENER]
+
+    @property
+    def listener_metrics(self) -> typing.MetricsDict:
+        """Get the metrics available to callbacks."""
+        if not self._metrics_results:
+            return dict()
+
+        return self._metrics_results[keys.LISTENER]
 
     @property
     def logged_metrics(self) -> typing.MetricsDict:
@@ -375,14 +408,22 @@ class EpochStage(Stage, abc.ABC):
         """On starting."""
         super()._on_starting()
 
-        # Only the root stage does setup as this only needs to be done once per stage tree
-        if self.is_root and self._module is not None:
-            self._module.setup(self, next(iter(self.dataloader)))
-            params = self._strategy.to_device(self._module.parameters())
-            self._module.set_parameters(params)
+        if self._datamanager is not None:
+            # Make sure the data is ready
+            self._datamanager.prepare_and_setup(self)
+
+        if self._module is not None:
+            was_uninitialised = self._module.parameters() is None
+            example_batch = next(iter(self.dataloader))
+            self._module.configure_model(self, example_batch)
+
+            # Only the root stage does setup as this only needs to be done once per stage tree
+            if was_uninitialised and self._module.parameters() is not None:
+                params = self._strategy.to_device(self._module.parameters())
+                self._module.set_parameters(params)
 
         self._metrics = results.ResultCollection()
-        self._iterator = iter(self._dataloader)
+        self._iterator = iter(self.dataloader)
         self._metrics_results = None
 
     @override
@@ -397,7 +438,7 @@ class EpochStage(Stage, abc.ABC):
     def _on_iteration_finishing(self, outputs: Any, /) -> None:
         """Look through the logged metrics and extract those where a user logged a results during
         this step and used the `on_step=True` option."""
-        metrics = {keys.PBAR: {}, keys.LOG: {}, keys.CALLBACK: {}}
+        metrics = {keys.PBAR: {}, keys.LOG: {}, keys.LISTENER: {}}
         for _name, entry in self.metrics.items():
             if entry.meta.on_step:  # Here we are stepping
                 value = entry.last_value
@@ -422,12 +463,12 @@ class EpochStage(Stage, abc.ABC):
     def _on_stopping(self) -> None:
         """Look through the logged metrics and extract those where a user logged a results during
         this step and used the `on_epoch=True` option."""
-        metrics = {keys.PBAR: {}, keys.LOG: {}, keys.CALLBACK: {}}
+        metrics = {keys.PBAR: {}, keys.LOG: {}, keys.LISTENER: {}}
         for _name, entry in self.metrics.items():
             if entry.meta.on_epoch:  # Here we are completing an epoch
                 # Ask the metric to compute itself using results accumulated during the epoch
                 value = entry.metric.compute()
-                metrics[keys.CALLBACK][entry.meta.name] = value
+                metrics[keys.LISTENER][entry.meta.name] = value
                 if entry.meta.logger:
                     metrics[keys.LOG][entry.meta.name] = value
                 if entry.meta.prog_bar:

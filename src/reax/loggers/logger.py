@@ -128,11 +128,11 @@ class Logger(abc.ABC):
         """
         self.save()
 
-    def after_save_checkpoint(self, checkpoint_callback: "reax.listeners.ModelCheckpoint") -> None:
-        """Called after model checkpoint callback saves a new checkpoint.
+    def after_save_checkpoint(self, checkpoint_listener: "reax.listeners.ModelCheckpoint") -> None:
+        """Called after model checkpoint listener saves a new checkpoint.
 
-        :param checkpoint_callback: The model checkpoint callback instance.
-        :type checkpoint_callback: "reax.listeners.ModelCheckpoint"
+        :param checkpoint_listener: The model checkpoint listener instance.
+        :type checkpoint_listener: "reax.listeners.ModelCheckpoint"
         """
 
 

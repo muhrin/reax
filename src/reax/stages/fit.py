@@ -8,7 +8,7 @@ from lightning_utilities.core import overrides
 from typing_extensions import override
 
 from . import common, stages, train, validation
-from .. import data, exceptions, keys, modules
+from .. import data, exceptions, modules
 
 if TYPE_CHECKING:
     import reax
@@ -21,13 +21,14 @@ class FitEpoch(train.Train):
     def __init__(
         self,
         module: "reax.Module",
-        train_dataloaders: "reax.DataLoader",
-        val_dataloaders: "Optional[reax.DataLoader]",
         optimizers: list["reax.Optimizer"],
         strategy: "reax.Strategy",
         *,
+        train_dataloaders: "Optional[reax.DataLoader]" = None,
+        val_dataloaders: "Optional[reax.DataLoader]" = None,
+        datamodule: "Optional[reax.DataModule]" = None,
         min_updates: Optional[int] = None,
-        max_updates: Union[int, float] = keys.NO_LIMIT,
+        max_updates: Optional[Union[int, float]] = None,
         limit_train_batches: Optional[Union[int, float]] = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: Optional[Union[int, float]] = 1.0,
@@ -37,24 +38,29 @@ class FitEpoch(train.Train):
         stopper: Optional[common.Stopper] = None,
     ):
         """Init function."""
+        if train_dataloaders is None:
+            datamanager = common.get_datasource(datamodule, module)
+            train_dataloaders = datamanager.get_loader_proxy("train_dataloader")
+            val_dataloaders = datamanager.get_loader_proxy("val_dataloader")
+        else:
+            datamanager = None
+
         super().__init__(
             module,
-            train_dataloaders,
             strategy,
             optimizers,
+            dataloader=train_dataloaders,
             min_updates=min_updates,
             max_updates=max_updates,
             max_batches=limit_train_batches,
             accumulate_grad_batches=accumulate_grad_batches,
             parent=parent,
             stopper=stopper,
+            datamanager=datamanager,
         )
         # Params
         self._val_check_interval: Final[Union[int, float]] = val_check_interval
         self._check_val_every_n_epoch: Final[int] = check_val_every_n_epoch
-        self._val_check_batch: Final[Optional[Union[int, float]]] = self._setup_val_check_batch_(
-            val_check_interval, self.max_batches, check_val_every_n_epoch, train_dataloaders
-        )
 
         # State
         if (
@@ -67,8 +73,8 @@ class FitEpoch(train.Train):
         else:
             self._validate = validation.Validate(
                 module,
-                val_dataloaders,
                 strategy,
+                dataloader=val_dataloaders,
                 max_batches=limit_val_batches,
                 parent=weakref.proxy(self),
             )
@@ -144,36 +150,6 @@ class FitEpoch(train.Train):
         else:
             super().log(name, value, batch_size, prog_bar, logger, on_step, on_epoch)
 
-    def _should_check_val_fx(self) -> bool:
-        """Decide if we should run validation."""
-        if not self._should_check_val_epoch():
-            return False
-
-        # val_check_batch is inf for iterable datasets with no length defined
-        is_infinite_dataset = self._val_check_batch == keys.NO_LIMIT
-        is_last_batch = self.batch_progress.is_last_batch
-        if is_last_batch and is_infinite_dataset:
-            return True
-
-        if self._stopper.do_stop():
-            # allow validation if requesting to stop early through `Trainer.should_stop`
-            # (e.g. by early stopping) and when the loop allows to stop (min_epochs/steps met)
-            return True
-
-        # TODO: let training/eval loop handle logic around limit_*_batches and val_check_batch
-        is_val_check_batch = is_last_batch
-        if isinstance(self.max_batches, int) and is_infinite_dataset:
-            is_val_check_batch = (self.batch_idx + 1) % self.max_batches == 0
-        elif self._val_check_batch != keys.NO_LIMIT:
-            # if `check_val_every_n_epoch is `None`, run a validation loop every n training batches
-            # else condition it based on the batch_idx of the current epoch
-            current_iteration = (
-                self.total_batch_idx if self._check_val_every_n_epoch is None else self.batch_idx
-            )
-            is_val_check_batch = (current_iteration + 1) % self._val_check_batch == 0
-
-        return is_val_check_batch
-
     def _should_check_val_epoch(self) -> bool:
         """Should check val epoch."""
         return self.validate and (
@@ -207,7 +183,7 @@ class FitEpoch(train.Train):
             has_len_all_ranks_ = dataloader_size is not None
             if not has_len_all_ranks_:
                 if val_check_interval == 1.0:
-                    val_check_batch = keys.NO_LIMIT
+                    val_check_batch = None
                 else:
                     raise exceptions.MisconfigurationException(
                         "When using an IterableDataset for `train_dataloader`,"
@@ -234,15 +210,16 @@ class Fit(stages.Stage):
     def __init__(
         self,
         module: "reax.Module",
-        train_dataloaders: "reax.DataLoader",
-        val_dataloaders: "Optional[reax.DataLoader]",
         optimizers: list["reax.Optimizer"],
         strategy: "reax.Strategy",
         *,
-        max_epochs: Union[int, float] = keys.NO_LIMIT,
+        train_dataloaders: "Optional[reax.DataLoader]" = None,
+        val_dataloaders: "Optional[reax.DataLoader]" = None,
+        datamodule: "Optional[reax.DataModule]" = None,
+        max_epochs: Optional[int] = None,
         min_epochs: int = 0,
         min_updates: int = 0,
-        max_updates: Union[int, float] = keys.NO_LIMIT,
+        max_updates: Optional[Union[int, float]] = None,
         limit_train_batches: Optional[Union[int, float]] = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: Optional[Union[int, float]] = 1.0,
@@ -263,10 +240,11 @@ class Fit(stages.Stage):
         # State
         self._fit_epoch = FitEpoch(
             module,
-            train_dataloaders,
-            val_dataloaders,
             optimizers,
             strategy,
+            train_dataloaders=train_dataloaders,
+            val_dataloaders=val_dataloaders,
+            datamodule=datamodule,
             min_updates=min_updates,
             max_updates=max_updates,
             limit_train_batches=limit_train_batches,
@@ -316,17 +294,6 @@ class Fit(stages.Stage):
     ) -> None:
         """Log function."""
         self._fit_epoch.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch)
-
-    @override
-    def _on_starting(self):
-        """On starting."""
-        super()._on_starting()
-
-        # Only the root stage does setup as this only needs to be done once per stage tree
-        if self.is_root and self._module is not None:
-            self._module.setup(self, next(iter(self.train_dataloader)))
-            params = self._strategy.to_device(self._module.parameters())
-            self._module.set_parameters(params)
 
     @override
     def _step(self) -> Any:

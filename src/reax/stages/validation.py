@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 import weakref
 
 from typing_extensions import override
 
-from . import stages
-from .. import keys
+from . import common, stages
 
 if TYPE_CHECKING:
     import reax
@@ -17,15 +16,28 @@ class Validate(stages.EpochStage):
     def __init__(
         self,
         module: "reax.Module",
-        dataloader: "reax.DataLoader",
         strategy: "reax.Strategy",
         *,
-        max_batches: Union[int, float] = keys.NO_LIMIT,
+        dataloader: "Optional[reax.DataLoader]" = None,
+        datamodule: "Optional[reax.DataModule]" = None,
+        max_batches: Optional[int] = None,
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
+        if dataloader is None:
+            datamanager = common.get_datasource(datamodule, module)
+            dataloader = datamanager.get_loader_proxy("val_dataloader")
+        else:
+            datamanager = None
+
         super().__init__(
-            "validate", module, dataloader, strategy, max_batches=max_batches, parent=parent
+            "validate",
+            module,
+            dataloader,
+            strategy,
+            max_batches=max_batches,
+            parent=parent,
+            datamanager=datamanager,
         )
 
     @override

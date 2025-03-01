@@ -7,7 +7,7 @@ import jaxtyping as jt
 from lightning_utilities.core import rank_zero
 import optax
 
-from . import _module_hooks
+from . import _module_hooks, data
 
 if TYPE_CHECKING:
     import reax
@@ -24,13 +24,13 @@ LossAndGrad = tuple[jax.Array, jax.Array]
 TrainOutput = Union[LossAndGrad, LossAndGradDict]
 
 
-class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
+class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, data.DataSource[BatchT]):
     example_input_array: Optional[BatchT]
 
-    def __init__(self, rng_key: jax.Array = None):
+    def __init__(self):
         """Init function."""
+        super().__init__()
         self._trainer: Optional["reax.Trainer"] = None
-        self._rng_key = rng_key or jax.random.key(0)
         self._parameters = None
         self._automatic_optimization = True
 
@@ -94,10 +94,11 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks):
         # Multiple optimisers
         return optimizers
 
-    def setup(self, stage: "reax.Stage", batch: Any, /) -> None:
+    def configure_model(self, stage: "reax.Stage", batch: Any, /) -> None:
         """Called at the beginning of each stage.
 
-        A chance to perform some setup on the module.
+        A chance to configure the model.  This method should be idempotent, i.e. calling it a second
+        should do nothing.
         """
 
     def training_step(self, batch: BatchT, batch_idx: int, /) -> Optional[TrainOutput]:

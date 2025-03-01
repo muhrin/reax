@@ -106,25 +106,25 @@ def test_early_stopping_no_extraneous_invocations(tmp_path):
 
     model = helpers.ClassificationModel()
     dm = helpers.ClassifDataModule()
-    early_stop_callback = listeners.EarlyStopping(monitor="train_loss")
-    early_stop_callback._run_early_stopping_check = Mock()
+    early_stop_listener = listeners.EarlyStopping(monitor="train_loss")
+    early_stop_listener._run_early_stopping_check = Mock()
     expected_count = 4
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
-        listeners=[early_stop_callback],
+        listeners=[early_stop_listener],
         enable_checkpointing=False,
     )
     trainer.fit(
+        model,
         datamodule=dm,
         limit_train_batches=4,
         limit_val_batches=4,
         max_epochs=expected_count,
     )
 
-    assert trainer.early_stopping_callback == early_stop_callback
-    assert trainer.early_stopping_callbacks == [early_stop_callback]
-    assert early_stop_callback._run_early_stopping_check.call_count == expected_count
+    assert trainer.early_stopping_listener == early_stop_listener
+    assert trainer.early_stopping_listeners == [early_stop_listener]
+    assert early_stop_listener._run_early_stopping_check.call_count == expected_count
 
 
 @pytest.mark.parametrize(
@@ -145,16 +145,16 @@ def test_early_stopping_patience(
             self.log("test_val_loss", loss)
 
     model = ModelOverrideValidationReturn()
-    early_stop_callback = listeners.EarlyStopping(
+    early_stop_listener = listeners.EarlyStopping(
         monitor="test_val_loss", patience=patience, verbose=True
     )
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
-        listeners=[early_stop_callback],
+        listeners=[early_stop_listener],
         enable_progress_bar=False,
     )
     trainer.fit(
+        model,
         num_sanity_val_steps=0,
         max_epochs=10,
     )
@@ -183,16 +183,16 @@ def test_early_stopping_patience_train(
     if validation_step_none:
         model.validation_step = None
 
-    early_stop_callback = listeners.EarlyStopping(
+    early_stop_listener = listeners.EarlyStopping(
         monitor="train_loss", patience=patience, verbose=True, check_on_train_epoch_end=True
     )
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
-        listeners=[early_stop_callback],
+        listeners=[early_stop_listener],
         enable_progress_bar=False,
     )
     trainer.fit(
+        model,
         num_sanity_val_steps=0,
         max_epochs=10,
     )
@@ -212,7 +212,7 @@ def test_pickling():
 
 
 def test_early_stopping_no_val_step(tmp_path):
-    """Test that early stopping callback falls back to training metrics when no validation defined."""
+    """Test that early stopping listener falls back to training metrics when no validation defined."""
     pytest.importorskip("sklearn")
 
     max_epochs = 10
@@ -224,8 +224,9 @@ def test_early_stopping_no_val_step(tmp_path):
     stopping = listeners.EarlyStopping(
         monitor="train_loss", min_delta=0.1, patience=0, check_on_train_epoch_end=True
     )
-    trainer = reax.Trainer(model, default_root_dir=tmp_path, listeners=[stopping])
+    trainer = reax.Trainer(default_root_dir=tmp_path, listeners=[stopping])
     trainer.fit(
+        model,
         datamodule=dm,
         # overfit_batches=0.20, # todo: add back
         max_epochs=max_epochs,
@@ -258,11 +259,11 @@ def test_early_stopping_thresholds(
         divergence_threshold=divergence_threshold,
     )
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
         listeners=[early_stopping],
     )
     trainer.fit(
+        model,
         limit_train_batches=0.2,
         limit_val_batches=0.2,
         max_epochs=20,
@@ -283,11 +284,11 @@ def test_early_stopping_on_non_finite_monitor(tmp_path, stop_value):
     model = CurrentModel()
     early_stopping = listeners.EarlyStopping(monitor="val_loss", check_finite=True)
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
         listeners=[early_stopping],
     )
     trainer.fit(
+        model,
         limit_train_batches=0.2,
         limit_val_batches=0.2,
         max_epochs=10,
@@ -328,12 +329,11 @@ def test_min_epochs_min_steps_global_step(
             self.log("foo", batch_idx)
             return super().training_step(batch, batch_idx)
 
-    es_callback = listeners.EarlyStopping("foo")
+    es_listener = listeners.EarlyStopping("foo")
     model = TestModel()
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
-        listeners=es_callback,
+        listeners=es_listener,
         logger=False,
         enable_checkpointing=False,
         enable_progress_bar=False,
@@ -343,8 +343,9 @@ def test_min_epochs_min_steps_global_step(
     expected_epochs = max(math.ceil(min_steps / limit_train_batches), min_epochs)
     # trigger early stopping directly after the first epoch
     side_effect = [(True, "")] * expected_epochs
-    with mock.patch.object(es_callback, "_evaluate_stopping_criteria", side_effect=side_effect):
+    with mock.patch.object(es_listener, "_evaluate_stopping_criteria", side_effect=side_effect):
         trainer.fit(
+            model,
             limit_val_batches=0,
             limit_train_batches=limit_train_batches,
             min_epochs=min_epochs,
@@ -411,7 +412,7 @@ _ES_CHECK_P3 = {"patience": 3, "check_on_train_epoch_end": True}
 #
 # @pytest.mark.parametrize(
 #     (
-#         "callbacks",
+#         "listeners",
 #         "expected_stop_epoch",
 #         "check_on_train_epoch_end",
 #         "strategy",
@@ -510,16 +511,16 @@ _ES_CHECK_P3 = {"patience": 3, "check_on_train_epoch_end": True}
 #         ),
 #     ],
 # )
-# def test_multiple_early_stopping_callbacks(
+# def test_multiple_early_stopping_listeners(
 #     tmp_path,
-#     callbacks: list[listeners.EarlyStopping],
+#     listeners: list[listeners.EarlyStopping],
 #     expected_stop_epoch: int,
 #     check_on_train_epoch_end: bool,
 #     strategy: str,
 #     devices: int,
 #     dist_diverge_epoch: Optional[int],
 # ):
-#     """Ensure when using multiple early stopping callbacks we stop if any signals we should stop."""
+#     """Ensure when using multiple early stopping listeners we stop if any signals we should stop."""
 #
 #     model = EarlyStoppingModel(
 #         expected_stop_epoch, check_on_train_epoch_end, dist_diverge_epoch=dist_diverge_epoch
@@ -528,7 +529,7 @@ _ES_CHECK_P3 = {"patience": 3, "check_on_train_epoch_end": True}
 #     trainer = reax.Trainer(
 #         model,
 #         default_root_dir=tmp_path,
-#         listeners=callbacks,
+#         listeners=listeners,
 #         strategy=strategy,
 #         accelerator="cpu",
 #         devices=devices,
@@ -587,8 +588,8 @@ _ES_CHECK_P3 = {"patience": 3, "check_on_train_epoch_end": True}
 
 def test_early_stopping_squeezes():
     early_stopping = listeners.EarlyStopping(monitor="foo")
-    trainer = reax.Trainer(boring_classes.BoringModel())
-    trainer.callback_metrics["foo"] = jnp.array([[[0]]])
+    trainer = reax.Trainer()
+    trainer.listener_metrics["foo"] = jnp.array([[[0]]])
 
     with mock.patch(
         "reax.listeners.EarlyStopping._evaluate_stopping_criteria",

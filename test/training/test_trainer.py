@@ -43,10 +43,16 @@ import reax
 from reax import demos
 
 
-def test_trainer_error_when_input_not_reax_module():
-    """Test that a useful error gets raised when the Trainer methods receive something other than a LightningModule."""
-    with pytest.raises(jt.TypeCheckError, match="Expected type: <class 'reax.modules.Module'>."):
-        reax.Trainer(linen.Dense(2))
+def test_trainer_error_when_input_not_lightning_module():
+    """Test that a useful error gets raised when the Trainer methods receive something other than a reax.Module."""
+    trainer = reax.Trainer()
+
+    for method in ("fit", "validate", "test", "predict"):
+        with pytest.raises(
+            jt.TypeCheckError, match="Expected type: <class 'reax.modules.Module'>."
+        ):
+            run_method = getattr(trainer, method)
+            run_method(linen.Dense(2))
 
 
 def test_trainer_max_steps_and_epochs(tmp_path):
@@ -56,7 +62,6 @@ def test_trainer_max_steps_and_epochs(tmp_path):
 
     # define less train steps than epochs
     kwargs = dict(
-        module=mod,
         default_root_dir=tmp_path,
         logger=False,
         enable_model_summary=False,
@@ -65,7 +70,7 @@ def test_trainer_max_steps_and_epochs(tmp_path):
 
     trainer = reax.Trainer(**kwargs)
     max_updates = num_train_samples + 10
-    trainer.fit(max_epochs=3, max_updates=max_updates)
+    trainer.fit(mod, max_epochs=3, max_updates=max_updates)
 
     # todo: assert trainer.state.finished, f"Training failed with {trainer.state}"
     assert trainer.global_updates == max_updates, "Model did not stop at max_steps"
@@ -75,9 +80,7 @@ def test_trainer_max_steps_and_epochs(tmp_path):
     trainer = reax.Trainer(**kwargs)
     max_epochs = 2
     trainer.fit(
-        max_epochs=max_epochs,
-        max_updates=3 * 2 * num_train_samples,
-        limit_train_batches=0.5,
+        mod, max_epochs=max_epochs, max_updates=3 * 2 * num_train_samples, limit_train_batches=0.5
     )
 
     # todo: assert trainer.state.finished, f"Training failed with {trainer.state}"
@@ -87,7 +90,7 @@ def test_trainer_max_steps_and_epochs(tmp_path):
 
     trainer = reax.Trainer(**kwargs)
     # if max_steps is positive and max_epochs is infinity, use max_steps
-    trainer.fit(max_epochs=float("inf"), max_updates=3)
+    trainer.fit(mod, max_epochs=None, max_updates=3)
 
     # todo: assert trainer.state.finished, f"Training failed with {trainer.state}"
     assert trainer.global_updates == 3
@@ -106,7 +109,7 @@ def test_trainer_max_steps_and_epochs_validation(max_epochs, max_updates, incorr
         ValueError,
         match=f"`{incorrect_variable}` must be a non-negative integer",
     ):
-        reax.Trainer(demos.BoringModel()).fit(max_epochs=max_epochs, max_updates=max_updates)
+        reax.Trainer().fit(demos.BoringModel(), max_epochs=max_epochs, max_updates=max_updates)
 
 
 def test_trainer_min_steps_and_epochs(tmp_path):
@@ -137,8 +140,8 @@ def test_trainer_min_steps_and_epochs(tmp_path):
         # define less min steps than 1 epoch
         "min_updates": num_train_samples // 2,
     }
-    trainer = reax.Trainer(model, **trainer_kwargs)
-    trainer.fit(**fit_kwargs)
+    trainer = reax.Trainer(**trainer_kwargs)
+    trainer.fit(model, **fit_kwargs)
 
     # assert trainer.state.finished, f"Training failed with {trainer.state}"
     assert trainer.current_epoch > 0
@@ -149,8 +152,8 @@ def test_trainer_min_steps_and_epochs(tmp_path):
 
     # define less epochs than min_steps
     fit_kwargs["min_updates"] = math.floor(num_train_samples * 1.5)
-    trainer = reax.Trainer(model, **trainer_kwargs)
-    trainer.fit(**fit_kwargs)
+    trainer = reax.Trainer(**trainer_kwargs)
+    trainer.fit(model, **fit_kwargs)
 
     # assert trainer.state.finished, f"Training failed with {trainer.state}"
     assert trainer.current_epoch > 0
@@ -182,13 +185,13 @@ def test_trainer_min_steps_and_min_epochs_not_reached(tmp_path, caplog):
     )
     min_epochs = 5
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
         enable_progress_bar=False,
         listeners=[early_stop],
     )
     with caplog.at_level(logging.INFO, logger="reax"):
         trainer.fit(
+            model,
             min_epochs=min_epochs,
             limit_val_batches=0,
             limit_train_batches=2,
@@ -212,13 +215,13 @@ def test_trainer_max_updates_accumulate_batches(tmp_path):
     # define less train steps than epochs
     max_updates = num_train_samples + 10
     trainer = reax.Trainer(
-        model,
         default_root_dir=tmp_path,
         logger=False,
         enable_progress_bar=False,
         enable_model_summary=False,
     )
     trainer.fit(
+        model,
         limit_train_batches=0.5,
         max_updates=max_updates,
         accumulate_grad_batches=10,
@@ -245,8 +248,8 @@ def test_disabled_validation(tmp_path):
         "enable_progress_bar": False,
         "fast_dev_run": False,
     }
-    trainer = reax.Trainer(model, **trainer_options)
-    trainer.fit(max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0)
+    trainer = reax.Trainer(**trainer_options)
+    trainer.fit(model, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0)
 
     # check that limit_val_batches=0 turns off validation
     # assert trainer.state.finished, f"Training failed with {trainer.state}"
@@ -258,8 +261,8 @@ def test_disabled_validation(tmp_path):
     # check that limit_val_batches has no influence when fast_dev_run is turned on
     model = CurrentModel()
     trainer_options.update(fast_dev_run=True)
-    trainer = reax.Trainer(model, **trainer_options)
-    trainer.fit(max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0)
+    trainer = reax.Trainer(**trainer_options)
+    trainer.fit(model, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0)
 
     # TODO: assert trainer.state.finished, f"Training failed with {trainer.state}"
     assert trainer.current_epoch == 1
@@ -271,8 +274,8 @@ def test_trainer_setup_call(tmp_path, stage):
     """Test setup call gets the correct stage."""
 
     class CurrentModel(demos.BoringModel):
-        def setup(self, stage, batch):
-            super().setup(stage, batch)
+        def setup(self, stage):
+            super().setup(stage)
             self.stage = stage
 
     class CurrentListener(reax.TrainerListener):
@@ -283,15 +286,15 @@ def test_trainer_setup_call(tmp_path, stage):
     model = CurrentModel()
     listener = CurrentListener()
     trainer = reax.Trainer(
-        model, default_root_dir=tmp_path, enable_checkpointing=False, listeners=[listener]
+        default_root_dir=tmp_path, enable_checkpointing=False, listeners=[listener]
     )
 
     if stage == "fit":
-        trainer.fit(max_epochs=1)
+        trainer.fit(model, max_epochs=1)
     elif stage == "validate":
-        trainer.validate()
+        trainer.validate(model)
     else:
-        trainer.test()
+        trainer.test(model)
 
     assert str(listener.stage) == stage
     assert str(model.stage) == stage
@@ -302,9 +305,9 @@ def test_predict_return_predictions_cpu(return_predictions, tmp_path):
     reax.seed_everything(42)
     model = reax.demos.BoringModel()
 
-    trainer = reax.Trainer(model, fast_dev_run=True, default_root_dir=tmp_path)
+    trainer = reax.Trainer(fast_dev_run=True, default_root_dir=tmp_path)
     preds = trainer.predict(
-        dataloaders=model.train_dataloader(), return_predictions=return_predictions
+        model, dataloaders=model.train_dataloader(), return_predictions=return_predictions
     )
     if return_predictions or return_predictions is None:
         assert len(preds) == 1
@@ -323,5 +326,5 @@ def test_trainer_access_in_configure_optimizers(tmp_path):
     train_data = reax.data.ReaxDataLoader(demos.RandomDataset(32, 64))
 
     model = TestModel()
-    trainer = reax.Trainer(model, default_root_dir=tmp_path, fast_dev_run=True)
-    trainer.fit(train_data)
+    trainer = reax.Trainer(default_root_dir=tmp_path, fast_dev_run=True)
+    trainer.fit(model, train_data)

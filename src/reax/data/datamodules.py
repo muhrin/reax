@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, Iterable, Optional, Union
 
-from . import _loaders
+from . import _datasources, _loaders
 
 if TYPE_CHECKING:
     import reax
@@ -10,7 +10,7 @@ __all__ = ("DataModule",)
 Dataset = Any
 
 
-class DataModule:
+class DataModule(_datasources.DataSource):
     @classmethod
     def from_datasets(
         cls,
@@ -26,22 +26,6 @@ class DataModule:
             train_dataset, val_dataset, test_dataset, predict_dataset, batch_size=batch_size
         )
 
-    def train_dataloader(self) -> "reax.DataLoader":
-        """Train dataloader."""
-        raise NotImplementedError("DataModule.train_dataloaders has not been implemented")
-
-    def val_dataloader(self) -> "reax.DataLoader":
-        """Val dataloader."""
-        raise NotImplementedError("DataModule.val_dataloaders has not been implemented")
-
-    def test_dataloader(self) -> "reax.DataLoader":
-        """Test dataloader."""
-        raise NotImplementedError("DataModule.test_dataloaders has not been implemented")
-
-    def predict_dataloader(self) -> "reax.DataLoader":
-        """Predict dataloader."""
-        raise NotImplementedError("DataModule.predict_dataloaders has not been implemented")
-
 
 class FromDatasets(DataModule):
     def __init__(
@@ -54,6 +38,7 @@ class FromDatasets(DataModule):
         batch_size: int = 1,
     ):
         """Init function."""
+        super().__init__()
         self._train_dataset = train_dataset
         self._val_dataset = val_dataset
         self._test_dataset = test_dataset

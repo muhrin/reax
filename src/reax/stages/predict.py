@@ -1,15 +1,13 @@
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional
 
 import beartype
 import jaxtyping as jt
 from typing_extensions import override
 
-from . import stages
-from .. import keys
+from . import common, stages
 
 if TYPE_CHECKING:
     import reax
-
 
 __all__ = ("Predict",)
 
@@ -19,16 +17,29 @@ class Predict(stages.EpochStage):
     def __init__(
         self,
         module: "reax.Module",
-        dataloader,
         strategy: "reax.Strategy",
         *,
-        max_batches: Union[int, float] = keys.NO_LIMIT,
+        dataloader: "Optional[reax.DataLoader]" = None,
+        datamodule: "Optional[reax.DataModule]" = None,
+        max_batches: Optional[int] = None,
         keep_predictions=True,
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
+        if dataloader is None:
+            datamanager = common.get_datasource(datamodule, module)
+            dataloader = datamanager.get_loader_proxy("val_dataloader")
+        else:
+            datamanager = None
+
         super().__init__(
-            "predict", module, dataloader, strategy, max_batches=max_batches, parent=parent
+            "predict",
+            module,
+            dataloader,
+            strategy,
+            max_batches=max_batches,
+            parent=parent,
+            datamanager=datamanager,
         )
         self._keep_predictions = keep_predictions
         self._all_outputs = []
@@ -46,5 +57,4 @@ class Predict(stages.EpochStage):
     def _on_iteration_finishing(self, outputs: Any, /):
         """On iteration finishing."""
         if self._keep_predictions:
-
             self._all_outputs.append(outputs)
