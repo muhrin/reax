@@ -2,12 +2,16 @@ import bisect
 from collections.abc import Sequence
 import itertools
 import math
-from typing import Iterable, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Iterable, TypeVar, Union, cast
 import warnings
 
 import beartype
 import jax.random
 import jaxtyping as jt
+import numpy as np
+
+if TYPE_CHECKING:
+    import reax
 
 _T = TypeVar("_T")
 _T_co = TypeVar("_T_co", covariant=True)
@@ -80,8 +84,8 @@ class ArrayDataset(Sequence[tuple[jt.Array, ...]]):
     arrays: tuple[jt.Array, ...]
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def __init__(self, *arrays: jt.Array) -> None:
-        if not all(arrays[0].shape[0] == tensor.shape[0] for tensor in arrays):
+    def __init__(self, *arrays: Union[jax.Array, np.ndarray]) -> None:
+        if not all(arrays[0].shape[0] == array.shape[0] for array in arrays):
             raise ValueError("Size mismatch between tensors")
         self.arrays = arrays
 
@@ -126,7 +130,7 @@ class Subset(Sequence[_T_co]):
 
 
 def random_split(
-    key: jt.ArrayLike,
+    rng: "reax.Generator",
     dataset: Sequence[_T],
     lengths: Sequence[Union[int, float]],
 ) -> list[Subset[_T]]:
@@ -178,7 +182,7 @@ def random_split(
     if sum(lengths) != len(dataset):
         raise ValueError("Sum of input lengths does not equal the length of the input dataset!")
 
-    indices = jax.random.permutation(key, sum(lengths)).tolist()
+    indices = jax.random.permutation(rng.make_key(), sum(lengths)).tolist()
     lengths = cast(Sequence[int], lengths)
     return [
         Subset(dataset, indices[offset - length : offset])

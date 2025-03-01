@@ -37,6 +37,7 @@ class Predict(stages.EpochStage):
             module,
             dataloader,
             strategy,
+            None,
             max_batches=max_batches,
             parent=parent,
             datamanager=datamanager,

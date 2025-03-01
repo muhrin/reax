@@ -69,8 +69,6 @@ Define the training workflow. Here's a toy example:
     # --------------------------------
     # A ReaxModule (nn.Module subclass) defines a full *system*
     # (ie: an LLM, diffusion model, autoencoder, or simple image classifier).
-
-
     class ReaxAutoEncoder(reax.Module):
         def __init__(self):
             super().__init__()

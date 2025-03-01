@@ -5,6 +5,8 @@ from typing import Optional, Union
 import jax
 import numpy
 
+__all__ = ("seed_everything", "Generator")
+
 
 def seed_everything(seed: Optional[int], workers: bool = False):
     """Seed everything."""
@@ -33,7 +35,7 @@ class Generator:
         else:
             self._key = jax.random.key(0)
 
-    def make_key(self, num: Union[int, tuple[int, ...]]) -> jax.Array:
+    def make_key(self, num: Union[int, tuple[int, ...]] = 1) -> jax.Array:
         """Make onr or more random keys, updating the internal state"""
         self._key, subkey = jax.random.split(self._key, num + 1)
         return subkey

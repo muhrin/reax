@@ -8,6 +8,7 @@ from . import (
     metrics,
     modules,
     optimizers,
+    random,
     saving,
     stages,
     strategies,
@@ -20,17 +21,18 @@ from .loggers import Logger
 from .metrics import Metric
 from .modules import *
 from .optimizers import *
+from .random import *
 from .saving import *
 from .stages import Stage
 from .strategies import *
 from .training import *
-from .utils.rngs import seed_everything
 
 __all__ = (
     _evaluation.__all__
     + modules.__all__
     + hooks.__all__
     + optimizers.__all__
+    + random.__all__
     + saving.__all__
     + strategies.__all__
     + training.__all__

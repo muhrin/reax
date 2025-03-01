@@ -29,7 +29,7 @@ class StatsEvaluator(stages.EpochStage):
         """Init function."""
         accelerator = jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         strategy = strategy or strategies.SingleDevice(accelerator)
-        super().__init__("Metrics evaluator", None, dataloader, strategy)
+        super().__init__("Metrics evaluator", None, dataloader, strategy, None)
         self._stats = metrics.MetricCollection(stats)
 
     @override

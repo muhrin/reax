@@ -30,6 +30,7 @@ class Train(stages.EpochStage):
         module: "reax.Module",
         strategy: "reax.Strategy",
         optimizers: "list[reax.Optimizer]",
+        rng: "Optional[reax.Generator]",
         *,
         dataloader: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
@@ -55,6 +56,7 @@ class Train(stages.EpochStage):
             module,
             dataloader,
             strategy,
+            rng,
             max_batches=max_batches,
             parent=parent,
             datamanager=datamanager,
@@ -66,7 +68,7 @@ class Train(stages.EpochStage):
 
         # State
         self._optimizers = optimizers
-        self._stopper = stopper
+        self._stopper = stopper if stopper is not None else common.Stopper()
         self._stopper.add_condition(lambda: self.updates >= self._min_updates)
 
     @property

@@ -38,6 +38,7 @@ class Stage(abc.ABC):
         name: str,
         module: Optional["reax.Module"],
         strategy: "reax.Strategy",
+        rng: Optional["reax.Generator"],
         *,
         max_iters: Optional[int] = None,
         min_iters: int = 0,
@@ -51,6 +52,7 @@ class Stage(abc.ABC):
 
         # State
         self._module: Optional["reax.Module"] = module
+        self._rng = rng
         self._warning_cache = rank_zero.WarningCache()
         self._iter = -1
         self._stopper = common.Stopper()
@@ -79,6 +81,10 @@ class Stage(abc.ABC):
     def module(self) -> Optional["reax.Module"]:
         """Module function."""
         return self._module
+
+    @property
+    def rng(self) -> "Optional[reax.Generator]":
+        return self._rng
 
     @property
     def iteration(self) -> int:
@@ -268,6 +274,7 @@ class EpochStage(Stage, abc.ABC):
         module: Optional["reax.Module"],
         dataloader: "reax.DataLoader[_T_co]",
         strategy: "reax.Strategy",
+        rng: Optional["reax.Generator"],
         *,
         min_batches: int = 0,
         max_batches: Optional[Union[int, float]] = None,
@@ -279,6 +286,7 @@ class EpochStage(Stage, abc.ABC):
             name,
             module,
             strategy,
+            rng,
             min_iters=min_batches,
             max_iters=None,
             parent=parent,

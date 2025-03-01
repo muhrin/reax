@@ -19,7 +19,7 @@ from . import _logger_connector
 from .. import exceptions, hooks, keys
 from .. import listeners as listeners_
 from .. import loggers as loggers_
-from .. import modules, stages, strategies, typing, utils
+from .. import modules, random, stages, strategies, typing
 from ..utils import events
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class Trainer(stages.StageListener):
         self._stage: Optional[stages.Stage] = None
 
         # State
-        self._rng = utils.rngs.Generator(key=rng_key if rng_key is not None else jax.random.key(0))
+        self._rng = random.Generator(key=rng_key if rng_key is not None else jax.random.key(0))
         self._current_epoch: int = 0
         self._global_updates: int = 0
 
@@ -434,6 +434,7 @@ class Trainer(stages.StageListener):
             module,
             self.optimizers,
             self._strategy,
+            self._rng,
             train_dataloaders=train_dataloaders,
             val_dataloaders=val_dataloaders,
             datamodule=datamodule,
