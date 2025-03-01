@@ -22,7 +22,7 @@ classifiers = [
 keywords = ['machine learning', 'jax', 'research']
 requires-python = '>=3.9'
 dependencies = [
-    'beartype',
+    'beartype<0.20',
     "einops",
     "clu",
     "flax",

@@ -16,7 +16,7 @@ from lightning_utilities.core import rank_zero
 from typing_extensions import override
 
 from . import _logger_connector
-from .. import data, exceptions, hooks, keys
+from .. import exceptions, hooks, keys
 from .. import listeners as listeners_
 from .. import loggers as loggers_
 from .. import modules, stages, strategies, typing, utils
