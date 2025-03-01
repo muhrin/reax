@@ -707,10 +707,12 @@ def hook_map(_stage) -> dict[Callable, Callable]:
 def _(_stage: stages.Train) -> dict[Callable, Callable]:
     """Function."""
     return {
-        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_train_epoch_start,
+        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_train_start,
+        hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_train_epoch_start,
         hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_train_batch_start,
         hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_train_batch_end,
         hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_train_epoch_end,
+        hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_train_end,
     }
 
 
@@ -732,10 +734,12 @@ def _(_stage: stages.Validate) -> dict[Callable, Callable]:
 def _(_stage: stages.Test) -> dict[Callable, Callable]:
     """Function."""
     return {
-        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_test_epoch_start,
+        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_test_start,
+        hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_test_epoch_start,
         hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_test_batch_start,
         hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_test_batch_end,
         hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_test_epoch_end,
+        hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_test_end,
     }
 
 
@@ -743,10 +747,12 @@ def _(_stage: stages.Test) -> dict[Callable, Callable]:
 def _(_stage: stages.Predict) -> dict[Callable, Callable]:
     """Function."""
     return {
-        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_predict_epoch_start,
+        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_predict_start,
+        hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_predict_epoch_start,
         hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_predict_batch_start,
         hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_predict_batch_end,
         hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_predict_epoch_end,
+        hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_predict_end,
     }
 
 

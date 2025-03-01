@@ -10,14 +10,14 @@ __all__ = ("TrainerListener",)
 class TrainerListener:
     # pylint: disable=too-many-public-methods
 
-    def setup(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
-        """Called when a stage (fit, validate, test, predict) begins."""
-
     def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """A fitting stage is about to begin."""
 
     def on_fit_end(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """A fitting stage is about to end."""
+
+    def on_train_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /):
+        """Training is starting"""
 
     def on_train_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
         """A training epoch is about to begin."""
@@ -40,6 +40,9 @@ class TrainerListener:
 
     def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
         """A training epoch is about to end."""
+
+    def on_train_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /):
+        """Training is ending"""
 
     def on_validation_start(
         self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /
@@ -75,6 +78,9 @@ class TrainerListener:
     def on_validation_end(self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /) -> None:
         """Validation has ended."""
 
+    def on_test_start(self, trainer: "reax.Trainer", stage: "reax.stages.Test", /) -> None:
+        """Test is starting."""
+
     def on_test_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Test", /) -> None:
         """A test epoch is about to begin."""
 
@@ -96,6 +102,12 @@ class TrainerListener:
 
     def on_test_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Test", /) -> None:
         """A test epoch is about to end."""
+
+    def on_test_end(self, trainer: "reax.Trainer", stage: "reax.stages.Test", /) -> None:
+        """Test is ending."""
+
+    def on_predict_start(self, trainer: "reax.Trainer", stage: "reax.stages.Predict", /) -> None:
+        """Predict is starting."""
 
     def on_predict_epoch_start(
         self, trainer: "reax.Trainer", stage: "reax.stages.Predict", /
@@ -121,6 +133,9 @@ class TrainerListener:
     def on_predict_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
         """A predict epoch is about to end."""
 
+    def on_predict_end(self, trainer: "reax.Trainer", stage: "reax.stages.Predict", /) -> None:
+        """Predict is ending."""
+
     def on_epoch_starting(
         self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage", /
     ) -> None:
@@ -143,6 +158,9 @@ class TrainerListener:
 
     # region Generic messages
 
+    def setup(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
+        """Called when a stage (e.g. fit, validate, test, predict) begins."""
+
     def on_stage_starting(self, trainer: "reax.Trainer", stage: "reax.stages.Stage", /) -> None:
         """A trainer stage is about to begin."""
 
@@ -164,5 +182,8 @@ class TrainerListener:
 
     def on_stage_ended(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
         """The stage has ended."""
+
+    def teardown(self, trainer: "reax.Trainer", state: "reax.Stage", /) -> None:
+        """Called when a stage (e.g. fit, validate, test, predict, or tune ends)."""
 
     # endregion
