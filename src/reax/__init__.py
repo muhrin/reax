@@ -3,6 +3,7 @@
 from . import (
     _evaluation,
     data,
+    exceptions,
     hooks,
     listeners,
     metrics,
@@ -40,6 +41,7 @@ __all__ = (
     # Modules
     + (
         "data",
+        "exceptions",
         "stages",
         "listeners",
         "metrics",

@@ -38,7 +38,7 @@ import os
 import pathlib
 import re
 import time
-from typing import TYPE_CHECKING, Any, Final, Literal, Optional, Union
+from typing import TYPE_CHECKING, Final, Literal, Optional, Union
 import weakref
 
 import jax
@@ -372,13 +372,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
     @override
     def on_train_batch_end(
-        self,
-        trainer: "reax.Trainer",
-        stage: "reax.stages.Train",
-        outputs: Any,
-        batch: Any,
-        batch_idx: int,
-        /,
+        self, trainer: "reax.Trainer", stage: "reax.stages.Train", /, *_
     ) -> None:
         """Save checkpoint on train batch end if we meet the criteria for `every_n_train_steps`"""
         if self._should_skip_saving_checkpoint(trainer, stage):
@@ -462,11 +456,13 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
         self._save_last_checkpoint(trainer, monitor_candidates)
 
-    def _should_skip_saving_checkpoint(self, trainer: "reax.Trainer", stage: "reax.Stage") -> bool:
+    def _should_skip_saving_checkpoint(
+        self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage"
+    ) -> bool:
         # or trainer.sanity_checking  # don't save anything during sanity check
         return (
             # disable checkpointing with fast_dev_run
-            bool(trainer.fast_dev_run)
+            bool(stage.fast_dev_run)
             # don't save anything during non-fit
             or not isinstance(stage, (stages.Fit, stages.Train))
             # already saved at the last step

@@ -246,10 +246,11 @@ def test_disabled_validation(tmp_path):
     trainer_options = {
         "default_root_dir": tmp_path,
         "enable_progress_bar": False,
-        "fast_dev_run": False,
     }
     trainer = reax.Trainer(**trainer_options)
-    trainer.fit(model, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0)
+    trainer.fit(
+        model, fast_dev_run=False, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0
+    )
 
     # check that limit_val_batches=0 turns off validation
     # assert trainer.state.finished, f"Training failed with {trainer.state}"
@@ -260,13 +261,59 @@ def test_disabled_validation(tmp_path):
 
     # check that limit_val_batches has no influence when fast_dev_run is turned on
     model = CurrentModel()
-    trainer_options.update(fast_dev_run=True)
     trainer = reax.Trainer(**trainer_options)
-    trainer.fit(model, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0)
+    trainer.fit(
+        model, fast_dev_run=True, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0
+    )
 
     # TODO: assert trainer.state.finished, f"Training failed with {trainer.state}"
     assert trainer.current_epoch == 1
     assert model.validation_step_invoked, "did not run `validation_step` with `fast_dev_run=True`"
+
+
+def test_on_exception_hook(tmp_path):
+    """Test the on_exception callback hook and the trainer interrupted flag."""
+    model = demos.BoringModel()
+
+    class InterruptListener(reax.TrainerListener):
+        def __init__(self):
+            super().__init__()
+
+        def on_train_batch_start(self, *_):
+            raise KeyboardInterrupt
+
+        def on_test_start(self, *_):
+            raise reax.exceptions.MisconfigurationException
+
+    class HandleInterruptListener(reax.TrainerListener):
+        def __init__(self):
+            super().__init__()
+            self.exception = None
+
+        def on_exception(self, _trainer, _stage, exception):
+            self.exception = exception
+
+    interrupt_callback = InterruptListener()
+    handle_interrupt_callback = HandleInterruptListener()
+
+    trainer = reax.Trainer(
+        listeners=[interrupt_callback, handle_interrupt_callback],
+        enable_progress_bar=False,
+        logger=False,
+        default_root_dir=tmp_path,
+    )
+    # assert not trainer.interrupted
+    assert handle_interrupt_callback.exception is None
+    with pytest.raises(SystemExit):
+        trainer.fit(model, max_epochs=1, limit_val_batches=0.1, limit_train_batches=0.2)
+    # assert trainer.interrupted
+    assert isinstance(handle_interrupt_callback.exception, KeyboardInterrupt)
+    with pytest.raises(reax.exceptions.MisconfigurationException):
+        trainer.test(model)
+    # assert trainer.interrupted
+    assert isinstance(
+        handle_interrupt_callback.exception, reax.exceptions.MisconfigurationException
+    )
 
 
 @pytest.mark.parametrize("stage", ["fit", "validate", "test"])
@@ -305,9 +352,12 @@ def test_predict_return_predictions_cpu(return_predictions, tmp_path):
     reax.seed_everything(42)
     model = reax.demos.BoringModel()
 
-    trainer = reax.Trainer(fast_dev_run=True, default_root_dir=tmp_path)
+    trainer = reax.Trainer(default_root_dir=tmp_path)
     preds = trainer.predict(
-        model, dataloaders=model.train_dataloader(), return_predictions=return_predictions
+        model,
+        dataloaders=model.train_dataloader(),
+        return_predictions=return_predictions,
+        fast_dev_run=True,
     )
     if return_predictions or return_predictions is None:
         assert len(preds) == 1
@@ -326,5 +376,5 @@ def test_trainer_access_in_configure_optimizers(tmp_path):
     train_data = reax.data.ReaxDataLoader(demos.RandomDataset(32, 64))
 
     model = TestModel()
-    trainer = reax.Trainer(default_root_dir=tmp_path, fast_dev_run=True)
-    trainer.fit(model, train_data)
+    trainer = reax.Trainer(default_root_dir=tmp_path)
+    trainer.fit(model, train_data, fast_dev_run=True)

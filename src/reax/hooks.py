@@ -156,6 +156,15 @@ class TrainerListener:
     ) -> None:
         """An epoch is ending."""
 
+    def on_exception(
+        self,
+        trainer: "reax.Trainer",
+        stage: "reax.Stage",
+        exception: BaseException,
+        /,
+    ) -> None:
+        """Called when any trainer execution is interrupted by an exception."""
+
     # region Generic messages
 
     def setup(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:

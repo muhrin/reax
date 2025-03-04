@@ -34,9 +34,10 @@ class Train(stages.EpochStage):
         *,
         dataloader: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
+        fast_dev_run: Union[bool, int] = False,
         min_updates: int = 0,
         max_updates: Optional[Union[int, float]] = None,
-        max_batches: Optional[Union[int, float]] = None,
+        limit_batches: Optional[Union[int, float]] = None,
         accumulate_grad_batches: int = 1,
         parent: Optional["reax.Stage"] = None,
         stopper: Optional[common.Stopper] = None,
@@ -45,7 +46,7 @@ class Train(stages.EpochStage):
         if datamanager is None:
             if dataloader is None:
                 datamanager = common.get_datasource(datamodule, module)
-                dataloader = datamanager.get_loader_proxy("val_dataloader")
+                dataloader = datamanager.get_loader_proxy("train_dataloader")
             else:
                 datamanager = None
         else:
@@ -57,7 +58,8 @@ class Train(stages.EpochStage):
             dataloader,
             strategy,
             rng,
-            max_batches=max_batches,
+            fast_dev_run=fast_dev_run,
+            limit_batches=limit_batches,
             parent=parent,
             datamanager=datamanager,
         )
@@ -132,7 +134,8 @@ class Train(stages.EpochStage):
         """Step function."""
         if self._module.parameters() is None:
             raise exceptions.MisconfigurationException(
-                "Module does not have any parameters set, this should have been done by now."
+                "Module does not have any parameters set, this should have been done in "
+                ".configure_model()."
             )
 
         res = self._module.training_step(self.batch, self._iter)

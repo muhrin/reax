@@ -6,6 +6,7 @@ import jax
 import jaxtyping as jt
 from lightning_utilities.core import rank_zero
 import optax
+from typing_extensions import deprecated
 
 from . import _module_hooks, data
 
@@ -113,6 +114,29 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, data.DataSo
     def test_step(self, batch: BatchT, batch_idx: int, /):
         """Test step."""
 
+    def configure_listeners(self) -> "Union[Sequence[reax.TrainerListener], reax.TrainerListener]":
+        """Configure model-specific listeners. When the model gets attached, e.g., when ``.fit()``
+        or ``.test()`` gets called, the list or a listener returned here will be merged with the
+        list of listeners passed to the Trainer's ``listeners`` argument.
+        If a listener returned here has the same type as one or several listeners already
+        present in the Trainer's listeners list, it will take priority and replace them.
+        In addition, REAX will make sure
+        :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` listeners run last.
+
+        Return:
+            A listener or a list of listeners which will extend the list of listeners in the
+            Trainer.
+
+        Example::
+
+            def configure_listeners(self):
+                early_stop = EarlyStopping(monitor="val_acc", mode="max")
+                checkpoint = ModelCheckpoint(monitor="val_loss")
+                return [early_stop, checkpoint]
+
+        """
+        return []
+
     @jt.jaxtyped(typechecker=beartype.beartype)
     def configure_optimizers(
         self,
@@ -205,16 +229,22 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, data.DataSo
             values = {'loss': loss, 'acc': acc, ..., 'metric_n': metric_n}
             self.log_dict(values)
         """
-        for k, v in dictionary.items():
+        for key, val in dictionary.items():
             self.log(
-                name=k,
-                value=v,
+                name=key,
+                value=val,
                 prog_bar=prog_bar,
                 logger=logger,
                 on_step=on_step,
                 on_epoch=on_epoch,
                 batch_size=batch_size,
             )
+
+    @property
+    @deprecated("REAX uses the term 'update' instead of 'step', please use `.global_updates`")
+    def global_step(self) -> int:
+        """Get the global number of optimizer updates."""
+        return self.global_updates
 
 
 PyTree = Any

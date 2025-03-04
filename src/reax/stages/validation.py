@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 import weakref
 
 from typing_extensions import override
@@ -20,7 +20,8 @@ class Validate(stages.EpochStage):
         *,
         dataloader: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
-        max_batches: Optional[int] = None,
+        fast_dev_run: Union[bool, int] = False,
+        limit_batches: Optional[Union[int, float]] = None,
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
@@ -36,7 +37,8 @@ class Validate(stages.EpochStage):
             dataloader,
             strategy,
             None,
-            max_batches=max_batches,
+            fast_dev_run=fast_dev_run,
+            limit_batches=limit_batches,
             parent=parent,
             datamanager=datamanager,
         )

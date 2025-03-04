@@ -1,5 +1,5 @@
 import collections.abc
-from typing import Any, Optional
+from typing import Any, Iterable, Iterator, Optional
 
 from flax import linen
 import jax
@@ -10,7 +10,7 @@ from typing_extensions import override
 
 from reax import data, modules
 
-__all__ = "BoringModel", "RandomDataset"
+__all__ = "BoringModel", "RandomDataset", "RandomIterableDataset"
 
 
 class BoringModel(modules.Module):
@@ -117,3 +117,17 @@ class RandomDataset(collections.abc.Sequence):
     def __len__(self) -> int:
         """Len function."""
         return self.len
+
+
+class RandomIterableDataset(Iterable[np.ndarray]):
+    """
+    .. warning::  This is meant for testing/debugging and is experimental.
+    """
+
+    def __init__(self, size: int, count: int):
+        self.count = count
+        self.size = size
+
+    def __iter__(self) -> Iterator[np.ndarray]:
+        for _ in range(self.count):
+            yield np.random.normal(self.size)

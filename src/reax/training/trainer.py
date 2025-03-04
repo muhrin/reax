@@ -5,7 +5,19 @@ import os
 import pickle  # nosec
 import signal
 import sys
-from typing import TYPE_CHECKING, Any, Callable, Final, Iterable, Literal, Optional, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Final,
+    Generator,
+    Iterable,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
+    cast,
+)
 import weakref
 
 import beartype
@@ -13,7 +25,7 @@ import fsspec
 import jax
 import jaxtyping as jt
 from lightning_utilities.core import rank_zero
-from typing_extensions import override
+from typing_extensions import deprecated, override
 
 from . import _logger_connector
 from .. import exceptions, hooks, keys
@@ -39,8 +51,8 @@ class Trainer(stages.StageListener):
         *,
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
         devices: Union[list[int], str, int] = "auto",
+        precision: Optional = None,
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = True,
-        fast_dev_run: Union[int, bool] = False,
         listeners: "Optional[list[reax.TrainerListener], reax.TrainerListener]" = None,
         log_every_n_steps: int = 50,
         enable_checkpointing: Optional[bool] = True,
@@ -55,12 +67,17 @@ class Trainer(stages.StageListener):
             _LOGGER.warning("`deterministic=True` is not supported yet, ignoring.")
         if devices != "auto":
             _LOGGER.warning("`devices` other than 'auto' is not supported yet, ignoring.")
+        if precision is not None:
+            _LOGGER.warning(
+                "`precision` other than None is not supported yet, ignoring.  "
+                "There is still ongoing discussion on how to support this in JAX, "
+                "see e.g.: https://github.com/jax-ml/jax/issues/22688"
+            )
 
         self._accelerator = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         )
         # Params
-        self._fast_dev_run: Final[Union[int, bool]] = fast_dev_run
         self._log_every_n_steps: Final[int] = log_every_n_steps
 
         self._strategy = strategies.SingleDevice(self._accelerator)
@@ -93,8 +110,9 @@ class Trainer(stages.StageListener):
             for listener in listeners:
                 self._events.add_listener(listener)
 
-        if enable_progress_bar:
-            self._events.add_listener(listeners_.TqdmProgressBar())
+        pbar = _init_progress_bar(self._events.find(), enable_progress_bar)
+        if pbar is not None:
+            self._events.add_listener(pbar)
 
         if enable_model_summary:
             _LOGGER.warning("`enable_model_summary` is not supported yet, ignoring")
@@ -137,11 +155,6 @@ class Trainer(stages.StageListener):
                     print("in node 0, accelerator 0")
         """
         return self.strategy.is_global_zero
-
-    @property
-    def fast_dev_run(self) -> Union[int, bool]:
-        """Fast dev run."""
-        return self._fast_dev_run
 
     @property
     def current_epoch(self) -> int:
@@ -189,6 +202,12 @@ class Trainer(stages.StageListener):
 
         return self._default_root_dir
 
+    # region Listeners
+
+    @property
+    def listeners(self) -> "list[reax.TrainerListener]":
+        return self._events.find()
+
     @property
     def early_stopping_listener(self) -> Optional[listeners_.EarlyStopping]:
         """The first :class:`~reax.listeners.early_stopping.EarlyStopping` listener in the
@@ -201,18 +220,6 @@ class Trainer(stages.StageListener):
         """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in
         the Trainer.listeners list."""
         return self._events.find(type=listeners_.EarlyStopping)
-
-    @property
-    def early_stopping_callback(self) -> Optional[listeners_.EarlyStopping]:
-        """The first :class:`~reax.listeners.early_stopping.EarlyStopping` listener in the
-        Trainer.callbacks list, or ``None`` if it doesn't exist."""
-        return self.early_stopping_listener
-
-    @property
-    def early_stopping_callbacks(self) -> list[listeners_.EarlyStopping]:
-        """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in
-        the Trainer.callbacks list."""
-        return self.early_stopping_listeners
 
     @property
     def checkpoint_listeners(self) -> list["reax.listeners.Checkpointer"]:
@@ -228,18 +235,19 @@ class Trainer(stages.StageListener):
         return listeners[0] if len(listeners) > 0 else None
 
     @property
-    def checkpoint_callbacks(self) -> list["reax.listeners.Checkpointer"]:
-        """A list of all instances of :class:`~reax.listeners.model_checkpoint.ModelCheckpoint`
-        found in the Trainer.listeners list."""
-        # Kept for compatibility with Lightning
-        return self.checkpoint_listeners
+    def progress_bar_listeners(self) -> list["reax.listeners.ProgressBar"]:
+        """The first :class:`~reax.listeners.ProgressBar` listener in the
+        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        return self._events.find(type=listeners_.ProgressBar)
 
     @property
-    def checkpoint_callback(self) -> Optional["reax.listeners.Checkpointer"]:
-        """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` callback in the
+    def progress_bar_listener(self) -> Optional["reax.listeners.ProgressBar"]:
+        """The first :class:`~reax.listeners.ProgressBar` listener in the
         Trainer.listeners list, or ``None`` if it doesn't exist."""
-        # Kept for compatibility with Lightning
-        return self.checkpoint_listener
+        listeners = self.progress_bar_listeners
+        return listeners[0] if len(listeners) > 0 else None
+
+    # end region
 
     @property
     def logger(self) -> Optional["reax.Logger"]:
@@ -299,15 +307,9 @@ class Trainer(stages.StageListener):
         return self._logging.listener_metrics
 
     @property
-    def callback_metrics(self) -> dict:
-        """Callback metrics."""
-        # Kept for compatibility with Lightning
-        return self.listener_metrics
-
-    @property
-    def logger_metrics(self) -> dict:
+    def logged_metrics(self) -> dict:
         """Logger metrics."""
-        return self._logging.logger_metrics
+        return self._logging.logged_metrics
 
     @property
     def global_rank(self) -> int:
@@ -398,6 +400,7 @@ class Trainer(stages.StageListener):
         val_dataloaders: "Optional[reax.DataLoader]" = None,
         *,
         datamodule: "Optional[reax.DataModule]" = None,
+        fast_dev_run: Union[bool, int] = False,
         max_epochs: Optional[int] = 1_000,
         min_epochs: int = 0,
         min_updates: int = 0,
@@ -417,14 +420,8 @@ class Trainer(stages.StageListener):
         if num_sanity_val_steps:
             _LOGGER.warning("`num_sanity_val_steps` is not supported yet, ignoring.")
 
-        if self._fast_dev_run:
-            num_batches = 1
-            max_epochs = 1
-            limit_train_batches = num_batches
-            limit_val_batches = num_batches
-            val_check_interval = 1.0
-            check_val_every_n_epoch = 1
-
+        if fast_dev_run:
+            num_batches = 1 if fast_dev_run is True else fast_dev_run
             rank_zero.rank_zero_info(
                 f"Running in `fast_dev_run` mode: will run the requested loop using {num_batches} "
                 f"batch(es). Logging and checkpointing is suppressed."
@@ -438,6 +435,7 @@ class Trainer(stages.StageListener):
             train_dataloaders=train_dataloaders,
             val_dataloaders=val_dataloaders,
             datamodule=datamodule,
+            fast_dev_run=fast_dev_run,
             max_epochs=max_epochs,
             min_epochs=min_epochs,
             min_updates=min_updates,
@@ -458,7 +456,7 @@ class Trainer(stages.StageListener):
         module: modules.Module,
         dataloaders=None,
         datamodule=None,
-        max_batches: Union[int, type(keys.NO_LIMIT)] = keys.NO_LIMIT,
+        limit_batches: Union[int, type(keys.NO_LIMIT)] = keys.NO_LIMIT,
     ):
         """Test function."""
         self._run_stage(
@@ -467,7 +465,7 @@ class Trainer(stages.StageListener):
                 self._strategy,
                 dataloader=dataloaders,
                 datamodule=datamodule,
-                max_batches=max_batches,
+                limit_batches=limit_batches,
             )
         )
 
@@ -477,11 +475,18 @@ class Trainer(stages.StageListener):
         module: modules.Module,
         dataloaders=None,
         datamodule=None,
+        limit_batches: Optional[Union[int, float]] = 1.0,
     ):
         """Test function."""
-        self._run_stage(
-            stages.Test(module, self._strategy, dataloader=dataloaders, datamodule=datamodule)
+        test = stages.Test(
+            module,
+            self._strategy,
+            self._rng,
+            dataloader=dataloaders,
+            datamodule=datamodule,
+            limit_batches=limit_batches,
         )
+        self._run_stage(test)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def predict(
@@ -490,13 +495,14 @@ class Trainer(stages.StageListener):
         dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
         return_predictions: Optional[bool] = None,
+        fast_dev_run: Union[bool, int] = False,
         limit_batches: Union[int, float] = keys.NO_LIMIT,
     ) -> Optional[Union[list[Any], list[list[Any]]]]:
         r"""Run inference on the data.
 
         Logging is disabled in the predict hooks.
         """
-        if self._fast_dev_run:
+        if fast_dev_run:
             limit_batches = 1
 
         if return_predictions is None:
@@ -507,7 +513,7 @@ class Trainer(stages.StageListener):
             self._strategy,
             dataloader=dataloaders,
             datamodule=datamodule,
-            max_batches=limit_batches,
+            limit_batches=limit_batches,
             keep_predictions=return_predictions,
         )
         self._run_stage(predict)
@@ -524,15 +530,31 @@ class Trainer(stages.StageListener):
                     self._logging.reset_metrics()
                     with stage.events.listen_context(self):
                         stage.run()
-            except KeyboardInterrupt:
+            except KeyboardInterrupt as exc:
+                rank_zero.rank_zero_info(
+                    "\nDetected KeyboardInterrupt, attempting graceful shutdown ..."
+                )
                 # Disable further Ctrl+C presses while we respond to this one
                 signal.signal(signal.SIGINT, signal.SIG_IGN)
+                self._interrupt(stage, exc)
                 sys.exit(1)
+            except BaseException as exc:
+                self._interrupt(stage, exc)
+                raise
+
             else:
                 for logger in self.loggers:
                     logger.finalize("success")
 
         return stage
+
+    def _interrupt(self, stage: "reax.Stage", exception: BaseException):
+        # Inform our listeners of the exception
+        self._events.fire_event(hooks.TrainerListener.on_exception, stage, exception)
+
+        # TODO: self._strategy.on_exception(exc)
+        for logger in self.loggers:
+            logger.finalize("failed")
 
     # endregion
 
@@ -542,12 +564,70 @@ class Trainer(stages.StageListener):
         self._stage = stage
         if stage.module is not None:
             stage.module.trainer = self
+            listeners = stage.module.configure_listeners()
+        else:
+            listeners = []
+
         try:
-            yield
+            with self._attach_model_listeners(listeners):
+                yield
         finally:
             self._stage = None
             if stage.module is not None:
                 stage.module.trainer = None
+
+    @contextlib.contextmanager
+    def _attach_model_listeners(
+        self, listeners: Union["reax.TrainerListener", Sequence["reax.TrainerListener"]]
+    ) -> Generator[None, Any, None]:
+        """Attaches the listeners defined in the model.
+
+        If a listener returned by the model's configure_listener method has the same type as one or
+        several listeners already present in the trainer listeners list, it will replace them.
+        In addition, all :class:`~lightning.pytorch.listeners.model_checkpoint.ModelCheckpoint`
+        listeners will be pushed to the end of the list, ensuring they run last.
+        """
+        if listeners:
+            listeners = [listeners] if not isinstance(listeners, Sequence) else listeners
+            model_listener_types = {type(c) for c in listeners}
+            trainer_listener_types = {type(c) for c in self.listeners}
+            # edge case: if an unmodified listener was added, the logic below would filter it
+            trainer_listener_types.discard(hooks.TrainerListener)
+            # exclude trainer listeners of the same class or subclass
+            override_types = set()
+            for model_cb in model_listener_types:
+                for trainer_cb in trainer_listener_types:
+                    if issubclass(model_cb, trainer_cb):
+                        override_types.add(trainer_cb)
+                        break
+            if override_types:
+                rank_zero.rank_zero_info(
+                    "The following listeners returned in `Module.configure_listeners` will override"
+                    " existing listeners passed to Trainer:"
+                    f" {', '.join(sorted(t.__name__ for t in override_types))}"
+                )
+            # remove all listeners with a type that occurs in model listeners
+            all_listeners = [
+                listener for listener in self.listeners if type(listener) not in override_types
+            ]
+            all_listeners.extend(listeners)
+            all_listeners = _reorder_listeners(all_listeners)
+        else:
+            all_listeners = None
+
+        original_events = self._events
+        try:
+            if listeners:
+                self._events = events.EventGenerator[hooks.TrainerListener](
+                    default_args=(weakref.proxy(self),)
+                )
+                for listener in all_listeners:
+                    self._events.add_listener(listener)
+
+            yield
+        finally:
+            if listeners:
+                self._events = original_events
 
     @override
     def on_stage_starting(self, stage: "stages.Stage", /) -> None:
@@ -587,6 +667,8 @@ class Trainer(stages.StageListener):
     @override
     def on_stage_iter_ending(self, stage: "stages.Stage", step: int, outputs: Any, /):
         """On stage iter ending."""
+        self._events.fire_event(hooks.TrainerListener.on_stage_iter_ending, stage, step, outputs)
+
         if isinstance(stage, stages.EpochStage):
             logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
             logging_metrics.update(stage.logged_metrics)
@@ -674,6 +756,81 @@ class Trainer(stages.StageListener):
 
     # endregion
 
+    # region Deprecated
+
+    @property
+    @deprecated("REAX uses the term 'update' instead of 'step', please use `.global_updates`")
+    def global_step(self) -> int:
+        """Get the global number of optimizer updates."""
+        return self.global_updates
+
+    @property
+    @deprecated(
+        "REAX uses the term 'listener' instead of 'callback, please use `.listener_metrics`"
+    )
+    def callback_metrics(self) -> dict:
+        """Callback metrics."""
+        # Kept for compatibility with Lightning
+        return self.listener_metrics
+
+    @property
+    @deprecated(
+        "REAX uses the term 'listener' instead of 'callback, please use `.progress_bar_listeners`"
+    )
+    def progress_bar_callbacks(self) -> list["reax.listeners.ProgressBar"]:
+        """The first :class:`~reax.listeners.ProgressBar` listener in the
+        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        return self.progress_bar_listeners
+
+    @property
+    @deprecated(
+        "REAX uses the term 'listener' instead of 'callback, please use `.progress_bar_callback`"
+    )
+    def progress_bar_callback(self) -> Optional["reax.listeners.ProgressBar"]:
+        """The first :class:`~reax.listeners.ProgressBar` listener in the
+        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        return self.progress_bar_listener
+
+    @property
+    @deprecated(
+        "REAX uses the term 'listener' instead of 'callback, please use `.checkpoint_listeners`"
+    )
+    def checkpoint_callbacks(self) -> list["reax.listeners.Checkpointer"]:
+        """A list of all instances of :class:`~reax.listeners.model_checkpoint.ModelCheckpoint`
+        found in the Trainer.listeners list."""
+        # Kept for compatibility with Lightning
+        return self.checkpoint_listeners
+
+    @property
+    @deprecated(
+        "REAX uses the term 'listener' instead of 'callback, please use `.checkpoint_listener`"
+    )
+    def checkpoint_callback(self) -> Optional["reax.listeners.Checkpointer"]:
+        """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` callback in the
+        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        # Kept for compatibility with Lightning
+        return self.checkpoint_listener
+
+    @property
+    @deprecated(
+        "REAX uses the term 'listener' instead of 'callback, please use `.early_stopping_listener`"
+    )
+    def early_stopping_callback(self) -> Optional[listeners_.EarlyStopping]:
+        """The first :class:`~reax.listeners.early_stopping.EarlyStopping` listener in the
+        Trainer.callbacks list, or ``None`` if it doesn't exist."""
+        return self.early_stopping_listener
+
+    @property
+    @deprecated(
+        "REAX uses the term 'listener' instead of 'callback, please use `.early_stopping_listeners`"
+    )
+    def early_stopping_callbacks(self) -> list[listeners_.EarlyStopping]:
+        """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in
+        the Trainer.callbacks list."""
+        return self.early_stopping_listeners
+
+    # endregion
+
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def _init_loggers(
@@ -691,6 +848,37 @@ def _init_loggers(
         return []
 
     return list(logger)
+
+
+def _init_progress_bar(
+    listeners: list[hooks.TrainerListener], enable_progress_bar: bool = True
+) -> Optional[listeners_.ProgressBar]:
+    progress_bars = [
+        listener for listener in listeners if isinstance(listener, listeners_.progress.ProgressBar)
+    ]
+    if len(progress_bars) > 1:
+        raise exceptions.MisconfigurationException(
+            "You added multiple progress bar listeners to the Trainer, but currently only one"
+            " progress bar is supported."
+        )
+    if len(progress_bars) == 1:
+        # the user specified the progress bar in the listeners list
+        # so the trainer doesn't need to provide a default one
+        if enable_progress_bar:
+            return None
+
+        # otherwise the user specified a progress bar listener but also
+        # elected to disable the progress bar with the trainer flag
+        progress_bar_listener = progress_bars[0]
+        raise exceptions.MisconfigurationException(
+            "Trainer was configured with `enable_progress_bar=False`"
+            f" but found `{progress_bar_listener.__class__.__name__}` in listeners list."
+        )
+
+    if enable_progress_bar:
+        return listeners_.progress.TqdmProgressBar()
+
+    return None
 
 
 def _is_local_file_protocol(path: typing.Path) -> bool:
@@ -764,3 +952,31 @@ def _(_stage: stages.Fit) -> dict[Callable, Callable]:
         hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_fit_start,
         hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_fit_end,
     }
+
+
+def _reorder_listeners(listeners: list["reax.TrainerListener"]) -> list["reax.TrainerListener"]:
+    """Moves all the tuner specific listeners at the beginning of the list and all the
+    `ModelCheckpoint` listeners to the end of the list. The sequential order within the group of
+    checkpoint listeners is preserved, as well as the order of all other listeners.
+
+    Args:
+        listeners: A list of listeners.
+
+    Return:
+        A new list in which the first elements are tuner specific listeners and last elements are
+        ModelCheckpoints if there were any present in the input.
+
+    """
+    tuner_listeners: list["reax.TrainerListener"] = []
+    other_listeners: list["reax.TrainerListener"] = []
+    checkpoint_listeners: list["reax.TrainerListener"] = []
+
+    for cb in listeners:
+        # if isinstance(cb, (BatchSizeFinder, LearningRateFinder)):
+        #     tuner_listeners.append(cb)
+        if isinstance(cb, listeners_.Checkpointer):
+            checkpoint_listeners.append(cb)
+        else:
+            other_listeners.append(cb)
+
+    return tuner_listeners + other_listeners + checkpoint_listeners

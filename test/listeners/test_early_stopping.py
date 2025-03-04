@@ -15,7 +15,7 @@
 #
 # Most of this file is covered by the following license.  To find what has been modified you
 # can perform a diff with the file at:
-# https://github.com/Lightning-AI/pytorch-lightning/blob/f9babd1def4c703e639dfc34fd1877ac4e7b9435/tests/tests_pytorch/callbacks/test_early_stopping.py#L4
+# https://github.com/Lightning-AI/pytorch-lightning/blob/f9babd1def4c703e639dfc34fd1877ac4e7b9435/tests/tests_pytorch/callbacks/test_early_stopping.py
 #
 # Copyright The Lightning AI team.
 #
@@ -595,7 +595,8 @@ def test_early_stopping_squeezes():
         "reax.listeners.EarlyStopping._evaluate_stopping_criteria",
         return_value=(False, ""),
     ) as es_mock:
-        early_stopping._run_early_stopping_check(trainer)
+        stage = mock.Mock(spec=reax.stages.EpochStage, fast_dev_run=False)
+        early_stopping._run_early_stopping_check(trainer, stage)
 
     es_mock.assert_called_once_with(jnp.array(0))
 

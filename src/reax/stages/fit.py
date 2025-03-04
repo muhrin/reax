@@ -28,6 +28,7 @@ class FitEpoch(train.Train):
         train_dataloaders: "Optional[reax.DataLoader]" = None,
         val_dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
+        fast_dev_run: Union[bool, int] = False,
         min_updates: Optional[int] = None,
         max_updates: Optional[Union[int, float]] = None,
         limit_train_batches: Optional[Union[int, float]] = 1.0,
@@ -46,15 +47,23 @@ class FitEpoch(train.Train):
         else:
             datamanager = None
 
+        if fast_dev_run:
+            num_batches = 1 if fast_dev_run is True else fast_dev_run
+            limit_train_batches = num_batches
+            limit_val_batches = num_batches
+            val_check_interval = 1.0
+            check_val_every_n_epoch = 1
+
         super().__init__(
             module,
             strategy,
             optimizers,
             rng,
             dataloader=train_dataloaders,
+            fast_dev_run=fast_dev_run,
             min_updates=min_updates,
             max_updates=max_updates,
-            max_batches=limit_train_batches,
+            limit_batches=limit_train_batches,
             accumulate_grad_batches=accumulate_grad_batches,
             parent=parent,
             stopper=stopper,
@@ -77,7 +86,8 @@ class FitEpoch(train.Train):
                 module,
                 strategy,
                 dataloader=val_dataloaders,
-                max_batches=limit_val_batches,
+                fast_dev_run=fast_dev_run,
+                limit_batches=limit_val_batches,
                 parent=weakref.proxy(self),
             )
 
@@ -219,6 +229,7 @@ class Fit(stages.Stage):
         train_dataloaders: "Optional[reax.DataLoader]" = None,
         val_dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
+        fast_dev_run: Union[bool, int] = False,
         max_epochs: Optional[int] = None,
         min_epochs: int = 0,
         min_updates: int = 0,
@@ -231,6 +242,9 @@ class Fit(stages.Stage):
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
+        if fast_dev_run:
+            max_epochs = 1
+
         super().__init__(
             "fit",
             module,
@@ -250,6 +264,7 @@ class Fit(stages.Stage):
             train_dataloaders=train_dataloaders,
             val_dataloaders=val_dataloaders,
             datamodule=datamodule,
+            fast_dev_run=fast_dev_run,
             min_updates=min_updates,
             max_updates=max_updates,
             limit_train_batches=limit_train_batches,

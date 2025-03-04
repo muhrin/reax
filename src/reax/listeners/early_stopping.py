@@ -197,13 +197,14 @@ class EarlyStopping(hooks.TrainerListener):
             return
         self._run_early_stopping_check(trainer, stage)
 
-    def _run_early_stopping_check(self, trainer: "reax.Trainer", *_) -> None:
+    def _run_early_stopping_check(
+        self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage"
+    ) -> None:
         """Check the early stopping condition and tell the Trainer to stop if needed."""
         logs = trainer.listener_metrics
 
-        if trainer.fast_dev_run or not self._validate_condition_metric(
-            logs
-        ):  # disable early_stopping with fast_dev_run  # short circuit if metric not present
+        if stage.fast_dev_run or not self._validate_condition_metric(logs):
+            # disable early_stopping with fast_dev_run or short circuit if metric not present
             return
 
         current = jnp.squeeze(logs[self._monitor])

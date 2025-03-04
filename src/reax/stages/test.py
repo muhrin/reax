@@ -1,7 +1,7 @@
 """Test loop."""
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 import weakref
 
 import beartype
@@ -24,16 +24,18 @@ class Test(stages.EpochStage):
         self,
         module: "reax.Module",
         strategy: "reax.Strategy",
+        rng: "Optional[reax.Generator]",
         *,
         dataloader: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
-        max_batches: Optional[int] = None,
+        fast_dev_run: Union[bool, int] = False,
+        limit_batches: Optional[Union[int, float]] = None,
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
         if dataloader is None:
             datamanager = common.get_datasource(datamodule, module)
-            dataloader = datamanager.get_loader_proxy("val_dataloader")
+            dataloader = datamanager.get_loader_proxy("test_dataloader")
         else:
             datamanager = None
 
@@ -42,8 +44,9 @@ class Test(stages.EpochStage):
             module,
             dataloader,
             strategy,
-            None,
-            max_batches=max_batches,
+            rng,
+            fast_dev_run=fast_dev_run,
+            limit_batches=limit_batches,
             parent=parent,
             datamanager=datamanager,
         )
@@ -63,4 +66,4 @@ class Test(stages.EpochStage):
     @override
     def _step(self) -> "reax.stages.MetricResults":
         """Step function."""
-        return self._module.predict_step(self.batch, self._iter)
+        return self._module.test_step(self.batch, self._iter)

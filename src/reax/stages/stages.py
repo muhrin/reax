@@ -9,7 +9,8 @@ import weakref
 import beartype
 import jax
 import jaxtyping as jt
-from typing_extensions import override
+from lightning_utilities.core import enums
+from typing_extensions import deprecated, override
 
 from . import common
 from .. import data, keys, results, typing
@@ -22,15 +23,28 @@ from ..utils import arrays
 if TYPE_CHECKING:
     import reax
 
-__all__ = "Stage", "EpochStage"
-
+__all__ = "Stage", "StageState", "EpochStage"
 
 _LOGGER = logging.getLogger(__name__)
 _T_co = TypeVar("_T_co", covariant=True)
 
 
+class StageState(enums.StrEnum):
+    """Enum for the status of the :class:`~reax.stages.stages.Stage`"""
+
+    INITIALIZING = "initializing"  # trainer creation
+    RUNNING = "running"
+    FINISHED = "finished"
+    INTERRUPTED = "interrupted"
+
+    @property
+    def stopped(self) -> bool:
+        return self in (self.FINISHED, self.INTERRUPTED)
+
+
 class Stage(abc.ABC):
-    """Interface for loops."""
+    """Interface for loops.  This could be a loop over batches (i.e. an epoch) or a loop over
+    epochs, which itself contains a loop over batches.  Or something else."""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
@@ -51,6 +65,7 @@ class Stage(abc.ABC):
         self._max_iters: Final[Optional[int]] = max_iters
 
         # State
+        self._state: StageState = StageState.INITIALIZING
         self._module: Optional["reax.Module"] = module
         self._rng = rng
         self._warning_cache = rank_zero.WarningCache()
@@ -66,6 +81,10 @@ class Stage(abc.ABC):
     def __str__(self) -> str:
         """Str function."""
         return self.name
+
+    @property
+    def state(self) -> "reax.stages.StageState":
+        return self._state
 
     @property
     def name(self) -> str:
@@ -141,15 +160,15 @@ class Stage(abc.ABC):
 
     def step(self) -> None:
         """Advance the loop by one iteration."""
-        if self._iter == -1:
-            # Starting
-            self._on_starting()
-            self.events.fire_event(common.StageListener.on_stage_starting, weakref.proxy(self))
-            # Started
-            self._on_started()
-            self.events.fire_event(common.StageListener.on_stage_started, weakref.proxy(self))
-
         try:
+            if self._iter == -1:
+                # Starting
+                self._on_starting()
+                self.events.fire_event(common.StageListener.on_stage_starting, weakref.proxy(self))
+                # Started
+                self._on_started()
+                self.events.fire_event(common.StageListener.on_stage_started, weakref.proxy(self))
+
             if self._done():
                 raise StopIteration
 
@@ -172,7 +191,6 @@ class Stage(abc.ABC):
             self.events.fire_event(
                 common.StageListener.on_stage_iter_ended, weakref.proxy(self), self._iter, res
             )
-
         except StopIteration as exc:
             self._stop_reason = str(exc)
             # Stopping
@@ -183,6 +201,9 @@ class Stage(abc.ABC):
             self._on_stopped()
             self.events.fire_event(common.StageListener.on_stage_ended, weakref.proxy(self))
 
+            raise
+        except BaseException:
+            self._state = StageState.INTERRUPTED
             raise
 
     @abc.abstractmethod
@@ -200,6 +221,7 @@ class Stage(abc.ABC):
 
     def _on_starting(self):
         """Stage is starting."""
+        self._state = StageState.RUNNING
         self._iter = 0
 
         # Events
@@ -239,6 +261,7 @@ class Stage(abc.ABC):
 
     def _on_stopping(self):
         """The stage is stopping."""
+        self._state = StageState.FINISHED
         self._iter = -1
         self._run_count += 1
 
@@ -274,27 +297,35 @@ class EpochStage(Stage, abc.ABC):
         module: Optional["reax.Module"],
         dataloader: "reax.DataLoader[_T_co]",
         strategy: "reax.Strategy",
-        rng: Optional["reax.Generator"],
+        rng: "reax.Generator",
         *,
+        fast_dev_run: Union[bool, int] = False,
         min_batches: int = 0,
-        max_batches: Optional[Union[int, float]] = None,
+        limit_batches: Optional[Union[int, float]] = None,
         parent: Optional["reax.Stage"] = None,
-        datamanager: Optional = None,
+        datamanager: Optional[common.DataSourceManager[_T_co]] = None,
     ):
-        self._max_batches = max_batches
+        if fast_dev_run:
+            num_batches = 1 if fast_dev_run is True else fast_dev_run
+            limit_batches = num_batches
+
         super().__init__(
             name,
             module,
             strategy,
             rng,
             min_iters=min_batches,
-            max_iters=None,
+            max_iters=limit_batches if isinstance(limit_batches, int) else None,
             parent=parent,
         )
 
+        # Params
+        self._fast_dev_run = fast_dev_run
+        self._limit_batches: Final[Union[int, float]] = limit_batches
+
         # State
         self._dataloader: "reax.DataLoader[_T_co]" = dataloader
-        self._datamanager: Optional = datamanager
+        self._datamanager: Optional[common.DataSourceManager[_T_co]] = datamanager
         self._iterator = None
         self._batch: Optional[Any] = None
         self._total_batch_idx: int = 0
@@ -306,6 +337,10 @@ class EpochStage(Stage, abc.ABC):
     def dataloader(self) -> "reax.DataLoader":
         """Dataloader function."""
         return self._dataloader
+
+    @property
+    def fast_dev_run(self) -> Union[bool, int]:
+        return self._fast_dev_run
 
     @property
     def batch(self) -> Optional[Any]:
@@ -328,14 +363,9 @@ class EpochStage(Stage, abc.ABC):
         return self._run_count
 
     @property
-    def max_iters(self) -> Optional[int]:
-        """Get the current maximum number of iterations."""
-        return common.batches_limit(self._max_batches, self.dataloader)
-
-    @property
-    def max_batches(self) -> Optional[int]:
-        """Max batches."""
-        return self.max_iters
+    def max_batches(self) -> Optional[Union[int, float]]:
+        """Get the current maximum number of batches."""
+        return common.batches_limit(self._limit_batches, self.dataloader)
 
     @property
     def metrics(self) -> "reax.results.ResultCollection":
@@ -348,16 +378,8 @@ class EpochStage(Stage, abc.ABC):
         return self._metrics_results
 
     @property
-    def callback_metrics(self) -> typing.MetricsDict:
-        """Get the metrics available to callbacks."""
-        if not self._metrics_results:
-            return dict()
-
-        return self._metrics_results[keys.LISTENER]
-
-    @property
     def listener_metrics(self) -> typing.MetricsDict:
-        """Get the metrics available to callbacks."""
+        """Get the metrics available to listeners."""
         if not self._metrics_results:
             return dict()
 
@@ -383,6 +405,16 @@ class EpochStage(Stage, abc.ABC):
     def outputs(self) -> Any:
         """Outputs function."""
         return self._outputs
+
+    @override
+    def step(self) -> None:
+        try:
+            super().step()
+        except BaseException as exception:
+            if self._datamanager is not None and self._datamanager.ready:
+                # Notify the data source of the exception
+                self._datamanager.source.on_exception(exception)
+            raise
 
     def log(
         self,
@@ -485,3 +517,14 @@ class EpochStage(Stage, abc.ABC):
         # Convert tensors to python scalars
         self._metrics_results = jax.tree_map(arrays.to_base, metrics)
         super()._on_stopping()
+
+    @property
+    @deprecated(
+        "REAX uses the term 'listener' instead of 'callback, please use `.callback_metrics`"
+    )
+    def callback_metrics(self) -> typing.MetricsDict:
+        """Get the metrics available to listeners."""
+        if not self._metrics_results:
+            return dict()
+
+        return self._metrics_results[keys.LISTENER]

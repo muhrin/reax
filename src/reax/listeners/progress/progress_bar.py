@@ -31,9 +31,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
+
+from lightning_utilities.core import rank_zero
+from typing_extensions import override
 
 from reax import hooks
+
+if TYPE_CHECKING:
+    import reax
 
 __all__ = ("ProgressBar",)
 
@@ -67,6 +73,7 @@ class ProgressBar(hooks.TrainerListener):
     """
 
     def __init__(self) -> None:
+        self._trainer: "Optional[reax.Trainer]" = None
         self._current_eval_dataloader_idx: Optional[int] = None
 
     @property
@@ -90,13 +97,84 @@ class ProgressBar(hooks.TrainerListener):
         return "Predicting"
 
     def disable(self) -> None:
-        """Disable the progress bar."""
+        """You should provide a way to disable the progress bar."""
         raise NotImplementedError
 
     def enable(self) -> None:
-        """Enable the progress bar."""
+        """You should provide a way to enable the progress bar.
+
+        The :class:`~lightning.pytorch.trainer.trainer.Trainer` will call this in e.g. pre-training
+        routines like the :ref:`learning rate finder
+        <advanced/training_tricks:Learning Rate Finder>`. to temporarily enable and disable the
+        training progress bar.
+
+        """
         raise NotImplementedError
 
     def print(self, *args: Any, **kwargs: Any) -> None:
-        """Print the progress bar status."""
+        """You should provide a way to print without breaking the progress bar."""
         print(*args, **kwargs)
+
+    @override
+    def setup(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
+        self._trainer = trainer
+        if not trainer.is_global_zero:
+            self.disable()
+
+    def get_metrics(
+        self, trainer: "reax.Trainer", *_
+    ) -> dict[str, Union[int, str, float, dict[str, float]]]:
+        r"""Combines progress bar metrics collected from the trainer with standard metrics from
+        get_standard_metrics. Implement this to override the items displayed in the progress bar.
+
+        Here is an example of how to override the defaults:
+
+        .. code-block:: python
+
+            def get_metrics(self, trainer, model):
+                # don't show the version number
+                items = super().get_metrics(trainer, model)
+                items.pop("v_num", None)
+                return items
+
+        Return:
+            Dictionary with the items to be displayed in the progress bar.
+
+        """
+        standard_metrics = get_standard_metrics(trainer)
+        pbar_metrics = trainer.progress_bar_metrics
+        duplicates = list(standard_metrics.keys() & pbar_metrics.keys())
+        if duplicates:
+            rank_zero.rank_zero_warn(
+                f"The progress bar already tracks a metric with the name(s) "
+                f"'{', '.join(duplicates)}' and `self.log('{duplicates[0]}', ..., prog_bar=True)` "
+                f"will overwrite this value. If this is undesired, change the name or override "
+                f"`get_metrics()` in the progress bar callback."
+            )
+
+        return {**standard_metrics, **pbar_metrics}
+
+
+def get_standard_metrics(trainer: "reax.Trainer") -> dict[str, Union[int, str]]:
+    r"""Returns the standard metrics displayed in the progress bar. Currently, it only includes the
+    version of the experiment when using a logger.
+
+    .. code-block::
+
+        Epoch 1:   4%|▎         | 40/1095 [00:03<01:37, 10.84it/s, v_num=10]
+
+    Return:
+        Dictionary with the standard metrics to be displayed in the progress bar.
+
+    """
+    items_dict: dict[str, Union[int, str]] = {}
+    if trainer.loggers:
+        from lightning.pytorch.loggers.utilities import _version
+
+        if (version := _version(trainer.loggers)) not in ("", None):
+            if isinstance(version, str):
+                # show last 4 places of long version strings
+                version = version[-4:]
+            items_dict["v_num"] = version
+
+    return items_dict

@@ -27,6 +27,8 @@ class DataSource(Generic[_T_co]):
         self.prepare_data_per_node: bool = True
         self.allow_zero_length_dataloader_with_multiple_devices: bool = False
 
+    # Region Events
+
     def prepare_data(self) -> None:
         """Use this to download and prepare data. Downloading and saving data with multiple
         processes (distributed settings) will result in corrupted data. Lightning ensures this
@@ -110,6 +112,11 @@ class DataSource(Generic[_T_co]):
 
     def teardown(self, stage: "reax.Stage", /) -> None:
         """Called at the end of a trainer stage"""
+
+    def on_exception(self, exception: BaseException, /) -> None:
+        """Called when the stage execution is interrupted by an exception."""
+
+    # endregion
 
     def train_dataloader(self) -> "reax.DataLoader[_T_co]":
         """An iterable or collection of iterables specifying training samples.

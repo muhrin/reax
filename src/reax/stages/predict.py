@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import beartype
 import jaxtyping as jt
@@ -21,14 +21,15 @@ class Predict(stages.EpochStage):
         *,
         dataloader: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
-        max_batches: Optional[int] = None,
+        fast_dev_run: Union[bool, int] = False,
+        limit_batches: Optional[int] = None,
         keep_predictions=True,
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
         if dataloader is None:
             datamanager = common.get_datasource(datamodule, module)
-            dataloader = datamanager.get_loader_proxy("val_dataloader")
+            dataloader = datamanager.get_loader_proxy("predict_dataloader")
         else:
             datamanager = None
 
@@ -38,7 +39,8 @@ class Predict(stages.EpochStage):
             dataloader,
             strategy,
             None,
-            max_batches=max_batches,
+            fast_dev_run=fast_dev_run,
+            limit_batches=limit_batches,
             parent=parent,
             datamanager=datamanager,
         )

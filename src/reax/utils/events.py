@@ -50,9 +50,14 @@ class EventGenerator(Generic[ListenerT]):
         # pylint: disable=redefined-builtin
         self,
         *,
-        type: type[T],
+        type: type[T] = None,
     ) -> list[T]:
         """Find listeners matching the passed filter(s)."""
-        return [
-            listener for listener in self._event_listeners.values() if isinstance(listener, type)
-        ]
+
+        def filtr(listener: ListenerT) -> bool:
+            if type is not None and not isinstance(listener, type):
+                return False
+
+            return True
+
+        return [listener for listener in self._event_listeners.values() if filtr(listener)]

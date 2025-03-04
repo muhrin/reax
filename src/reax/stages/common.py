@@ -97,7 +97,7 @@ class Stopper:
 @jt.jaxtyped(typechecker=beartype.beartype)
 def batches_limit(
     batch_limit: Optional[Union[int, float]], dataloader: "reax.DataLoader"
-) -> Optional[int]:
+) -> Optional[Union[int, float]]:
     """Return a maximum number of batches given a dataloader and an optional batches limit.
 
     If the dataloader has fewer entries than the batch limit, then this will be used, otherwise
@@ -135,7 +135,7 @@ def batches_limit(
         )
 
     # We can't say anything other than just 'go to the end'
-    return None
+    return float("inf")
 
 
 class DataSourceManager(Generic[_T_co]):
@@ -161,6 +161,10 @@ class DataSourceManager(Generic[_T_co]):
         self._source: "reax.data.DataSource[_T_co]" = source
         self._ready: bool = False
 
+    @property
+    def ready(self) -> bool:
+        return self._ready
+
     def get_loader_proxy(self, method_name: str) -> LoaderProxy[_T_co]:
         return DataSourceManager.LoaderProxy(self, method_name)
 
@@ -174,7 +178,7 @@ class DataSourceManager(Generic[_T_co]):
         return self._source
 
     def prepare_and_setup(self, stage) -> None:
-        if self._ready:
+        if self.ready:
             # Already done
             return
 
