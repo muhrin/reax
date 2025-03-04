@@ -39,7 +39,7 @@ class Trainer(stages.StageListener):
         *,
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
         devices: Union[list[int], str, int] = "auto",
-        logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = None,
+        logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = True,
         fast_dev_run: Union[int, bool] = False,
         listeners: "Optional[list[reax.TrainerListener], reax.TrainerListener]" = None,
         log_every_n_steps: int = 50,
@@ -686,7 +686,7 @@ def _init_loggers(
 
     if isinstance(logger, (bool, type(None))):
         if logger:
-            return [loggers_.TensorBoardLogger(default_root_dir)]
+            return [loggers_.CsvLogger(default_root_dir)]
 
         return []
 

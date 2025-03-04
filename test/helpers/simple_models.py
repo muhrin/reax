@@ -95,7 +95,7 @@ class ClassificationModel(reax.Module):
         x, y = batch
         logits = self.forward(x)
         y_one_hot = jax.nn.one_hot(y, self.num_classes, dtype=y.dtype)
-        self.log("val_loss", losses.softmax_cross_entropy(logits, y_one_hot), prog_bar=False)
+        self.log("val_loss", losses.softmax_cross_entropy(logits, y_one_hot).mean(), prog_bar=False)
         self.log("val_acc", self.acc.create(logits, y), prog_bar=True)
 
     def test_step(self, batch, batch_idx):
