@@ -13,7 +13,7 @@ class _CheckpointConnector:
 
     def _get_checkpoint_path(self) -> Optional[str]:
         """Get checkpoint path."""
-        checkpointers = self._trainer.checkpoint_callbacks
+        checkpointers = self._trainer.checkpoint_listeners
         if not checkpointers:
             return None
 

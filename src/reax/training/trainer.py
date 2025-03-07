@@ -2,7 +2,6 @@ import contextlib
 import functools
 import logging
 import os
-import pickle  # nosec
 import signal
 import sys
 from typing import (
@@ -25,9 +24,9 @@ import fsspec
 import jax
 import jaxtyping as jt
 from lightning_utilities.core import rank_zero
-from typing_extensions import deprecated, override
+from typing_extensions import override
 
-from . import _logger_connector
+from . import _checkpointing, _deprecated, _logger_connector
 from .. import exceptions, hooks, keys
 from .. import listeners as listeners_
 from .. import loggers as loggers_
@@ -42,7 +41,7 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = ("Trainer",)
 
 
-class Trainer(stages.StageListener):
+class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     # pylint: disable=too-many-public-methods
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -400,6 +399,7 @@ class Trainer(stages.StageListener):
         val_dataloaders: "Optional[reax.DataLoader]" = None,
         *,
         datamodule: "Optional[reax.DataModule]" = None,
+        ckpt_path: Optional[typing.Path] = None,
         fast_dev_run: Union[bool, int] = False,
         max_epochs: Optional[int] = 1_000,
         min_epochs: int = 0,
@@ -412,7 +412,13 @@ class Trainer(stages.StageListener):
         check_val_every_n_epoch: int = 1,
         num_sanity_val_steps: Optional[int] = None,
     ):
-        """Fit function."""
+        """Fit function.
+
+
+        :param ckpt_path: Path/URL of the checkpoint from which training is resumed. Could also be
+            one of two special keywords ``"last"`` and ``"hpc"``. If there is no checkpoint file at
+            the path, an exception is raised.
+        """
         if max_updates is not None and max_updates < 0:
             raise ValueError("`max_updates` must be a non-negative integer")
         if max_epochs is not None and max_epochs < 0:
@@ -426,6 +432,9 @@ class Trainer(stages.StageListener):
                 f"Running in `fast_dev_run` mode: will run the requested loop using {num_batches} "
                 f"batch(es). Logging and checkpointing is suppressed."
             )
+
+        if ckpt_path:
+            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=True)
 
         fit = stages.Fit(
             module,
@@ -456,9 +465,13 @@ class Trainer(stages.StageListener):
         module: modules.Module,
         dataloaders=None,
         datamodule=None,
+        ckpt_path: Optional[typing.Path] = None,
         limit_batches: Union[int, type(keys.NO_LIMIT)] = keys.NO_LIMIT,
     ):
-        """Test function."""
+        """Validate function."""
+        if ckpt_path:
+            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=True)
+
         self._run_stage(
             stages.Validate(
                 module,
@@ -475,9 +488,13 @@ class Trainer(stages.StageListener):
         module: modules.Module,
         dataloaders=None,
         datamodule=None,
+        ckpt_path: Optional[typing.Path] = None,
         limit_batches: Optional[Union[int, float]] = 1.0,
     ):
         """Test function."""
+        if ckpt_path:
+            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=True)
+
         test = stages.Test(
             module,
             self._strategy,
@@ -494,6 +511,7 @@ class Trainer(stages.StageListener):
         module: modules.Module,
         dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
+        ckpt_path: Optional[typing.Path] = None,
         return_predictions: Optional[bool] = None,
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Union[int, float] = keys.NO_LIMIT,
@@ -502,6 +520,9 @@ class Trainer(stages.StageListener):
 
         Logging is disabled in the predict hooks.
         """
+        if ckpt_path:
+            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=True)
+
         if fast_dev_run:
             limit_batches = 1
 
@@ -725,6 +746,9 @@ class Trainer(stages.StageListener):
             stage = cast(stages.EpochStage, stage)
             self._events.fire_event(event, stage)
 
+        # Finally, call teardown
+        self._events.fire_event(hooks.TrainerListener.teardown, stage)
+
     # region Checkpointing
 
     def save_checkpoint(self, filepath: typing.Path, weights_only: bool = True):
@@ -732,11 +756,7 @@ class Trainer(stages.StageListener):
 
         The user has to store the model definition themselves.
         """
-        if not weights_only:
-            _LOGGER.warning("`weights_only=False` is not supported yet, ignoring")
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, "wb") as file:
-            pickle.dump(self._module.parameters(), file)
+        _checkpointing.save_checkpoint(self._module, filepath, weights_only=weights_only)
 
     def _get_checkpoint_path(self) -> Optional[str]:
         """Get checkpoint path."""
@@ -753,81 +773,6 @@ class Trainer(stages.StageListener):
 
         checkpointer = checkpointers[0]
         return getattr(checkpointer, "best_model_path", None)
-
-    # endregion
-
-    # region Deprecated
-
-    @property
-    @deprecated("REAX uses the term 'update' instead of 'step', please use `.global_updates`")
-    def global_step(self) -> int:
-        """Get the global number of optimizer updates."""
-        return self.global_updates
-
-    @property
-    @deprecated(
-        "REAX uses the term 'listener' instead of 'callback, please use `.listener_metrics`"
-    )
-    def callback_metrics(self) -> dict:
-        """Callback metrics."""
-        # Kept for compatibility with Lightning
-        return self.listener_metrics
-
-    @property
-    @deprecated(
-        "REAX uses the term 'listener' instead of 'callback, please use `.progress_bar_listeners`"
-    )
-    def progress_bar_callbacks(self) -> list["reax.listeners.ProgressBar"]:
-        """The first :class:`~reax.listeners.ProgressBar` listener in the
-        Trainer.listeners list, or ``None`` if it doesn't exist."""
-        return self.progress_bar_listeners
-
-    @property
-    @deprecated(
-        "REAX uses the term 'listener' instead of 'callback, please use `.progress_bar_callback`"
-    )
-    def progress_bar_callback(self) -> Optional["reax.listeners.ProgressBar"]:
-        """The first :class:`~reax.listeners.ProgressBar` listener in the
-        Trainer.listeners list, or ``None`` if it doesn't exist."""
-        return self.progress_bar_listener
-
-    @property
-    @deprecated(
-        "REAX uses the term 'listener' instead of 'callback, please use `.checkpoint_listeners`"
-    )
-    def checkpoint_callbacks(self) -> list["reax.listeners.Checkpointer"]:
-        """A list of all instances of :class:`~reax.listeners.model_checkpoint.ModelCheckpoint`
-        found in the Trainer.listeners list."""
-        # Kept for compatibility with Lightning
-        return self.checkpoint_listeners
-
-    @property
-    @deprecated(
-        "REAX uses the term 'listener' instead of 'callback, please use `.checkpoint_listener`"
-    )
-    def checkpoint_callback(self) -> Optional["reax.listeners.Checkpointer"]:
-        """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` callback in the
-        Trainer.listeners list, or ``None`` if it doesn't exist."""
-        # Kept for compatibility with Lightning
-        return self.checkpoint_listener
-
-    @property
-    @deprecated(
-        "REAX uses the term 'listener' instead of 'callback, please use `.early_stopping_listener`"
-    )
-    def early_stopping_callback(self) -> Optional[listeners_.EarlyStopping]:
-        """The first :class:`~reax.listeners.early_stopping.EarlyStopping` listener in the
-        Trainer.callbacks list, or ``None`` if it doesn't exist."""
-        return self.early_stopping_listener
-
-    @property
-    @deprecated(
-        "REAX uses the term 'listener' instead of 'callback, please use `.early_stopping_listeners`"
-    )
-    def early_stopping_callbacks(self) -> list[listeners_.EarlyStopping]:
-        """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in
-        the Trainer.callbacks list."""
-        return self.early_stopping_listeners
 
     # endregion
 

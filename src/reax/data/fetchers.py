@@ -32,7 +32,7 @@ class _IterableFetcher(_BaseFetcher, Generic[T_co, U]):
 
     def fetch(self, possibly_batched_index) -> U:
         """Fetch function."""
-        if self._iter:
+        if self._ended:
             raise StopIteration
 
         data = []

@@ -518,6 +518,12 @@ class EpochStage(Stage, abc.ABC):
         self._metrics_results = jax.tree_map(arrays.to_base, metrics)
         super()._on_stopping()
 
+    @override
+    def _on_stopped(self):
+        super()._on_stopped()
+        if self._datamanager is not None and self._datamanager.ready:
+            self._datamanager.source.teardown(self)
+
     @property
     @deprecated(
         "REAX uses the term 'listener' instead of 'callback, please use `.callback_metrics`"

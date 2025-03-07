@@ -69,44 +69,39 @@ def test_rich_progress_bar_refresh_rate_enabled():
 def test_rich_progress_bar(tmp_path, dataset):
     class TestModel(demos.BoringModel):
         def train_dataloader(self):
-            return reax.DataLoader(dataset=dataset)
+            return reax.ReaxDataLoader(dataset=dataset)
 
         def val_dataloader(self):
-            return reax.DataLoader(dataset=dataset)
+            return reax.ReaxDataLoader(dataset=dataset)
 
         def test_dataloader(self):
-            return reax.DataLoader(dataset=dataset)
+            return reax.ReaxDataLoader(dataset=dataset)
 
         def predict_dataloader(self):
-            return reax.DataLoader(dataset=dataset)
+            return reax.ReaxDataLoader(dataset=dataset)
 
     trainer = reax.Trainer(
         default_root_dir=tmp_path,
         # TODO: num_sanity_val_steps=0,
-        limit_train_batches=1,
-        limit_val_batches=1,
-        limit_test_batches=1,
-        limit_predict_batches=1,
-        max_epochs=1,
         listeners=progress.RichProgressBar(),
     )
     model = TestModel()
 
-    with mock.patch("reax.listeners.progress.rich_progress.Progress.update") as mocked:
-        trainer.fit(model)
+    with mock.patch("rich.progress.Progress.update") as mocked:
+        trainer.fit(model, max_epochs=1, limit_train_batches=1, limit_val_batches=1)
     # 2 for train progress bar and 1 for val progress bar
     assert mocked.call_count == 3
 
-    with mock.patch("reax.listeners.progress.rich_progress.Progress.update") as mocked:
-        trainer.validate(model)
+    with mock.patch("rich.progress.Progress.update") as mocked:
+        trainer.validate(model, limit_batches=1)
     assert mocked.call_count == 1
 
-    with mock.patch("reax.listeners.progress.rich_progress.Progress.update") as mocked:
-        trainer.test(model)
+    with mock.patch("rich.progress.Progress.update") as mocked:
+        trainer.test(model, limit_batches=1)
     assert mocked.call_count == 1
 
-    with mock.patch("reax.listeners.progress.rich_progress.Progress.update") as mocked:
-        trainer.predict(model)
+    with mock.patch("rich.progress.Progress.update") as mocked:
+        trainer.predict(model, limit_batches=1)
     assert mocked.call_count == 1
 
 

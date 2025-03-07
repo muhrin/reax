@@ -240,6 +240,13 @@ class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, data.DataSo
                 batch_size=batch_size,
             )
 
+    def state_dict(self) -> dict[str, Any]:
+        """Save any additional module state"""
+        return {}
+
+    def load_state(self, state_dict: dict[str, Any]) -> None:
+        """Load module state from the passed state dictionary"""
+
     @property
     @deprecated("REAX uses the term 'update' instead of 'step', please use `.global_updates`")
     def global_step(self) -> int:

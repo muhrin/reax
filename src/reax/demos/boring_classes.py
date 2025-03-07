@@ -125,9 +125,9 @@ class RandomIterableDataset(Iterable[np.ndarray]):
     """
 
     def __init__(self, size: int, count: int):
-        self.count = count
         self.size = size
+        self.count = count
 
     def __iter__(self) -> Iterator[np.ndarray]:
         for _ in range(self.count):
-            yield np.random.normal(self.size)
+            yield np.random.normal(size=self.size)

@@ -113,10 +113,10 @@ class BatchSampler(_types.Sampler[list[IdxT]]):
         return (len(self._sampler) + self._batch_size - 1) // self._batch_size
 
 
-class IterableSampler(_types.Sampler[None]):
-    def __iter__(self) -> Iterator[None]:
+class IterableSampler(_types.Sampler[list[None]]):
+    def __iter__(self) -> Iterator[list[None]]:
         """Iter function."""
-        yield from itertools.repeat(None)
+        yield from itertools.repeat([None])
 
 
 @functools.singledispatch
