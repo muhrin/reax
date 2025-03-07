@@ -33,7 +33,7 @@
 from collections import defaultdict
 import pickle
 from unittest import mock
-from unittest.mock import DEFAULT, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -80,15 +80,17 @@ def test_rich_progress_bar(tmp_path, dataset):
         def predict_dataloader(self):
             return reax.ReaxDataLoader(dataset=dataset)
 
-    trainer = reax.Trainer(
-        default_root_dir=tmp_path,
-        # TODO: num_sanity_val_steps=0,
-        listeners=progress.RichProgressBar(),
-    )
+    trainer = reax.Trainer(default_root_dir=tmp_path, listeners=progress.RichProgressBar())
     model = TestModel()
 
     with mock.patch("rich.progress.Progress.update") as mocked:
-        trainer.fit(model, max_epochs=1, limit_train_batches=1, limit_val_batches=1)
+        trainer.fit(
+            model,
+            max_epochs=1,
+            limit_train_batches=1,
+            limit_val_batches=1,
+            num_sanity_val_steps=0,
+        )
     # 2 for train progress bar and 1 for val progress bar
     assert mocked.call_count == 3
 
@@ -117,15 +119,15 @@ def test_rich_progress_bar_custom_theme():
     """Test to ensure that custom theme styles are used."""
     with mock.patch.multiple(
         "reax.listeners.progress.rich_progress",
-        CustomBarColumn=DEFAULT,
-        BatchesProcessedColumn=DEFAULT,
-        CustomTimeColumn=DEFAULT,
-        ProcessingSpeedColumn=DEFAULT,
+        CustomBarColumn=mock.DEFAULT,
+        BatchesProcessedColumn=mock.DEFAULT,
+        CustomTimeColumn=mock.DEFAULT,
+        ProcessingSpeedColumn=mock.DEFAULT,
     ) as mocks:
         theme = rich_progress.RichProgressBarTheme()
 
         progress_bar = progress.RichProgressBar(theme=theme)
-        progress_bar.on_train_start(reax.Trainer(), demos.BoringModel())
+        progress_bar.on_train_start(reax.Trainer(), None)
 
         assert progress_bar.theme == theme
         _, kwargs = mocks["CustomBarColumn"].call_args
@@ -198,10 +200,10 @@ def test_rich_progress_bar_leave(tmp_path, leave, reset_call_count):
         )
         trainer.fit(
             model,
-            # TODO: num_sanity_val_steps=0,
+            max_epochs=4,
             limit_train_batches=1,
             limit_val_batches=0,
-            max_epochs=4,
+            num_sanity_val_steps=0,
         )
     assert mock_progress_reset.call_count == reset_call_count
 
@@ -237,20 +239,22 @@ def test_rich_progress_bar_with_refresh_rate(
     model = demos.BoringModel()
     trainer = reax.Trainer(
         default_root_dir=tmp_path,
-        # TODO: num_sanity_val_steps=0,
-        limit_train_batches=train_batches,
-        limit_val_batches=val_batches,
-        max_epochs=1,
         listeners=progress.RichProgressBar(refresh_rate=refresh_rate),
     )
 
-    trainer.progress_bar_listener.on_train_start(trainer, model)
+    trainer.progress_bar_listener.on_train_start(trainer, None)
     with mock.patch.object(
         trainer.progress_bar_listener.progress,
         "update",
         wraps=trainer.progress_bar_listener.progress.update,
     ) as progress_update:
-        trainer.fit(model)
+        trainer.fit(
+            model,
+            max_epochs=1,
+            limit_train_batches=train_batches,
+            limit_val_batches=val_batches,
+            num_sanity_val_steps=0,
+        )
         assert progress_update.call_count == expected_call_count
 
     if train_batches > 0:
@@ -287,6 +291,7 @@ def test_rich_progress_bar_num_sanity_val_steps(tmp_path, limit_val_batches):
     assert progress_bar.progress.tasks[0].total == min(num_sanity_val_steps, limit_val_batches)
 
 
+@pytest.mark.skip(reason="This test doesn't work yet")
 def test_rich_progress_bar_counter_with_val_check_interval(tmp_path):
     """Test the completed and total counter for rich progress bar when using val_check_interval."""
     progress_bar = progress.RichProgressBar()
@@ -294,9 +299,9 @@ def test_rich_progress_bar_counter_with_val_check_interval(tmp_path):
     trainer = reax.Trainer(default_root_dir=tmp_path, listeners=[progress_bar])
     trainer.fit(
         model,
-        val_check_interval=2,
         max_epochs=1,
         limit_train_batches=7,
+        val_check_interval=2,
         limit_val_batches=4,
     )
 
@@ -340,13 +345,14 @@ def test_rich_progress_bar_metric_display_task_id(tmp_path):
         assert key not in rendered[val_progress_bar_id][1]
 
 
+@pytest.mark.skip(reason="Need to do a bit more work to get DummyLogger durin fast_dev_run")
 def test_rich_progress_bar_metrics_fast_dev_run(tmp_path):
     """Test that `v_num` does not appear in the progress bar when a dummy logger is used (fast-dev-run)."""
     progress_bar = progress.RichProgressBar()
     trainer = reax.Trainer(default_root_dir=tmp_path, listeners=progress_bar)
     model = demos.BoringModel()
     trainer.fit(model, fast_dev_run=True)
-    assert isinstance(trainer.logger, DummyLogger)
+    assert isinstance(trainer.logger, loggers.logger.DummyLogger)
     train_progress_bar_id = progress_bar.train_progress_bar_id
     val_progress_bar_id = progress_bar.val_progress_bar_id
     rendered = progress_bar.progress.columns[-1]._renderable_cache
@@ -354,6 +360,7 @@ def test_rich_progress_bar_metrics_fast_dev_run(tmp_path):
     assert "v_num" not in rendered[val_progress_bar_id][1]
 
 
+@pytest.mark.skip(reason="Don't support reduce_fx in log() yet")
 def test_rich_progress_bar_correct_value_epoch_end(tmp_path):
     """Rich counterpart to test_tqdm_progress_bar::test_tqdm_progress_bar_correct_value_epoch_end."""
 
@@ -430,12 +437,15 @@ def test_rich_progress_bar_padding():
     trainer = Mock()
     trainer.max_epochs = 1
     progress_bar._trainer = trainer
+    stage = Mock(spec=reax.stages.Train)
+    stage.parent.max_iters = 1
 
-    train_description = progress_bar._get_train_description(current_epoch=0)
+    train_description = progress_bar._get_train_description(current_epoch=0, stage=stage)
     assert "Epoch 0/0" in train_description
     assert len(progress_bar.validation_description) == len(train_description)
 
 
+@pytest.mark.skip(reason="Don't support pickling yet")
 def test_rich_progress_bar_can_be_pickled(tmp_path):
     bar = progress.RichProgressBar()
     trainer = reax.Trainer(

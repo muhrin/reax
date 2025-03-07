@@ -37,6 +37,8 @@ import argparse
 import functools
 from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, TypeVar, Union
 
+from typing_extensions import override
+
 from reax.lightning import rank_zero
 
 if TYPE_CHECKING:
@@ -134,6 +136,55 @@ class Logger(abc.ABC):
         :param checkpoint_listener: The model checkpoint listener instance.
         :type checkpoint_listener: "reax.listeners.ModelCheckpoint"
         """
+
+
+class DummyLogger(Logger):
+    """Dummy logger for internal use.
+
+    It is useful if we want to disable user's logger for a feature, but still ensure that user code
+    can run
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._experiment = _DummyExperiment()
+
+    @property
+    def experiment(self) -> "_DummyExperiment":
+        """Return the experiment object associated with this logger."""
+        return self._experiment
+
+    @override
+    def log_metrics(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    @override
+    def log_hyperparams(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    @property
+    @override
+    def name(self) -> str:
+        """Return the experiment name."""
+        return ""
+
+    @property
+    @override
+    def version(self) -> str:
+        """Return the experiment version."""
+        return ""
+
+    def __getitem__(self, idx: int) -> "_DummyLogger":
+        # enables self.logger[0].experiment.add_image(...)
+        return self
+
+    def __getattr__(self, name: str) -> Callable:
+        """Allows the DummyLogger to be called with arbitrary methods, to avoid AttributeErrors."""
+
+        def method(*_, **__) -> None:
+            return None
+
+        return method
 
 
 class WithDdp(Generic[Exp], abc.ABC):

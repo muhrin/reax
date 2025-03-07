@@ -34,7 +34,7 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import timedelta
 import math
-from typing import TYPE_CHECKING, Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Final, Optional, Union, cast
 
 from lightning_utilities.core.imports import RequirementCache
 from typing_extensions import override
@@ -300,8 +300,11 @@ class RichProgressBar(progress_bar.ProgressBar):
             )
 
         super().__init__()
-        self._refresh_rate: int = refresh_rate
-        self._leave: bool = leave
+        # Params
+        self._refresh_rate: Final[int] = refresh_rate
+        self._leave: Final[bool] = leave
+
+        # State
         self._console: Optional[rich.Console] = None
         self._console_kwargs = console_kwargs or {}
         self._enabled: bool = True
@@ -390,13 +393,30 @@ class RichProgressBar(progress_bar.ProgressBar):
             self.progress.refresh()
 
     @override
-    def on_train_start(self, trainer: "reax.Trainer", _stage: "reax.stages.Train", /) -> None:
+    def on_train_start(self, trainer: "reax.Trainer", /, *_) -> None:
+        self._init_progress(trainer)
+
+    @override
+    def on_predict_start(self, trainer: "reax.Trainer", /, *_) -> None:
+        self._init_progress(trainer)
+
+    @override
+    def on_test_start(self, trainer: "reax.Trainer", /, *_) -> None:
+        self._init_progress(trainer)
+
+    @override
+    def on_validation_start(self, trainer: "reax.Trainer", /, *_) -> None:
+        self._init_progress(trainer)
+
+    @override
+    def on_sanity_check_start(self, trainer: "reax.Trainer", *_) -> None:
         self._init_progress(trainer)
 
     @override
     def on_train_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
         if self.is_disabled:
             return
+
         total_batches = stage.max_batches
         train_description = self._get_train_description(trainer.current_epoch, stage)
 
@@ -435,18 +455,6 @@ class RichProgressBar(progress_bar.ProgressBar):
         self._update_metrics(trainer, stage)
 
     @override
-    def on_predict_start(self, trainer: "reax.Trainer", _stage: "reax.stages.Predict", /) -> None:
-        self._init_progress(trainer)
-
-    @override
-    def on_test_start(self, trainer: "reax.Trainer", _stage: "reax.stages.Test", /) -> None:
-        self._init_progress(trainer)
-
-    @override
-    def on_sanity_check_start(self, trainer: "reax.Trainer", *_) -> None:
-        self._init_progress(trainer)
-
-    @override
     def on_sanity_check_end(self, *_) -> None:
         if self.progress is not None:
             assert self.val_sanity_progress_bar_id is not None
@@ -454,20 +462,8 @@ class RichProgressBar(progress_bar.ProgressBar):
         self.refresh()
 
     @override
-    def on_validation_start(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /
-    ) -> None:
-        self._init_progress(trainer)
-
-    @override
-    def on_validation_batch_start(
-        self,
-        trainer: "reax.Trainer",
-        stage: "reax.stages.Validate",
-        _batch: Any,
-        _batch_idx: int,
-        # dataloader_idx: int = 0,
-        /,
+    def on_validation_epoch_start(
+        self, _trainer: "reax.Trainer", stage: "reax.stages.Validate", /
     ) -> None:
         if self.is_disabled:  # TODO or not self.has_dataloader_changed(dataloader_idx):
             return
@@ -550,15 +546,7 @@ class RichProgressBar(progress_bar.ProgressBar):
     #     self.reset_dataloader_idx_tracker()
 
     @override
-    def on_test_batch_start(
-        self,
-        _trainer: "reax.Trainer",
-        stage: "reax.stages.Test",
-        _batch: Any,
-        _batch_idx: int,
-        /,
-        # dataloader_idx: int = 0,
-    ) -> None:
+    def on_test_epoch_start(self, _trainer: "reax.Trainer", stage: "reax.stages.Test", /) -> None:
         if self.is_disabled:  # or not self.has_dataloader_changed(dataloader_idx):
             return
 
@@ -569,14 +557,8 @@ class RichProgressBar(progress_bar.ProgressBar):
         self.refresh()
 
     @override
-    def on_predict_batch_start(
-        self,
-        _trainer: "reax.Trainer",
-        stage: "reax.stages.Predict",
-        _batch: Any,
-        _batch_idx: int,
-        /,
-        # dataloader_idx: int = 0,
+    def on_predict_epoch_start(
+        self, _trainer: "reax.Trainer", stage: "reax.stages.Predict", /
     ) -> None:
         if self.is_disabled:  # or not self.has_dataloader_changed(dataloader_idx):
             return
