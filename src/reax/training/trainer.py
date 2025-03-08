@@ -434,7 +434,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             )
 
         if ckpt_path:
-            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=True)
+            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
 
         fit = stages.Fit(
             module,
@@ -470,7 +470,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     ):
         """Validate function."""
         if ckpt_path:
-            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=True)
+            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
 
         self._run_stage(
             stages.Validate(
@@ -493,7 +493,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     ):
         """Test function."""
         if ckpt_path:
-            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=True)
+            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
 
         test = stages.Test(
             module,

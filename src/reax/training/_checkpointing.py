@@ -13,18 +13,13 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def save_checkpoint(module: "reax.Module", filepath: typing.Path, weights_only: bool = True):
-    if not weights_only:
-        _LOGGER.warning("`weights_only=False` is not supported yet, ignoring")
-
-    ckpt = dump_checkpoint(module)
+    ckpt = dump_checkpoint(module, weights_only=weights_only)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, "wb") as file:
         pickle.dump(ckpt, file)
 
 
 def load_checkpoint(module: "reax.Module", filepath: typing.Path, weights_only: bool = True):
-    if not weights_only:
-        _LOGGER.warning("`weights_only=False` is not supported yet, ignoring")
     with open(filepath, "rb") as file:
         ckpt = pickle.load(file)  # nosec: B301
         module.set_parameters(ckpt["parameters"])
