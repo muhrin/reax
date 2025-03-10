@@ -169,7 +169,6 @@ def get_standard_metrics(trainer: "reax.Trainer") -> dict[str, Union[int, str]]:
     """
     items_dict: dict[str, Union[int, str]] = {}
     if trainer.loggers:
-        from lightning.pytorch.loggers.utilities import _version
 
         if (version := _version(trainer.loggers)) not in ("", None):
             if isinstance(version, str):
@@ -178,3 +177,10 @@ def get_standard_metrics(trainer: "reax.Trainer") -> dict[str, Union[int, str]]:
             items_dict["v_num"] = version
 
     return items_dict
+
+
+def _version(loggers: list[Any], separator: str = "_") -> Union[int, str]:
+    if len(loggers) == 1:
+        return loggers[0].version
+    # Concatenate versions together, removing duplicates and preserving order
+    return separator.join(dict.fromkeys(str(logger.version) for logger in loggers))

@@ -45,29 +45,24 @@ class Validate(stages.EpochStage):
 
     @override
     def _on_starting(self):
-        """On starting."""
         super()._on_starting()
         self._module.on_validation_start(weakref.proxy(self))
 
     @override
-    def _on_started(self):
-        """On started."""
-        super()._on_started()
+    def _on_epoch_start(self):
+        super()._on_epoch_start()
         self._module.on_validation_epoch_start(weakref.proxy(self))
 
     @override
     def _step(self) -> "reax.stages.MetricResults":
-        """Step function."""
         return self._module.validation_step(self.batch, self._iter)
 
     @override
-    def _on_stopping(self) -> None:
-        """On stopping."""
+    def _on_epoch_end(self) -> None:
+        super()._on_epoch_end()
         self._module.on_validation_epoch_end(weakref.proxy(self))
-        super()._on_stopping()
 
     @override
-    def _on_stopped(self):
-        """On stopped."""
-        super()._on_stopped()
+    def _on_stopping(self) -> None:
+        super()._on_stopping()
         self._module.on_validation_end(weakref.proxy(self))

@@ -164,7 +164,8 @@ class Stage(abc.ABC):
             if self._iter == -1:
                 # Starting
                 self._on_starting()
-                self.events.fire_event(common.StageListener.on_stage_starting, weakref.proxy(self))
+                self.events.fire_event(common.StageListener.on_stage_start, weakref.proxy(self))
+
                 # Started
                 self._on_started()
                 self.events.fire_event(common.StageListener.on_stage_started, weakref.proxy(self))
@@ -189,17 +190,20 @@ class Stage(abc.ABC):
             # Iteration finished
             self._on_iteration_finished(res)
             self.events.fire_event(
-                common.StageListener.on_stage_iter_ended, weakref.proxy(self), self._iter, res
+                common.StageListener.on_stage_iter_ended, weakref.proxy(self), self._iter - 1, res
             )
+
         except StopIteration as exc:
             self._stop_reason = str(exc)
             # Stopping
             self._on_stopping()
-            self.events.fire_event(common.StageListener.on_stage_ending, weakref.proxy(self))
+            self.events.fire_event(common.StageListener.on_stage_end, weakref.proxy(self))
 
             # Stopped
             self._on_stopped()
             self.events.fire_event(common.StageListener.on_stage_ended, weakref.proxy(self))
+
+            self._teardown()
 
             raise
         except BaseException:
@@ -223,15 +227,11 @@ class Stage(abc.ABC):
         """Stage is starting."""
         self._state = StageState.RUNNING
         self._iter = 0
-
-        # Events
         if self._module is not None:
-            self._module.on_stage_starting(weakref.proxy(self))
+            self._module.on_stage_start(weakref.proxy(self))
 
     def _on_started(self):
         """On started."""
-        if self._module is not None:
-            self._module.on_stage_started(weakref.proxy(self))
 
     def _on_iteration_starting(self):
         """On iteration starting."""
@@ -266,7 +266,12 @@ class Stage(abc.ABC):
         self._run_count += 1
 
     def _on_stopped(self):
-        """On stopped."""
+        """The stage has stopped."""
+        if self._module is not None:
+            self._module.on_stage_end(weakref.proxy(self))
+
+    def _teardown(self):
+        """Teardown: perform any necessary cleanup."""
 
     def _done(self) -> bool:
         """Done function."""
@@ -410,6 +415,8 @@ class EpochStage(Stage, abc.ABC):
     def step(self) -> None:
         try:
             super().step()
+        except StopIteration:
+            raise
         except BaseException as exception:
             if self._datamanager is not None and self._datamanager.ready:
                 # Notify the data source of the exception
@@ -466,6 +473,13 @@ class EpochStage(Stage, abc.ABC):
         self._iterator = iter(self.dataloader)
         self._metrics_results = None
 
+    def _on_started(self):
+        super()._on_started()
+        self._on_epoch_start()
+
+    def _on_epoch_start(self):
+        """The epoch is starting"""
+
     @override
     def _on_iteration_starting(self):
         """On iteration starting."""
@@ -475,13 +489,14 @@ class EpochStage(Stage, abc.ABC):
         super()._on_iteration_starting()
 
     @override
-    def _on_iteration_finishing(self, outputs: Any, /) -> None:
-        """Look through the logged metrics and extract those where a user logged a results during
-        this step and used the `on_step=True` option."""
+    def _on_iteration_finished(self, outputs: Any, /) -> None:
+        """On iteration finished."""
+        super()._on_iteration_finished(outputs)
         metrics = {keys.PBAR: {}, keys.LOG: {}, keys.LISTENER: {}}
         for _name, entry in self.metrics.items():
             if entry.meta.on_step:  # Here we are stepping
                 value = entry.last_value
+                metrics[keys.LISTENER][entry.meta.name] = value
                 if entry.meta.logger:
                     metrics[keys.LOG][entry.meta.name] = value
                 if entry.meta.prog_bar:
@@ -490,12 +505,6 @@ class EpochStage(Stage, abc.ABC):
         # Convert tensors to python scalars
         self._metrics_results = jax.tree_map(arrays.to_base, metrics)
 
-        super()._on_iteration_finishing(outputs)
-
-    @override
-    def _on_iteration_finished(self, outputs: Any, /) -> None:
-        """On iteration finished."""
-        super()._on_iteration_finished(outputs)
         # Keep track of the total number of batches, even across multiple executions of this loop
         self._total_batch_idx += 1
 
@@ -503,6 +512,10 @@ class EpochStage(Stage, abc.ABC):
     def _on_stopping(self) -> None:
         """Look through the logged metrics and extract those where a user logged a results during
         this step and used the `on_epoch=True` option."""
+        super()._on_stopping()
+        self._on_epoch_end()
+
+        # Gather the metrics
         metrics = {keys.PBAR: {}, keys.LOG: {}, keys.LISTENER: {}}
         for _name, entry in self.metrics.items():
             if entry.meta.on_epoch:  # Here we are completing an epoch
@@ -516,11 +529,12 @@ class EpochStage(Stage, abc.ABC):
 
         # Convert tensors to python scalars
         self._metrics_results = jax.tree_map(arrays.to_base, metrics)
-        super()._on_stopping()
 
-    @override
-    def _on_stopped(self):
-        super()._on_stopped()
+    def _on_epoch_end(self) -> None:
+        """The epoch is ending."""
+
+    def _teardown(self) -> None:
+        super()._teardown()
         if self._datamanager is not None and self._datamanager.ready:
             self._datamanager.source.teardown(self)
 

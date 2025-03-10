@@ -17,7 +17,7 @@ _T = TypeVar("_T")
 _T_co = TypeVar("_T_co", covariant=True)
 
 
-__all__ = ("ArrayDataset", "ConcatDataset", "random_split")
+__all__ = ("ArrayDataset", "ConcatDataset", "Subset", "random_split")
 
 
 class ConcatDataset(Sequence[_T_co]):

@@ -32,7 +32,6 @@ dependencies = [
     'jaxtyping',
     'lightning-utilities>=0.10.0',
     "optax",
-    'orbax-checkpoint',
     'pytray',
     "equinox",
     "tensorboardX",

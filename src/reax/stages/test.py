@@ -52,18 +52,25 @@ class Test(stages.EpochStage):
         )
 
     @override
-    def _on_started(self):
-        """On started."""
-        super()._on_started()
+    def _on_starting(self):
+        super()._on_starting()
+        self._module.on_test_start(weakref.proxy(self))
+
+    @override
+    def _on_epoch_start(self):
+        super()._on_epoch_start()
         self._module.on_test_epoch_start(weakref.proxy(self))
 
     @override
-    def _on_stopped(self):
-        """On stopped."""
-        super()._on_stopped()
+    def _step(self) -> "reax.stages.MetricResults":
+        return self._module.test_step(self.batch, self._iter)
+
+    @override
+    def _on_epoch_end(self):
+        super()._on_epoch_end()
         self._module.on_test_epoch_end(weakref.proxy(self))
 
     @override
-    def _step(self) -> "reax.stages.MetricResults":
-        """Step function."""
-        return self._module.test_step(self.batch, self._iter)
+    def _on_stopping(self) -> None:
+        super()._on_stopping()
+        self._module.on_test_end(weakref.proxy(self))

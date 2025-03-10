@@ -15,7 +15,6 @@ from typing import (
     Optional,
     Sequence,
     Union,
-    cast,
 )
 import weakref
 
@@ -50,7 +49,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         *,
         accelerator: Literal["auto", "cpu", "gpu"] = "auto",
         devices: Union[list[int], str, int] = "auto",
-        precision: Optional = None,
+        precision=None,
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = True,
         listeners: "Optional[list[reax.TrainerListener], reax.TrainerListener]" = None,
         log_every_n_steps: int = 50,
@@ -101,7 +100,6 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         self._loggers = _init_loggers(logger, self.default_root_dir)
 
         self._logging = _logger_connector.TrainerLogging()
-        self._events.add_listener(self._logging)
 
         if isinstance(listeners, hooks.TrainerListener):
             listeners = [listeners]
@@ -548,7 +546,6 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         with jax.default_device(jax.devices("cpu")[0]):
             try:
                 with self._attach(stage):
-                    self._logging.reset_metrics()
                     with stage.events.listen_context(self):
                         stage.run()
             except KeyboardInterrupt as exc:
@@ -651,103 +648,81 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
                 self._events = original_events
 
     @override
-    def on_stage_starting(self, stage: "stages.Stage", /) -> None:
-        """The stage is about to start."""
+    def on_stage_start(self, stage: "stages.Stage", /) -> None:
+        """The stage is starting."""
         if not self._optimizers and isinstance(stage, stages.Train):
             self._optimizers = stage.optimizers
 
         if stage.is_root:
-            # Only setup for the root loop
+            self._logging.reset_metrics()
             self._events.fire_event(hooks.TrainerListener.setup, stage)
 
-        self._events.fire_event(hooks.TrainerListener.on_stage_starting, stage)
-
-        event = hook_map(stage).get(hooks.TrainerListener.on_stage_starting)
-        if event is not None:
-            self._events.fire_event(event, stage)
+        self._events.fire_event(hooks.TrainerListener.on_stage_start, stage)
+        self._fire_stage_event(stage, stages.StageListener.on_stage_start)
 
     @override
     def on_stage_started(self, stage: "reax.Stage", /):
-        """On stage started."""
-        self._events.fire_event(hooks.TrainerListener.on_stage_started, stage)
-
-        event = hook_map(stage).get(hooks.TrainerListener.on_stage_started)
-        if event is not None:
-            self._events.fire_event(event, stage)
+        if isinstance(stage, stages.EpochStage):
+            self._events.fire_event(hooks.TrainerListener.on_epoch_start, stage)
+        self._fire_stage_event(stage, stages.StageListener.on_stage_started)
 
     @override
     def on_stage_iter_starting(self, stage: "stages.Stage", step: int, /):
         """On stage iter starting."""
-        self._events.fire_event(hooks.TrainerListener.on_stage_iter_starting, stage, step)
-
-        event = hook_map(stage).get(hooks.TrainerListener.on_stage_iter_starting)
-        if event is not None:
-            stage = cast(stages.EpochStage, stage)
-            self._events.fire_event(event, stage, stage.batch, step)
+        self._events.fire_event(hooks.TrainerListener.on_stage_iter_start, stage, step)
+        if isinstance(stage, stages.EpochStage):
+            self._fire_stage_event(
+                stage, stages.StageListener.on_stage_iter_starting, stage.batch, step
+            )
 
     @override
-    def on_stage_iter_ending(self, stage: "stages.Stage", step: int, outputs: Any, /):
+    def on_stage_iter_ended(self, stage: "stages.Stage", step: int, outputs: Any, /):
         """On stage iter ending."""
-        self._events.fire_event(hooks.TrainerListener.on_stage_iter_ending, stage, step, outputs)
-
         if isinstance(stage, stages.EpochStage):
+            self._logging.update(stage)
             logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
             logging_metrics.update(stage.logged_metrics)
             for logger in self.loggers:
                 logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
                 logger.save()
 
-            self._events.fire_event(
-                hooks.TrainerListener.on_batch_ending,
-                stage,
-                step,
-                outputs,
+            self._events.fire_event(hooks.TrainerListener.on_batch_end, stage, step, outputs)
+
+            self._fire_stage_event(
+                stage, stages.StageListener.on_stage_iter_ending, outputs, stage.batch, step
             )
 
-        event = hook_map(stage).get(hooks.TrainerListener.on_stage_iter_ending)
-        if event is not None:
-            stage = cast(stages.EpochStage, stage)
-            self._events.fire_event(event, stage, outputs, stage.batch, step)
+        self._events.fire_event(hooks.TrainerListener.on_stage_iter_end, stage, step, outputs)
 
         if isinstance(stage, stages.Fit):
             # Keep track of the number of completed training epochs
             self._current_epoch += 1
 
     @override
-    def on_stage_ending(self, stage: "stages.Stage", /) -> None:
-        """On stage ending."""
+    def on_stage_end(self, stage: "reax.Stage", /):
         if isinstance(stage, stages.EpochStage):
+            self._logging.update(stage)
             self._events.fire_event(
-                hooks.TrainerListener.on_epoch_ending, stage, stage.listener_metrics
+                hooks.TrainerListener.on_epoch_end, stage, stage.listener_metrics
             )
 
             metrics = stage.results
             if metrics[keys.LOG]:
                 logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
-                logging_metrics.update(metrics[keys.LOG])
+                logging_metrics.update(self.logged_metrics)
                 for logger in self.loggers:
                     logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
                     logger.save()
 
-        self._events.fire_event(hooks.TrainerListener.on_stage_ending, stage)
-
-        event = hook_map(stage).get(hooks.TrainerListener.on_stage_ending)
-        if event is not None:
-            stage = cast(stages.EpochStage, stage)
-            self._events.fire_event(event, stage)
+        self._fire_stage_event(stage, stages.StageListener.on_stage_end)
 
     @override
     def on_stage_ended(self, stage: "reax.Stage", /):
-        """On stage ended."""
-        self._events.fire_event(hooks.TrainerListener.on_stage_ended, stage)
-
-        event = hook_map(stage).get(hooks.TrainerListener.on_stage_ended)
-        if event is not None:
-            stage = cast(stages.EpochStage, stage)
-            self._events.fire_event(event, stage)
-
+        self._events.fire_event(hooks.TrainerListener.on_stage_end, stage)
+        self._fire_stage_event(stage, stages.StageListener.on_stage_ended)
         # Finally, call teardown
-        self._events.fire_event(hooks.TrainerListener.teardown, stage)
+        if stage.is_root:
+            self._events.fire_event(hooks.TrainerListener.teardown, stage)
 
     # region Checkpointing
 
@@ -775,6 +750,11 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return getattr(checkpointer, "best_model_path", None)
 
     # endregion
+
+    def _fire_stage_event(self, stage, hook: Callable, *args):
+        event = hook_map(stage).get(hook)
+        if event is not None:
+            self._events.fire_event(event, stage, *args)
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)
@@ -841,12 +821,12 @@ def hook_map(_stage) -> dict[Callable, Callable]:
 def _(_stage: stages.Train) -> dict[Callable, Callable]:
     """Function."""
     return {
-        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_train_start,
-        hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_train_epoch_start,
-        hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_train_batch_start,
-        hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_train_batch_end,
-        hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_train_epoch_end,
-        hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_train_end,
+        stages.StageListener.on_stage_start: hooks.TrainerListener.on_train_start,
+        stages.StageListener.on_stage_started: hooks.TrainerListener.on_train_epoch_start,
+        stages.StageListener.on_stage_iter_starting: hooks.TrainerListener.on_train_batch_start,
+        stages.StageListener.on_stage_iter_ending: hooks.TrainerListener.on_train_batch_end,
+        stages.StageListener.on_stage_end: hooks.TrainerListener.on_train_epoch_end,
+        stages.StageListener.on_stage_ended: hooks.TrainerListener.on_train_end,
     }
 
 
@@ -854,13 +834,13 @@ def _(_stage: stages.Train) -> dict[Callable, Callable]:
 def _(_stage: stages.Validate) -> dict[Callable, Callable]:
     """Function."""
     return {
-        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_validation_start,
-        hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_validation_epoch_start,
+        stages.StageListener.on_stage_start: hooks.TrainerListener.on_validation_start,
+        stages.StageListener.on_stage_started: hooks.TrainerListener.on_validation_epoch_start,
         # pylint: disable=line-too-long
-        hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_validation_batch_start,
-        hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_validation_batch_end,
-        hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_validation_epoch_end,
-        hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_validation_end,
+        stages.StageListener.on_stage_iter_starting: hooks.TrainerListener.on_validation_batch_start,
+        stages.StageListener.on_stage_iter_ending: hooks.TrainerListener.on_validation_batch_end,
+        stages.StageListener.on_stage_end: hooks.TrainerListener.on_validation_epoch_end,
+        stages.StageListener.on_stage_ended: hooks.TrainerListener.on_validation_end,
     }
 
 
@@ -868,12 +848,12 @@ def _(_stage: stages.Validate) -> dict[Callable, Callable]:
 def _(_stage: stages.Test) -> dict[Callable, Callable]:
     """Function."""
     return {
-        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_test_start,
-        hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_test_epoch_start,
-        hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_test_batch_start,
-        hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_test_batch_end,
-        hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_test_epoch_end,
-        hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_test_end,
+        stages.StageListener.on_stage_start: hooks.TrainerListener.on_test_start,
+        stages.StageListener.on_stage_started: hooks.TrainerListener.on_test_epoch_start,
+        stages.StageListener.on_stage_iter_starting: hooks.TrainerListener.on_test_batch_start,
+        stages.StageListener.on_stage_iter_ending: hooks.TrainerListener.on_test_batch_end,
+        stages.StageListener.on_stage_end: hooks.TrainerListener.on_test_epoch_end,
+        stages.StageListener.on_stage_ended: hooks.TrainerListener.on_test_end,
     }
 
 
@@ -881,12 +861,12 @@ def _(_stage: stages.Test) -> dict[Callable, Callable]:
 def _(_stage: stages.Predict) -> dict[Callable, Callable]:
     """Function."""
     return {
-        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_predict_start,
-        hooks.TrainerListener.on_stage_started: hooks.TrainerListener.on_predict_epoch_start,
-        hooks.TrainerListener.on_stage_iter_starting: hooks.TrainerListener.on_predict_batch_start,
-        hooks.TrainerListener.on_stage_iter_ending: hooks.TrainerListener.on_predict_batch_end,
-        hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_predict_epoch_end,
-        hooks.TrainerListener.on_stage_ended: hooks.TrainerListener.on_predict_end,
+        stages.StageListener.on_stage_start: hooks.TrainerListener.on_predict_start,
+        stages.StageListener.on_stage_started: hooks.TrainerListener.on_predict_epoch_start,
+        stages.StageListener.on_stage_iter_starting: hooks.TrainerListener.on_predict_batch_start,
+        stages.StageListener.on_stage_iter_ending: hooks.TrainerListener.on_predict_batch_end,
+        stages.StageListener.on_stage_end: hooks.TrainerListener.on_predict_epoch_end,
+        stages.StageListener.on_stage_ended: hooks.TrainerListener.on_predict_end,
     }
 
 
@@ -894,8 +874,8 @@ def _(_stage: stages.Predict) -> dict[Callable, Callable]:
 def _(_stage: stages.Fit) -> dict[Callable, Callable]:
     """Function."""
     return {
-        hooks.TrainerListener.on_stage_starting: hooks.TrainerListener.on_fit_start,
-        hooks.TrainerListener.on_stage_ending: hooks.TrainerListener.on_fit_end,
+        stages.StageListener.on_stage_start: hooks.TrainerListener.on_fit_start,
+        stages.StageListener.on_stage_end: hooks.TrainerListener.on_fit_end,
     }
 
 

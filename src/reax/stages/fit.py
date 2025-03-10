@@ -239,6 +239,7 @@ class Fit(stages.Stage):
         limit_val_batches: Optional[Union[int, float]] = 1.0,
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
+        reload_dataloaders_every_n_epochs: int = 0,
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
@@ -254,6 +255,9 @@ class Fit(stages.Stage):
             min_iters=min_epochs,
             parent=parent,
         )
+
+        # Params
+        self._reload_dataloaders_every_n_epochs = reload_dataloaders_every_n_epochs
 
         # State
         self._fit_epoch = FitEpoch(

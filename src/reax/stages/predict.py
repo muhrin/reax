@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Any, Optional, Union
+import weakref
 
 import beartype
 import jaxtyping as jt
@@ -52,6 +53,21 @@ class Predict(stages.EpochStage):
         return self._all_outputs
 
     @override
+    def _on_starting(self):
+        super()._on_starting()
+        self._module.on_predict_start(weakref.proxy(self))
+
+    @override
+    def _on_epoch_start(self):
+        super()._on_epoch_start()
+        self._module.on_predict_epoch_start(weakref.proxy(self))
+
+    @override
+    def _on_iteration_starting(self):
+        super()._on_iteration_starting()
+        self._module.on_predict_batch_start(self, self.batch, self.batch_idx)
+
+    @override
     def _step(self) -> "reax.stages.MetricResults":
         """Step function."""
         return self._module.predict_step(self.batch, self._iter)
@@ -59,5 +75,17 @@ class Predict(stages.EpochStage):
     @override
     def _on_iteration_finishing(self, outputs: Any, /):
         """On iteration finishing."""
+        super()._on_iteration_finishing(outputs)
         if self._keep_predictions:
             self._all_outputs.append(outputs)
+        self._module.on_predict_batch_end(self, outputs, self.batch, self.batch_idx)
+
+    @override
+    def _on_epoch_end(self) -> None:
+        super()._on_epoch_end()
+        self._module.on_predict_epoch_end(weakref.proxy(self))
+
+    @override
+    def _on_stopped(self) -> None:
+        super()._on_stopped()
+        self._module.on_predict_end(weakref.proxy(self))

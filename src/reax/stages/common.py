@@ -28,11 +28,11 @@ StageEvents = events.EventGenerator["StageListener"]
 
 
 class StageListener:
-    def on_stage_starting(self, stage: "reax.Stage", /):
-        """The stage is about to start."""
+    def on_stage_start(self, stage: "reax.Stage", /):
+        """The stage is starting."""
 
     def on_stage_started(self, stage: "reax.Stage", /):
-        """The stage has started, all initialisation if complete."""
+        """The stage is starting."""
 
     def on_stage_iter_starting(self, stage: "reax.Stage", step: int, /):
         """The stage is about to start an iteration."""
@@ -43,14 +43,11 @@ class StageListener:
     def on_stage_iter_ended(self, stage: "reax.Stage", step: int, outputs: Any, /):
         """The stage just finished processing an iteration."""
 
-    def on_stage_ending(self, stage: "reax.Stage", /):
-        """The stage is about to finish."""
+    def on_stage_end(self, stage: "reax.Stage", /):
+        """The stage is ending."""
 
     def on_stage_ended(self, stage: "reax.Stage", /):
-        """The stage has ended.
-
-        It will not be mutated after this point until it is starting again.
-        """
+        """The stage has ended."""
 
 
 class MetricResults(TypedDict):
@@ -143,6 +140,7 @@ class DataSourceManager(Generic[_T_co]):
         def __init__(self, manager: "DataSourceManager[_T_co]", method_name: str):
             self._manager = manager
             self._method_name = method_name
+            self._iterable: Optional[Iterable[_T_co]] = None
 
         def __iter__(self):
             return iter(self.dataloader)
@@ -155,7 +153,9 @@ class DataSourceManager(Generic[_T_co]):
 
         @property
         def dataloader(self) -> Iterable[_T_co]:
-            return getattr(self._manager.source, self._method_name)()
+            if self._iterable is None:
+                self._iterable = getattr(self._manager.source, self._method_name)()
+            return self._iterable
 
     def __init__(self, source: "reax.data.DataSource[_T_co]"):
         self._source: "reax.data.DataSource[_T_co]" = source

@@ -124,9 +124,9 @@ class Train(stages.EpochStage):
         self._module.on_train_start(weakref.proxy(self))
 
     @override
-    def _on_started(self):
+    def _on_epoch_start(self):
         """On started."""
-        super()._on_started()
+        super()._on_epoch_start()
         self._module.on_train_epoch_start(weakref.proxy(self))
 
     @override
@@ -157,10 +157,14 @@ class Train(stages.EpochStage):
         return res
 
     @override
-    def _on_stopping(self) -> None:
-        """On stopping."""
+    def _on_epoch_end(self) -> None:
+        super()._on_epoch_end()
         self._module.on_train_epoch_end(weakref.proxy(self))
+
+    @override
+    def _on_stopping(self) -> None:
         super()._on_stopping()
+        self._module.on_train_end(weakref.proxy(self))
 
     @override
     def _done(self) -> bool:

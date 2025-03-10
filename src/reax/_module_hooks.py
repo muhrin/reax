@@ -67,6 +67,9 @@ class ModuleHooks:
 
     # region Test
 
+    def on_test_start(self, stage: "reax.stages.Test", /) -> None:
+        """The test stage is starting"""
+
     def on_test_epoch_start(self, stage: "reax.stages.Test", /) -> None:
         """A test epoch is about to begin."""
 
@@ -81,9 +84,15 @@ class ModuleHooks:
     def on_test_epoch_end(self, stage: "reax.stages.Test", /) -> None:
         """A test epoch is about to end."""
 
+    def on_test_end(self, stage: "reax.stages.Test", /) -> None:
+        """The test stage has finished"""
+
     # endregion
 
     # region Predict
+
+    def on_predict_start(self, stage: "reax.stages.Predict", /) -> None:
+        """Prediction is starting."""
 
     def on_predict_epoch_start(self, stage: "reax.stages.Predict", /) -> None:
         """A predict epoch is about to begin."""
@@ -94,12 +103,17 @@ class ModuleHooks:
         """The test stage if about to process a batch."""
 
     def on_predict_batch_end(
-        self, stage: "reax.stages.Train", outputs: Any, batch: Any, batch_idx: int, /
+        self, stage: "reax.stages.Predict", outputs: Any, batch: Any, batch_idx: int, /
     ) -> None:
         """The predict stage has just finished processing a batch."""
 
     def on_predict_epoch_end(self, stage: "reax.stages.Train", /) -> None:
         """A predict epoch is about to end."""
+
+    def on_predict_end(self, stage: "reax.stages.Predict", /) -> None:
+        """Prediction is starting."""
+
+    # endregion
 
     def on_before_optimizer_step(
         self, optimizer: "reax.Optimizer", grad: dict[str, Any], /
@@ -115,26 +129,10 @@ class ModuleHooks:
         :param grad: The gradients dictionary from JAX
         """
 
-    # endregion
-
     # region Generic stage messages
 
-    def on_epoch_starting(self, stage: "reax.stages.EpochStage", /) -> None:
-        """An epoch is just about to begin."""
-
-    def on_batch_ending(
-        self, stage: "reax.stages.EpochStage", batch_idx: int, metrics: dict, /
-    ) -> None:
-        """A batch has just been processed."""
-
-    def on_epoch_ending(self, stage: "reax.stages.EpochStage", metrics: dict, /) -> None:
-        """An epoch is ending."""
-
-    def on_stage_starting(self, stage: "reax.stages.Stage", /) -> None:
-        """A trainer stage is about to begin."""
-
-    def on_stage_started(self, stage: "reax.stages.Stage", /) -> None:
-        """A trainer has started."""
+    def on_stage_start(self, stage: "reax.stages.Stage", /) -> None:
+        """A stage is about to start."""
 
     def on_stage_iter_starting(self, stage: "reax.Stage", step: int, /) -> None:
         """A stage is about to start an interation."""
@@ -142,10 +140,7 @@ class ModuleHooks:
     def on_stage_iter_ending(self, stage: "reax.Stage", step: int, outputs: Any, /):
         """The stage just finished processing an iteration."""
 
-    def on_stage_ending(self, stage: "reax.Stage", /) -> None:
-        """The stage is about to finish."""
-
-    def on_stage_ended(self, stage: "reax.Stage", /) -> None:
-        """The stage has ended."""
+    def on_stage_end(self, stage: "reax.Stage", /) -> None:
+        """The stage is ending."""
 
     # endregion

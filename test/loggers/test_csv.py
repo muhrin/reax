@@ -35,8 +35,8 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import fsspec
+import jax.numpy as jnp
 import pytest
-import torch
 
 import reax
 from reax import loggers, saving
@@ -115,8 +115,8 @@ def test_log_metrics(tmp_path, step_idx):
     metrics = {
         "float": 0.3,
         "int": 1,
-        "FloatTensor": torch.tensor(0.1),
-        "IntTensor": torch.tensor(1),
+        "FloatTensor": jnp.array(0.1),
+        "IntTensor": jnp.array(1),
     }
     logger.log_metrics(metrics, step_idx)
     logger.save()
@@ -137,7 +137,7 @@ def test_log_hyperparams(tmp_path):
         "bool": True,
         "dict": {"a": {"b": "c"}},
         "list": [1, 2, 3],
-        "layer": torch.nn.BatchNorm1d,
+        # "layer": linen.BatchNorm, Unsupported
     }
     logger.log_hyperparams(hparams)
     logger.save()
@@ -174,8 +174,8 @@ def test_flush_n_steps(tmp_path):
     metrics = {
         "float": 0.3,
         "int": 1,
-        "FloatTensor": torch.tensor(0.1),
-        "IntTensor": torch.tensor(1),
+        "FloatTensor": jnp.array(0.1),
+        "IntTensor": jnp.array(1),
     }
     logger.save = MagicMock()
     logger.log_metrics(metrics, step=0)
