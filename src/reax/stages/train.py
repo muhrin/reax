@@ -3,13 +3,15 @@ import weakref
 
 import beartype
 import jaxtyping as jt
+from lightning_utilities.core import overrides
 import optax
 from typing_extensions import override
 
+from reax import data, exceptions, modules
+from reax import optimizers as optimizers_
+from reax.lightning import rank_zero
+
 from . import common, stages
-from .. import exceptions
-from .. import optimizers as optimizers_
-from ..lightning import rank_zero
 
 if TYPE_CHECKING:
     import reax
@@ -41,27 +43,17 @@ class Train(stages.EpochStage):
         accumulate_grad_batches: int = 1,
         parent: Optional["reax.Stage"] = None,
         stopper: Optional[common.Stopper] = None,
-        datamanager: "Optional[common.DataSourceManager]" = None,
     ):
-        if datamanager is None:
-            if dataloader is None:
-                datamanager = common.get_datasource(datamodule, module)
-                dataloader = datamanager.get_loader_proxy("train_dataloader")
-            else:
-                datamanager = None
-        else:
-            assert dataloader is not None
-
         super().__init__(
             "fit",
             module,
-            dataloader,
             strategy,
             rng,
+            dataloader=dataloader,
+            datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
             parent=parent,
-            datamanager=datamanager,
         )
         # Params
         self._min_updates = min_updates
@@ -72,6 +64,25 @@ class Train(stages.EpochStage):
         self._optimizers = optimizers
         self._stopper = stopper if stopper is not None else common.Stopper()
         self._stopper.add_condition(lambda: self.updates >= self._min_updates)
+
+    @property
+    def dataloader(self) -> "Optional[reax.DataLoader]":
+        """Dataloader function."""
+        if self._dataloader is None:
+            if self._datamodule is not None and overrides.is_overridden(
+                "train_dataloader", self._datamodule, data.DataModule
+            ):
+                self._dataloader = self._datamodule.train_dataloader()
+            elif self._module is not None and overrides.is_overridden(
+                "train_dataloader", self._module, modules.Module
+            ):
+                self._dataloader = self._module.train_dataloader()
+
+        return self._dataloader
+
+    @property
+    def num_training_batches(self) -> Optional[Union[int, float]]:
+        return self.max_batches
 
     @property
     def updates(self) -> int:
@@ -124,6 +135,11 @@ class Train(stages.EpochStage):
         self._module.on_train_start(weakref.proxy(self))
 
     @override
+    def _on_iteration_starting(self):
+        super()._on_iteration_starting()
+        self._module.on_train_batch_start(weakref.proxy(self), self.batch, self.batch_idx)
+
+    @override
     def _on_epoch_start(self):
         """On started."""
         super()._on_epoch_start()
@@ -155,6 +171,11 @@ class Train(stages.EpochStage):
             self.stop("Max updates reached")
 
         return res
+
+    @override
+    def _on_iteration_finishing(self, outputs: Any, /):
+        super()._on_iteration_finishing(outputs)
+        self._module.on_train_batch_end(weakref.proxy(self), outputs, self.batch, self.batch_idx)
 
     @override
     def _on_epoch_end(self) -> None:

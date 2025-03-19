@@ -6,9 +6,12 @@ import weakref
 
 import beartype
 import jaxtyping as jt
+from lightning_utilities.core import overrides
 from typing_extensions import override
 
-from . import common, stages
+from reax import data, modules
+
+from . import stages
 
 if TYPE_CHECKING:
     import reax
@@ -33,23 +36,32 @@ class Test(stages.EpochStage):
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
-        if dataloader is None:
-            datamanager = common.get_datasource(datamodule, module)
-            dataloader = datamanager.get_loader_proxy("test_dataloader")
-        else:
-            datamanager = None
-
         super().__init__(
             "test",
             module,
-            dataloader,
             strategy,
             rng,
+            dataloader=dataloader,
+            datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
             parent=parent,
-            datamanager=datamanager,
         )
+
+    @property
+    def dataloader(self) -> "Optional[reax.DataLoader]":
+        """Dataloader function."""
+        if self._dataloader is None:
+            if self._datamodule is not None and overrides.is_overridden(
+                "test_dataloader", self._datamodule, data.DataModule
+            ):
+                self._dataloader = self._datamodule.test_dataloader()
+            elif self._module is not None and overrides.is_overridden(
+                "test_dataloader", self._module, modules.Module
+            ):
+                self._dataloader = self._module.test_dataloader()
+
+        return self._dataloader
 
     @override
     def _on_starting(self):

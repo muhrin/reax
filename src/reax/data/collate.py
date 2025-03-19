@@ -37,6 +37,9 @@ class Collator:
 
     def collate(self, batch: Any) -> Any:
         """Collate function."""
+        if not batch:
+            raise ValueError("Must supply a non-empty batch to collate")
+
         elem = batch[0]
 
         collate_fn = self._registry.find(elem)

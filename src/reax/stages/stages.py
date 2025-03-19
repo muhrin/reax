@@ -9,11 +9,11 @@ import weakref
 import beartype
 import jax
 import jaxtyping as jt
-from lightning_utilities.core import enums
+from lightning_utilities.core import enums, overrides
 from typing_extensions import deprecated, override
 
 from . import common
-from .. import data, keys, results, typing
+from .. import data, keys, modules, results, typing
 from ..lightning import rank_zero
 from ..utils import arrays
 
@@ -36,6 +36,14 @@ class StageState(enums.StrEnum):
     RUNNING = "running"
     FINISHED = "finished"
     INTERRUPTED = "interrupted"
+
+    @property
+    def finished(self) -> bool:
+        return self == self.FINISHED
+
+    @property
+    def interrupted(self) -> bool:
+        return self == self.INTERRUPTED
 
     @property
     def stopped(self) -> bool:
@@ -230,6 +238,10 @@ class Stage(abc.ABC):
         if self._module is not None:
             self._module.on_stage_start(weakref.proxy(self))
 
+        if self.is_root:
+            self._prepare_data()
+            self._setup()
+
     def _on_started(self):
         """On started."""
 
@@ -270,9 +282,6 @@ class Stage(abc.ABC):
         if self._module is not None:
             self._module.on_stage_end(weakref.proxy(self))
 
-    def _teardown(self):
-        """Teardown: perform any necessary cleanup."""
-
     def _done(self) -> bool:
         """Done function."""
         if self.max_iters is not None and self._iter >= self.max_iters:
@@ -291,6 +300,24 @@ class Stage(abc.ABC):
         finally:
             self._child = None
 
+    def _prepare_data(self) -> None:
+        if self._module is not None or overrides.is_overridden(
+            "prepare_data", self._module, modules.Module
+        ):
+            self._module.prepare_data()
+
+    def _setup(self) -> None:
+        if self._module is not None:
+            self._module.setup(weakref.proxy(self))
+
+    def _on_exception(self, exception: BaseException) -> None:
+        """Hook to deal with an exception"""
+
+    def _teardown(self):
+        """Teardown: perform any necessary cleanup."""
+        if self._module is not None:
+            self._module.teardown(weakref.proxy(self))
+
 
 class EpochStage(Stage, abc.ABC):
     """Stage that represents a loop over batches i.e. a single epoch."""
@@ -300,19 +327,18 @@ class EpochStage(Stage, abc.ABC):
         self,
         name: str,
         module: Optional["reax.Module"],
-        dataloader: "reax.DataLoader[_T_co]",
         strategy: "reax.Strategy",
         rng: "reax.Generator",
         *,
+        dataloader: "Optional[reax.DataLoader[_T_co]]" = None,
+        datamodule: "Optional[reax.DataModule[_T_co]]" = None,
         fast_dev_run: Union[bool, int] = False,
         min_batches: int = 0,
         limit_batches: Optional[Union[int, float]] = None,
         parent: Optional["reax.Stage"] = None,
-        datamanager: Optional[common.DataSourceManager[_T_co]] = None,
     ):
         if fast_dev_run:
-            num_batches = 1 if fast_dev_run is True else fast_dev_run
-            limit_batches = num_batches
+            limit_batches = 1 if fast_dev_run is True else fast_dev_run
 
         super().__init__(
             name,
@@ -329,8 +355,8 @@ class EpochStage(Stage, abc.ABC):
         self._limit_batches: Final[Union[int, float]] = limit_batches
 
         # State
-        self._dataloader: "reax.DataLoader[_T_co]" = dataloader
-        self._datamanager: Optional[common.DataSourceManager[_T_co]] = datamanager
+        self._dataloader: "Optional[reax.DataLoader[_T_co]]" = dataloader
+        self._datamodule: "Optional[reax.DataModule[_T_co]]" = datamodule
         self._iterator = None
         self._batch: Optional[Any] = None
         self._total_batch_idx: int = 0
@@ -342,6 +368,11 @@ class EpochStage(Stage, abc.ABC):
     def dataloader(self) -> "reax.DataLoader":
         """Dataloader function."""
         return self._dataloader
+
+    @property
+    def dataloaders(self) -> "Optional[reax.DataLoader]":
+        """Dataloader function."""
+        return self.dataloader
 
     @property
     def fast_dev_run(self) -> Union[bool, int]:
@@ -368,9 +399,19 @@ class EpochStage(Stage, abc.ABC):
         return self._run_count
 
     @property
+    def limit_batches(self) -> Optional[Union[int, float]]:
+        """The limit on the number of batches specified by the user"""
+        return self._limit_batches
+
+    @property
     def max_batches(self) -> Optional[Union[int, float]]:
         """Get the current maximum number of batches."""
         return common.batches_limit(self._limit_batches, self.dataloader)
+
+    @property
+    def num_batches(self) -> Optional[Union[int, float]]:
+        """The number of batches that will be used in this epoch"""
+        return self.max_batches
 
     @property
     def metrics(self) -> "reax.results.ResultCollection":
@@ -418,9 +459,7 @@ class EpochStage(Stage, abc.ABC):
         except StopIteration:
             raise
         except BaseException as exception:
-            if self._datamanager is not None and self._datamanager.ready:
-                # Notify the data source of the exception
-                self._datamanager.source.on_exception(exception)
+            self._on_exception(exception)
             raise
 
     def log(
@@ -455,10 +494,6 @@ class EpochStage(Stage, abc.ABC):
         """On starting."""
         super()._on_starting()
 
-        if self._datamanager is not None:
-            # Make sure the data is ready
-            self._datamanager.prepare_and_setup(self)
-
         if self._module is not None:
             was_uninitialised = self._module.parameters() is None
             example_batch = next(iter(self.dataloader))
@@ -484,8 +519,7 @@ class EpochStage(Stage, abc.ABC):
     def _on_iteration_starting(self):
         """On iteration starting."""
         batch = next(self._iterator)
-        self._strategy.to_device(batch)
-        self._batch = batch
+        self._batch = self._strategy.to_device(batch)
         super()._on_iteration_starting()
 
     @override
@@ -533,10 +567,30 @@ class EpochStage(Stage, abc.ABC):
     def _on_epoch_end(self) -> None:
         """The epoch is ending."""
 
+    @override
+    def _prepare_data(self) -> None:
+        if self._datamodule is not None and overrides.is_overridden(
+            "prepare_data", self._datamodule, data.DataModule
+        ):
+            self._datamodule.prepare_data()
+        super()._prepare_data()
+
+    @override
+    def _setup(self) -> None:
+        if self._datamodule is not None:
+            self._datamodule.setup(weakref.proxy(self))
+        super()._setup()
+
+    @override
+    def _on_exception(self, exception: BaseException) -> None:
+        if self._datamodule is not None:
+            self._datamodule.on_exception(exception)
+
+    @override
     def _teardown(self) -> None:
+        if self._datamodule:
+            self._datamodule.teardown(weakref.proxy(self))
         super()._teardown()
-        if self._datamanager is not None and self._datamanager.ready:
-            self._datamanager.source.teardown(self)
 
     @property
     @deprecated(

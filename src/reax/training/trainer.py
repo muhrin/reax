@@ -334,10 +334,17 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return getattr(self._strategy, "num_nodes", 1)
 
     @property
-    def train_dataloader(self) -> Optional:
+    def train_dataloader(self) -> "Optional[reax.data.DataLoader]":
         """Train dataloader."""
         if self._stage is not None:
             return getattr(self._stage, "train_dataloader", None)
+        return None
+
+    @property
+    def val_dataloaders(self) -> "Optional[reax.data.DataLoader]":
+        """Train dataloader."""
+        if self._stage is not None:
+            return getattr(self._stage, "val_dataloader", None)
         return None
 
     @property
@@ -409,7 +416,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
         num_sanity_val_steps: Optional[int] = None,
-    ):
+    ) -> "reax.stages.Fit":
         """Fit function.
 
 
@@ -457,6 +464,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         # Update state variables
         self._global_updates += fit.updates
 
+        return fit
+
     @jt.jaxtyped(typechecker=beartype.beartype)
     def validate(
         self,
@@ -465,20 +474,21 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         datamodule=None,
         ckpt_path: Optional[typing.Path] = None,
         limit_batches: Union[int, type(keys.NO_LIMIT)] = keys.NO_LIMIT,
-    ):
+    ) -> "reax.stages.Validate":
         """Validate function."""
         if ckpt_path:
             _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
 
-        self._run_stage(
-            stages.Validate(
-                module,
-                self._strategy,
-                dataloader=dataloaders,
-                datamodule=datamodule,
-                limit_batches=limit_batches,
-            )
+        validate = stages.Validate(
+            module,
+            self._strategy,
+            dataloader=dataloaders,
+            datamodule=datamodule,
+            limit_batches=limit_batches,
         )
+        self._run_stage(validate)
+
+        return validate
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def test(
@@ -488,7 +498,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         datamodule=None,
         ckpt_path: Optional[typing.Path] = None,
         limit_batches: Optional[Union[int, float]] = 1.0,
-    ):
+    ) -> "reax.stages.Test":
         """Test function."""
         if ckpt_path:
             _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
@@ -503,6 +513,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         )
         self._run_stage(test)
 
+        return test
+
     @jt.jaxtyped(typechecker=beartype.beartype)
     def predict(
         self,
@@ -513,7 +525,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return_predictions: Optional[bool] = None,
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Union[int, float] = keys.NO_LIMIT,
-    ) -> Optional[Union[list[Any], list[list[Any]]]]:
+    ) -> "reax.stages.Predict":
         r"""Run inference on the data.
 
         Logging is disabled in the predict hooks.
@@ -536,10 +548,38 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             keep_predictions=return_predictions,
         )
         self._run_stage(predict)
-        if return_predictions:
-            return predict.all_outputs
 
-        return None
+        return predict
+
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    def eval_stats(
+        self,
+        stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
+        dataloaders: "Optional[reax.DataLoader]" = None,
+        datamodule: "Optional[reax.DataModule]" = None,
+        dataset_name: str = "train_dataloader",
+        fast_dev_run: Union[bool, int] = False,
+        limit_batches: Union[int, float] = keys.NO_LIMIT,
+    ) -> "reax.stages.EvaluateStats":
+        r"""Evaluate metrics on a dataset to get statistics about it.
+
+        The calculated statistics will be stored on `stage.logged_metrics` where `stage` is the
+        return value of this call.
+        """
+        if fast_dev_run:
+            limit_batches = 1
+
+        eval_stats = stages.EvaluateStats(
+            stats,
+            self._strategy,
+            dataloader=dataloaders,
+            datamodule=datamodule,
+            dataset_name=dataset_name,
+            limit_batches=limit_batches,
+        )
+        self._run_stage(eval_stats)
+
+        return eval_stats
 
     def _run_stage(self, stage: stages.Stage) -> stages.Stage:
         """Run stage."""

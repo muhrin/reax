@@ -53,7 +53,7 @@ class ModuleHooks:
         """The validation stage if about to process a batch."""
 
     def on_validation_batch_end(
-        self, stage: "reax.stages.Train", outputs: Any, batch: Any, batch_idx: int, /
+        self, stage: "reax.stages.Validate", outputs: Any, batch: Any, batch_idx: int, /
     ) -> None:
         """The validation stage has just finished processing a batch."""
 

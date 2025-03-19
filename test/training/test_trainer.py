@@ -36,11 +36,14 @@ import logging
 import math
 
 from flax import linen
+import jax
+from jax import random
+import jax.numpy as jnp
 import jaxtyping as jt
 import pytest
 
 import reax
-from reax import demos
+from reax import demos, metrics
 
 
 def test_trainer_error_when_input_not_lightning_module():
@@ -128,7 +131,6 @@ def test_trainer_min_steps_and_epochs(tmp_path):
 
     trainer_kwargs = {
         "default_root_dir": tmp_path,
-        # "val_check_interval": 2, # todo: not supported for now
         "logger": False,
         # "enable_model_summary": False,
         "enable_progress_bar": False,
@@ -139,11 +141,12 @@ def test_trainer_min_steps_and_epochs(tmp_path):
         "max_epochs": 7,
         # define less min steps than 1 epoch
         "min_updates": num_train_samples // 2,
+        "val_check_interval": 2,
     }
     trainer = reax.Trainer(**trainer_kwargs)
-    trainer.fit(model, **fit_kwargs)
+    fit = trainer.fit(model, **fit_kwargs)
 
-    # assert trainer.state.finished, f"Training failed with {trainer.state}"
+    assert fit.state.finished, f"Training failed with {fit.state}"
     assert trainer.current_epoch > 0
     assert (
         trainer.global_updates >= num_train_samples
@@ -153,9 +156,9 @@ def test_trainer_min_steps_and_epochs(tmp_path):
     # define less epochs than min_steps
     fit_kwargs["min_updates"] = math.floor(num_train_samples * 1.5)
     trainer = reax.Trainer(**trainer_kwargs)
-    trainer.fit(model, **fit_kwargs)
+    fit = trainer.fit(model, **fit_kwargs)
 
-    # assert trainer.state.finished, f"Training failed with {trainer.state}"
+    assert fit.state.finished, f"Training failed with {fit.state}"
     assert trainer.current_epoch > 0
     assert trainer.global_updates >= math.floor(
         num_train_samples * 1.5
@@ -220,14 +223,14 @@ def test_trainer_max_updates_accumulate_batches(tmp_path):
         enable_progress_bar=False,
         enable_model_summary=False,
     )
-    trainer.fit(
+    fit = trainer.fit(
         model,
         limit_train_batches=0.5,
         max_updates=max_updates,
         accumulate_grad_batches=10,
     )
 
-    # TODO: assert trainer.state.finished, f"Training failed with {trainer.state}"
+    assert fit.state.finished, f"Training failed with {fit.state}"
     assert trainer.global_updates == max_updates, "Model did not stop at max_updates"
 
 
@@ -248,12 +251,12 @@ def test_disabled_validation(tmp_path):
         "enable_progress_bar": False,
     }
     trainer = reax.Trainer(**trainer_options)
-    trainer.fit(
+    fit = trainer.fit(
         model, fast_dev_run=False, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0
     )
 
     # check that limit_val_batches=0 turns off validation
-    # assert trainer.state.finished, f"Training failed with {trainer.state}"
+    assert fit.state.finished, f"Training failed with {fit.state}"
     assert trainer.current_epoch == 2
     assert (
         not model.validation_step_invoked
@@ -262,11 +265,11 @@ def test_disabled_validation(tmp_path):
     # check that limit_val_batches has no influence when fast_dev_run is turned on
     model = CurrentModel()
     trainer = reax.Trainer(**trainer_options)
-    trainer.fit(
+    fit = trainer.fit(
         model, fast_dev_run=True, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0
     )
 
-    # TODO: assert trainer.state.finished, f"Training failed with {trainer.state}"
+    assert fit.state.finished, f"Training failed with {fit.state}"
     assert trainer.current_epoch == 1
     assert model.validation_step_invoked, "did not run `validation_step` with `fast_dev_run=True`"
 
@@ -358,7 +361,7 @@ def test_predict_return_predictions_cpu(return_predictions, tmp_path):
         dataloaders=model.train_dataloader(),
         return_predictions=return_predictions,
         fast_dev_run=True,
-    )
+    ).predictions
     if return_predictions or return_predictions is None:
         assert len(preds) == 1
         assert preds[0].shape == (1, 2)
@@ -378,3 +381,32 @@ def test_trainer_access_in_configure_optimizers(tmp_path):
     model = TestModel()
     trainer = reax.Trainer(default_root_dir=tmp_path)
     trainer.fit(model, train_data, fast_dev_run=True)
+
+
+def test_eval_stats(rng_key, tmp_path):
+    batch_size = 10
+    values = random.uniform(rng_key, (40,))
+    stats = {
+        "avg": metrics.Average(),
+        "min": metrics.Min(),
+        "max": metrics.Max(),
+        "std": metrics.Std(),
+    }
+
+    trainer = reax.Trainer(default_root_dir=tmp_path)
+    stage = trainer.eval_stats(
+        stats, dataloaders=reax.data.ArrayLoader(values, batch_size=batch_size)
+    )
+    results = stage.logged_metrics
+
+    assert isinstance(results, dict)
+    assert jnp.isclose(results["avg"], values.mean())
+    assert jnp.isclose(results["min"], values.min())
+    assert jnp.isclose(results["max"], values.max())
+    assert jnp.isclose(results["std"], values.flatten().std())
+
+    # Check that `evaluate_stats` produces the same result
+    evaluated = reax.evaluate_stats(stats, values)
+
+    comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
+    assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))

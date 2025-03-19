@@ -561,11 +561,9 @@ _ES_CHECK_P3 = {"patience": 3, "check_on_train_epoch_end": True}
 #     case, kwargs = case
 #     model = TestModel()
 #     trainer = reax.Trainer(
-#         model,
 #         default_root_dir=tmp_path,
 #         listeners=listeners.EarlyStopping(monitor="foo"),
 #         enable_progress_bar=False,
-#         **kwargs,
 #     )
 #
 #     side_effect = [(False, "A"), (True, "B")]
@@ -573,17 +571,19 @@ _ES_CHECK_P3 = {"patience": 3, "check_on_train_epoch_end": True}
 #         "reax.listeners.EarlyStopping._evaluate_stopping_criteria",
 #         side_effect=side_effect,
 #     ) as es_mock:
-#         trainer.fit(
+#         fit = trainer.fit(
+#             model,
 #             limit_val_batches=1,
+#             **kwargs,
 #         )
 #
 #     assert es_mock.call_count == len(side_effect)
 #     if case == "val_check_interval":
 #         assert trainer.global_updates == len(side_effect) * int(
-#             trainer.limit_train_batches * trainer.val_check_interval
+#             fit.limit_train_batches * fit.val_check_interval
 #         )
 #     else:
-#         assert trainer.current_epoch == len(side_effect) * trainer.check_val_every_n_epoch
+#         assert trainer.current_epoch == len(side_effect) * fit.check_val_every_n_epoch
 
 
 def test_early_stopping_squeezes():

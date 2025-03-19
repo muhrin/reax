@@ -26,13 +26,18 @@ class Optimizer(equinox.Module):
         """From params."""
         return cls(opt, opt.init(params))
 
-    def __init__(self, opt: optax.GradientTransformation, state: optax.OptState, count: int = 0):
+    def __init__(
+        self,
+        opt: optax.GradientTransformation,
+        state: optax.OptState,
+        count: Union[int, jt.Int[jax.Array, ""]] = 0,
+    ):
         """Init function."""
         self.optimizer = opt
         self.state = state
         self.update_count = count
 
-    # @equinox.filter_jit
+    @equinox.filter_jit
     def update(self, params: optax.Params, grad: jt.PyTree) -> tuple[Any, "Optimizer"]:
         """Return an updated version of the passed parameters using the passed gradients.
 

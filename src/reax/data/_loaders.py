@@ -48,6 +48,10 @@ class ReaxDataLoader(_types.DataLoader):
         self._fetcher = fetchers.create_fetcher(dataset, collate_fn=collate_fn)
 
     @property
+    def dataset(self):
+        return self._dataset
+
+    @property
     def batch_size(self) -> int:
         """Batch size."""
         return self._batch_size

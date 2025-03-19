@@ -42,8 +42,10 @@ class _IterableFetcher(_BaseFetcher, Generic[T_co, U]):
             except StopIteration:
                 self._ended = True
                 break
-            if len(data) == 0:
-                raise StopIteration
+
+        # If we didn't fetch any data, then we need to stop iteration
+        if len(data) == 0:
+            raise StopIteration
 
         return self._collate_fn(data)
 

@@ -31,6 +31,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
+from sys import dont_write_bytecode
 from typing import Any, Callable, Optional
 
 import equinox as eqx
@@ -77,7 +78,7 @@ class ClassificationModel(reax.Module):
             self.set_parameters(params)
 
     def forward(self, x):
-        return jax.jit(self._model.apply)(self.parameters(), x)
+        return jax.jit(self._model.apply, donate_argnums=1)(self.parameters(), x)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -86,7 +87,6 @@ class ClassificationModel(reax.Module):
         (loss, logits), grads = jax.value_and_grad(self.step, argnums=0, has_aux=True)(
             self.parameters(), x, y_one_hot, self._model.apply, self.loss_fn
         )
-
         self.log("train_loss", loss, prog_bar=True)
         self.log("train_acc", self.acc.create(logits, y), prog_bar=True)
         return {"grad": grads, "loss": loss}
@@ -110,7 +110,6 @@ class ClassificationModel(reax.Module):
         return self.forward(x)
 
     @staticmethod
-    @eqx.filter_jit(donate="all")
     def step(
         params: jt.PyTree,
         inputs: Any,

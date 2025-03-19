@@ -1,9 +1,11 @@
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 import weakref
 
+from lightning_utilities.core import overrides
 from typing_extensions import override
 
-from . import common, stages
+from . import stages
+from .. import data, modules
 
 if TYPE_CHECKING:
     import reax
@@ -25,23 +27,32 @@ class Validate(stages.EpochStage):
         parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
-        if dataloader is None:
-            datamanager = common.get_datasource(datamodule, module)
-            dataloader = datamanager.get_loader_proxy("val_dataloader")
-        else:
-            datamanager = None
-
         super().__init__(
             "validate",
             module,
-            dataloader,
             strategy,
-            None,
+            rng=None,
+            dataloader=dataloader,
+            datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
             parent=parent,
-            datamanager=datamanager,
         )
+
+    @property
+    def dataloader(self) -> "Optional[reax.DataLoader]":
+        """Dataloader function."""
+        if self._dataloader is None:
+            if self._datamodule is not None and overrides.is_overridden(
+                "val_dataloader", self._datamodule, data.DataModule
+            ):
+                self._dataloader = self._datamodule.val_dataloader()
+            elif self._module is not None and overrides.is_overridden(
+                "val_dataloader", self._module, modules.Module
+            ):
+                self._dataloader = self._module.val_dataloader()
+
+        return self._dataloader
 
     @override
     def _on_starting(self):
@@ -54,8 +65,19 @@ class Validate(stages.EpochStage):
         self._module.on_validation_epoch_start(weakref.proxy(self))
 
     @override
+    def _on_iteration_starting(self):
+        super()._on_iteration_starting()
+        self._module.on_validation_batch_start(self, self.batch, self.batch_idx)
+
+    @override
     def _step(self) -> "reax.stages.MetricResults":
         return self._module.validation_step(self.batch, self._iter)
+
+    @override
+    def _on_iteration_finishing(self, outputs: Any, /):
+        """On iteration finishing."""
+        super()._on_iteration_finishing(outputs)
+        self._module.on_validation_batch_end(self, outputs, self.batch, self.batch_idx)
 
     @override
     def _on_epoch_end(self) -> None:
