@@ -3,11 +3,10 @@ import weakref
 
 import beartype
 import jaxtyping as jt
-from lightning_utilities.core import overrides
 import optax
 from typing_extensions import override
 
-from reax import data, exceptions, modules
+from reax import exceptions
 from reax import optimizers as optimizers_
 from reax.lightning import rank_zero
 
@@ -41,7 +40,6 @@ class Train(stages.EpochStage):
         max_updates: Optional[Union[int, float]] = None,
         limit_batches: Optional[Union[int, float]] = None,
         accumulate_grad_batches: int = 1,
-        parent: Optional["reax.Stage"] = None,
         stopper: Optional[common.Stopper] = None,
     ):
         super().__init__(
@@ -53,7 +51,6 @@ class Train(stages.EpochStage):
             datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
-            parent=parent,
         )
         # Params
         self._min_updates = min_updates
@@ -69,14 +66,7 @@ class Train(stages.EpochStage):
     def dataloader(self) -> "Optional[reax.DataLoader]":
         """Dataloader function."""
         if self._dataloader is None:
-            if self._datamodule is not None and overrides.is_overridden(
-                "train_dataloader", self._datamodule, data.DataModule
-            ):
-                self._dataloader = self._datamodule.train_dataloader()
-            elif self._module is not None and overrides.is_overridden(
-                "train_dataloader", self._module, modules.Module
-            ):
-                self._dataloader = self._module.train_dataloader()
+            self._dataloader = self._fetch_dataloader("train")
 
         return self._dataloader
 

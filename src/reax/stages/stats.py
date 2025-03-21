@@ -1,7 +1,7 @@
 """Stage for evaluating dataset statistics"""
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Optional, TypeVar, Union
 
 import beartype
 import jaxtyping as jt
@@ -35,7 +35,7 @@ class EvaluateStats(stages.EpochStage):
         *,
         dataloader: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
-        dataset_name: str = "train_dataloader",
+        dataset_name: str = "train",
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[Union[int, float]] = None,
     ):
@@ -71,7 +71,7 @@ class EvaluateStats(stages.EpochStage):
         return self._dataloader
 
     @override
-    def _step(self) -> Any:
+    def _step(self) -> None:
         """Step function."""
         # Calculate and log all the stats
         for name, stat in self._stats.items():

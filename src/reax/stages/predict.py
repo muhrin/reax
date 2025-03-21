@@ -3,10 +3,7 @@ import weakref
 
 import beartype
 import jaxtyping as jt
-from lightning_utilities.core import overrides
 from typing_extensions import override
-
-from reax import data, modules
 
 from . import stages
 
@@ -28,7 +25,6 @@ class Predict(stages.EpochStage):
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[int] = None,
         keep_predictions=True,
-        parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
         super().__init__(
@@ -40,25 +36,9 @@ class Predict(stages.EpochStage):
             datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
-            parent=parent,
         )
         self._keep_predictions = keep_predictions
         self._all_outputs: Optional[Union[list[Any], list[list[Any]]]] = []
-
-    @property
-    def dataloader(self) -> "Optional[reax.DataLoader]":
-        """Dataloader function."""
-        if self._dataloader is None:
-            if self._datamodule is not None and overrides.is_overridden(
-                "predict_dataloader", self._datamodule, data.DataModule
-            ):
-                self._dataloader = self._datamodule.predict_dataloader()
-            elif self._module is not None and overrides.is_overridden(
-                "predict_dataloader", self._module, modules.Module
-            ):
-                self._dataloader = self._module.predict_dataloader()
-
-        return self._dataloader
 
     @property
     def predictions(self) -> Optional[Union[list[Any], list[list[Any]]]]:

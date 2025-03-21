@@ -65,7 +65,6 @@ class Stage(abc.ABC):
         datamodule: "Optional[reax.DataModule]" = None,
         max_iters: Optional[int] = None,
         min_iters: int = 0,
-        parent: Optional["reax.Stage"] = None,
     ):
         # Params
         self._name = name
@@ -84,8 +83,8 @@ class Stage(abc.ABC):
         self._stopper.add_condition(lambda: self._iter >= self._min_iters)
         self._stop_reason: str = ""
         self._run_count = 0
-        self._parent = parent
-        self._events = common.StageEvents() if parent is None else parent.events
+        self._events = common.StageEvents()
+        self._parent: Optional["reax.Stage"] = None
         self._child: Optional["reax.Stage"] = None
 
     def __str__(self) -> str:
@@ -104,7 +103,7 @@ class Stage(abc.ABC):
     @property
     def is_root(self) -> bool:
         """Returns ``True`` if this is the root stage, ``False`` otherwise."""
-        return self._parent is None
+        return self.parent is None
 
     @property
     def module(self) -> Optional["reax.Module"]:
@@ -138,6 +137,9 @@ class Stage(abc.ABC):
     @property
     def events(self) -> common.StageEvents:
         """Events function."""
+        if self.parent is not None:
+            return self.parent.events
+
         return self._events
 
     @property
@@ -149,6 +151,10 @@ class Stage(abc.ABC):
     def parent(self) -> Optional["reax.Stage"]:
         """Get the parent stage (if exists)."""
         return self._parent
+
+    @parent.setter
+    def parent(self, parent: Optional["reax.Stage"]):
+        self._parent = parent
 
     def stop(self, reason: str):
         """Stop this stage."""
@@ -294,13 +300,17 @@ class Stage(abc.ABC):
 
         return False
 
-    def _run_child(self, stage: "reax.Stage"):
+    def _run_child(self, stage: "reax.Stage") -> "reax.Stage":
         """Run a child stage."""
         self._child = stage
+        stage.parent = weakref.proxy(self)
         try:
             self._child.run()
         finally:
             self._child = None
+            stage.parent = None
+
+        return stage
 
     def _prepare_data(self) -> None:
         if self._datamodule is not None and overrides.is_overridden(
@@ -313,6 +323,8 @@ class Stage(abc.ABC):
             self._module.prepare_data()
 
     def _setup(self) -> None:
+        if self._datamodule is not None:
+            self._datamodule.setup(weakref.proxy(self))
         if self._module is not None:
             self._module.setup(weakref.proxy(self))
 
@@ -341,7 +353,6 @@ class EpochStage(Stage, abc.ABC):
         fast_dev_run: Union[bool, int] = False,
         min_batches: int = 0,
         limit_batches: Optional[Union[int, float]] = None,
-        parent: Optional["reax.Stage"] = None,
     ):
         if fast_dev_run:
             limit_batches = 1 if fast_dev_run is True else fast_dev_run
@@ -354,7 +365,6 @@ class EpochStage(Stage, abc.ABC):
             datamodule=datamodule,
             min_iters=min_batches,
             max_iters=limit_batches if isinstance(limit_batches, int) else None,
-            parent=parent,
         )
 
         # Params
@@ -372,8 +382,11 @@ class EpochStage(Stage, abc.ABC):
         self._outputs = None
 
     @property
-    def dataloader(self) -> "reax.DataLoader":
+    def dataloader(self) -> "Optional[reax.DataLoader]":
         """Dataloader function."""
+        if self._dataloader is None:
+            self._dataloader = self._fetch_dataloader()
+
         return self._dataloader
 
     @property
@@ -575,12 +588,6 @@ class EpochStage(Stage, abc.ABC):
         """The epoch is ending."""
 
     @override
-    def _setup(self) -> None:
-        if self._datamodule is not None:
-            self._datamodule.setup(weakref.proxy(self))
-        super()._setup()
-
-    @override
     def _on_exception(self, exception: BaseException) -> None:
         if self._datamodule is not None:
             self._datamodule.on_exception(exception)
@@ -590,6 +597,23 @@ class EpochStage(Stage, abc.ABC):
         if self._datamodule:
             self._datamodule.teardown(weakref.proxy(self))
         super()._teardown()
+
+    def _fetch_dataloader(self, name: str = None) -> "Optional[reax.DataLoader]":
+        if name is None:
+            name = self._name
+
+        method_name = f"{name}_dataloader"
+        if self._datamodule is not None and overrides.is_overridden(
+            method_name, self._datamodule, data.DataModule
+        ):
+            return getattr(self._datamodule, method_name)()
+
+        if self._module is not None and overrides.is_overridden(
+            method_name, self._module, modules.Module
+        ):
+            return getattr(self._module, method_name)()
+
+        return None
 
     @property
     @deprecated(

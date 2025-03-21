@@ -38,7 +38,7 @@ def dump_checkpoint(module: "reax.Module", weights_only: bool = False) -> dict:
     checkpoint = {
         "epoch": trainer.current_epoch,
         "global_step": trainer.global_updates,
-        "pytorch-lightning_version": reax.__version__,
+        "reax_version": reax.__version__,
         "parameters": module.parameters(),
     }
     if not weights_only:

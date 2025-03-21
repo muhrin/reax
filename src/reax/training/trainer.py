@@ -142,6 +142,10 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return self._strategy
 
     @property
+    def rng(self) -> "reax.random.Generator":
+        return self._rng
+
+    @property
     def is_global_zero(self) -> bool:
         """Whether this process is the global zero in multi-node training.
 
@@ -581,6 +585,9 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         self._run_stage(eval_stats)
 
         return eval_stats
+
+    def run(self, stage: "reax.stages.Stage") -> "reax.stages.Stage":
+        return self._run_stage(stage)
 
     def _run_stage(self, stage: stages.Stage) -> stages.Stage:
         """Run stage."""

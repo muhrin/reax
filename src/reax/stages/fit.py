@@ -1,5 +1,4 @@
 from typing import TYPE_CHECKING, Any, Final, Optional, Union
-import weakref
 
 import beartype
 import jax
@@ -37,7 +36,6 @@ class FitEpoch(train.Train):
         limit_val_batches: Optional[Union[int, float]] = 1.0,
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
-        parent: Optional["reax.Stage"] = None,
         stopper: Optional[common.Stopper] = None,
     ):
         """Init function."""
@@ -60,7 +58,6 @@ class FitEpoch(train.Train):
             max_updates=max_updates,
             limit_batches=limit_train_batches,
             accumulate_grad_batches=accumulate_grad_batches,
-            parent=parent,
             stopper=stopper,
         )
         # Params
@@ -87,7 +84,6 @@ class FitEpoch(train.Train):
                 datamodule=datamodule,
                 fast_dev_run=fast_dev_run,
                 limit_batches=limit_val_batches,
-                parent=weakref.proxy(self),
             )
         self._val_check_batch = None
 
@@ -279,10 +275,6 @@ class FitEpoch(train.Train):
 
         return val_check_batch
 
-    @override
-    def _prepare_data(self) -> None:
-        super()._prepare_data()
-
 
 class Fit(stages.Stage):
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -307,7 +299,6 @@ class Fit(stages.Stage):
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
         reload_dataloaders_every_n_epochs: int = 0,
-        parent: Optional["reax.Stage"] = None,
     ):
         """Init function."""
         if fast_dev_run:
@@ -321,7 +312,6 @@ class Fit(stages.Stage):
             datamodule=datamodule,
             max_iters=max_epochs,
             min_iters=min_epochs,
-            parent=parent,
         )
 
         # Params
@@ -344,7 +334,6 @@ class Fit(stages.Stage):
             limit_val_batches=limit_val_batches,
             val_check_interval=val_check_interval,
             check_val_every_n_epoch=check_val_every_n_epoch,
-            parent=self,
             stopper=self._stopper,
         )
 
