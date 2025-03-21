@@ -383,7 +383,7 @@ def test_trainer_access_in_configure_optimizers(tmp_path):
     trainer.fit(model, train_data, fast_dev_run=True)
 
 
-def test_eval_stats(rng_key, tmp_path):
+def test_eval_stats(rng_key, tmp_path, test_trainer):
     batch_size = 10
     values = random.uniform(rng_key, (40,))
     stats = {
@@ -393,8 +393,7 @@ def test_eval_stats(rng_key, tmp_path):
         "std": metrics.Std(),
     }
 
-    trainer = reax.Trainer(default_root_dir=tmp_path)
-    stage = trainer.eval_stats(
+    stage = test_trainer.eval_stats(
         stats, dataloaders=reax.data.ArrayLoader(values, batch_size=batch_size)
     )
     results = stage.logged_metrics
@@ -406,7 +405,7 @@ def test_eval_stats(rng_key, tmp_path):
     assert jnp.isclose(results["std"], values.flatten().std())
 
     # Check that `evaluate_stats` produces the same result
-    evaluated = reax.evaluate_stats(stats, values)
+    evaluated = test_trainer.eval_stats(stats, values).logged_metrics
 
     comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
     assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))

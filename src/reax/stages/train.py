@@ -109,7 +109,7 @@ class Train(stages.EpochStage):
             opts = self._module.configure_optimizers()
             if opts is None:
                 rank_zero.rank_zero_warn(
-                    "`LightningModule.configure_optimizers` returned `None`, this fit will run "
+                    "`reax.Module.configure_optimizers` returned `None`, this fit will run "
                     "with no optimizer"
                 )
                 opt = optimizers_.mock_optimizer

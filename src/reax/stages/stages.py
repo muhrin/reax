@@ -51,7 +51,7 @@ class StageState(enums.StrEnum):
 
 
 class Stage(abc.ABC):
-    """Interface for loops.  This could be a loop over batches (i.e. an epoch) or a loop over
+    """Abstract class for loops.  This could be a loop over batches (i.e. an epoch) or a loop over
     epochs, which itself contains a loop over batches.  Or something else."""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -62,6 +62,7 @@ class Stage(abc.ABC):
         strategy: "reax.Strategy",
         rng: Optional["reax.Generator"],
         *,
+        datamodule: "Optional[reax.DataModule]" = None,
         max_iters: Optional[int] = None,
         min_iters: int = 0,
         parent: Optional["reax.Stage"] = None,
@@ -75,6 +76,7 @@ class Stage(abc.ABC):
         # State
         self._state: StageState = StageState.INITIALIZING
         self._module: Optional["reax.Module"] = module
+        self._datamodule = datamodule
         self._rng = rng
         self._warning_cache = rank_zero.WarningCache()
         self._iter = -1
@@ -293,7 +295,7 @@ class Stage(abc.ABC):
         return False
 
     def _run_child(self, stage: "reax.Stage"):
-        """Run child."""
+        """Run a child stage."""
         self._child = stage
         try:
             self._child.run()
@@ -301,6 +303,10 @@ class Stage(abc.ABC):
             self._child = None
 
     def _prepare_data(self) -> None:
+        if self._datamodule is not None and overrides.is_overridden(
+            "prepare_data", self._datamodule, data.DataModule
+        ):
+            self._datamodule.prepare_data()
         if self._module is not None or overrides.is_overridden(
             "prepare_data", self._module, modules.Module
         ):
@@ -345,6 +351,7 @@ class EpochStage(Stage, abc.ABC):
             module,
             strategy,
             rng,
+            datamodule=datamodule,
             min_iters=min_batches,
             max_iters=limit_batches if isinstance(limit_batches, int) else None,
             parent=parent,
@@ -566,14 +573,6 @@ class EpochStage(Stage, abc.ABC):
 
     def _on_epoch_end(self) -> None:
         """The epoch is ending."""
-
-    @override
-    def _prepare_data(self) -> None:
-        if self._datamodule is not None and overrides.is_overridden(
-            "prepare_data", self._datamodule, data.DataModule
-        ):
-            self._datamodule.prepare_data()
-        super()._prepare_data()
 
     @override
     def _setup(self) -> None:

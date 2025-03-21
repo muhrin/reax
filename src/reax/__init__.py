@@ -1,7 +1,6 @@
 """REAX: A simple training framework for JAX-based projects"""
 
 from . import (
-    _evaluation,
     data,
     exceptions,
     hooks,
@@ -15,7 +14,6 @@ from . import (
     strategies,
     training,
 )
-from ._evaluation import *
 from .data import DataLoader, DataModule, ReaxDataLoader
 from .hooks import *
 from .loggers import Logger
@@ -29,8 +27,7 @@ from .strategies import *
 from .training import *
 
 __all__ = (
-    _evaluation.__all__
-    + modules.__all__
+    modules.__all__
     + hooks.__all__
     + optimizers.__all__
     + random.__all__

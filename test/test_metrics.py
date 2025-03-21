@@ -73,7 +73,7 @@ def test_from_fn(rng_key):
     assert jnp.isclose(metric.compute(), mean)
 
 
-def test_stats_evaluator(rng_key):
+def test_stats_evaluator(rng_key, test_trainer):
     batch_size = 10
     values = random.uniform(rng_key, (40,))
     stats = {
@@ -83,7 +83,9 @@ def test_stats_evaluator(rng_key):
         "std": metrics.Std(),
     }
 
-    results = reax.evaluate_stats(stats, reax.data.ArrayLoader(values, batch_size=batch_size))
+    results = test_trainer.eval_stats(
+        stats, reax.data.ArrayLoader(values, batch_size=batch_size)
+    ).logged_metrics
 
     assert isinstance(results, dict)
     assert jnp.isclose(results["avg"], values.mean())
@@ -92,29 +94,29 @@ def test_stats_evaluator(rng_key):
     assert jnp.isclose(results["std"], values.flatten().std())
 
     # Check that `evaluate_stats` produces the same result
-    evaluated = reax.evaluate_stats(stats, values)
+    evaluated = test_trainer.eval_stats(stats, values).logged_metrics
 
     comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
     assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))
 
 
-def test_num_unique(rng_key):
+def test_num_unique(rng_key, test_trainer):
     batch_size = 9
     values = random.randint(rng_key, (40,), minval=0, maxval=9)
-    res = reax.evaluate_stats(
+    res = test_trainer.eval_stats(
         metrics.NumUnique(), reax.data.ArrayLoader(values, batch_size=batch_size)
-    )
+    ).logged_metrics["NumUnique"]
     assert res == len(jnp.unique(values))
 
     # Test the masking functionality
     mask = values == 2
-    res = reax.evaluate_stats(
+    res = test_trainer.eval_stats(
         metrics.NumUnique(), reax.data.ArrayLoader((values, mask), batch_size=batch_size)
-    )
+    ).logged_metrics["NumUnique"]
     assert res == len(jnp.unique(values[mask]))
 
 
-def test_unique(rng_key):
+def test_unique(rng_key, test_trainer):
     unique = metrics.Unique.create(jnp.array([1, 1, 1]))
     assert unique.compute().tolist() == [1]
 
@@ -125,7 +127,9 @@ def test_unique(rng_key):
     assert unique.compute().tolist() == [1, 2]
 
     values = random.randint(rng_key, (40,), minval=0, maxval=10)
-    res = reax.evaluate_stats(metrics.Unique(), reax.data.ArrayLoader(values, batch_size=9))
+    res = test_trainer.eval_stats(
+        metrics.Unique(), reax.data.ArrayLoader(values, batch_size=9)
+    ).logged_metrics["Unique"]
     assert jnp.all(jnp.array(res) == jnp.unique(values))
 
 

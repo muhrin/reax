@@ -279,6 +279,10 @@ class FitEpoch(train.Train):
 
         return val_check_batch
 
+    @override
+    def _prepare_data(self) -> None:
+        super()._prepare_data()
+
 
 class Fit(stages.Stage):
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -314,6 +318,7 @@ class Fit(stages.Stage):
             module,
             strategy,
             rng,
+            datamodule=datamodule,
             max_iters=max_epochs,
             min_iters=min_epochs,
             parent=parent,
@@ -424,4 +429,5 @@ class Fit(stages.Stage):
     @override
     def _step(self) -> Any:
         """Step function."""
+        # Run the fit epoch
         self._run_child(self._fit_epoch)

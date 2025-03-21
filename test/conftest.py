@@ -17,3 +17,8 @@ def rng_key():
 def default_logger(tmp_path) -> reax.loggers.pandas.PandasLogger:
     """A default logger that can be used for testing"""
     return reax.loggers.pandas.PandasLogger(tmp_path)
+
+
+@pytest.fixture
+def test_trainer(tmp_path):
+    return reax.Trainer(default_root_dir=tmp_path)

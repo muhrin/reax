@@ -572,6 +572,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         eval_stats = stages.EvaluateStats(
             stats,
             self._strategy,
+            self._rng,
             dataloader=dataloaders,
             datamodule=datamodule,
             dataset_name=dataset_name,
