@@ -27,6 +27,7 @@ __all__ = "Stage", "StageState", "EpochStage"
 
 _LOGGER = logging.getLogger(__name__)
 _T_co = TypeVar("_T_co", covariant=True)
+_StageT = TypeVar("_StageT", bound="Stage")
 
 
 class StageState(enums.StrEnum):

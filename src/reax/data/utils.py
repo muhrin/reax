@@ -1,11 +1,16 @@
 from collections.abc import Iterable, Mapping
 import dataclasses
+import logging
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 import jax
 import numpy as np
 
 from reax.utils import containers
+
+from .. import plugins
+
+_LOGGER = logging.getLogger(__name__)
 
 __all__ = "extract_batch_size", "sized_len", "get_registry"
 
@@ -87,6 +92,9 @@ def get_registry() -> BatchSizer:
         if torch is not None:
             _registry.register(torch.Tensor, _tensor_batch_size)
 
+        for sizer in plugins.get_batch_sizers():
+            _registry.register(*sizer)
+
     return _registry
 
 
@@ -102,9 +110,10 @@ def extract_batch_size(batch) -> int:
             if batch_size is None:
                 batch_size = size
             elif size is not None and size != batch_size:
-                # TODO: Turn this into a warning
-                print(
-                    f"Could not determine batch size unambiguously, found {batch_size} and {size}"
+                _LOGGER.warning(
+                    "Could not determine batch size unambiguously, found %d and %d",
+                    batch_size,
+                    size,
                 )
                 break
     except RecursionError:

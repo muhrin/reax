@@ -61,7 +61,7 @@ if TYPE_CHECKING:
     import reax
 
 
-__all__ = ("MlflowLogger",)
+__all__ = ("MlflowLogger", "MLFlowLogger")
 
 _LOGGER = logging.getLogger(__name__)
 LOCAL_FILE_URI_PREFIX = "file:"
@@ -302,6 +302,9 @@ class MlflowLogger(logger.Logger):
             if isinstance(value, str):
                 self._warning_cache.warn(f"Discarding metric with string value {name}={value}.")
                 continue
+            if isinstance(value, list):
+                self._warning_cache.warn(f"Discarding metric with list value {name}={value}.")
+                continue
 
             new_k = re.sub("[^a-zA-Z0-9_/. -]+", "", name)
             if name != new_k:
@@ -464,3 +467,7 @@ def _get_resolve_tags() -> Callable[
 def _identity(x):
     """Identity function."""
     return x
+
+
+# Alias for compatibility with pytorch lightning
+MLFlowLogger = MlflowLogger

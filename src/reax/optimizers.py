@@ -1,6 +1,6 @@
+import functools
 from typing import TYPE_CHECKING, Any, Union
 
-import beartype
 import equinox
 import jax
 import jax.numpy as jnp
@@ -13,7 +13,6 @@ if TYPE_CHECKING:
 __all__ = ("Optimizer",)
 
 
-@jt.jaxtyped(typechecker=beartype.beartype)
 class Optimizer(equinox.Module):
     optimizer: optax.GradientTransformation
     state: optax.OptState
@@ -57,9 +56,20 @@ class Optimizer(equinox.Module):
         :return: An instance of this optimizer updated with the new state.
         :rtype: "Optimizer"
         """
-        params, updated_opt = self.update(module.parameters(), grad)
-        module.set_parameters(params)
-        return updated_opt
+        new_params, new_state = _update(self.optimizer, self.state, grad, module.parameters())
+        module.set_parameters(new_params)
+        count = getattr(new_state, "gradient_step", self.update_count + 1)
+        return type(self)(self.optimizer, new_state, count=count)
+
+
+@functools.partial(jax.jit, static_argnames=("optimizer",), donate_argnames=("state", "params"))
+def _update(optimizer: optax.GradientTransformation, state, grad: dict, params):
+    """Jax jitted function that performs an optimizer update based on the passed gradients and
+    parameters."""
+    updates, new_state = optimizer.update(grad, state, params=params)
+    params = optax.apply_updates(params, updates)
+
+    return params, new_state
 
 
 mock_optimizer = optax.GradientTransformation(

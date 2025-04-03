@@ -4,6 +4,8 @@ from typing import Optional, TypeVar
 import jax
 import jax.numpy as jnp
 
+from reax.utils import arrays
+
 from . import _registry, utils
 from ._metric import Metric
 
@@ -56,7 +58,8 @@ class Unique(utils.WithAccumulator, Aggregation):
     @staticmethod
     def reduce_fn(values, where=None):
         """Reduce fn."""
-        return jnp.unique(values[where] if where is not None else values)
+        np_ = arrays.infer_backend([values, where])
+        return np_.unique(values[where] if where is not None else values)
 
 
 class NumUnique(utils.WithAccumulator, Aggregation):
@@ -69,11 +72,13 @@ class NumUnique(utils.WithAccumulator, Aggregation):
     @staticmethod
     def reduce_fn(values, where=None):
         """Reduce fn."""
-        return jnp.unique(values[where] if where is not None else values)
+        np_ = arrays.infer_backend([values, where])
+        return np_.unique(values[where] if where is not None else values)
 
     def compute(self) -> jax.Array:
         """Compute function."""
-        return jnp.asarray(jnp.size(self.accumulator))
+        np_ = arrays.infer_backend(self.accumulator)
+        return np_.asarray(self.accumulator.size)
 
 
 class Average(utils.WithAccumulatorAndCount, Aggregation):

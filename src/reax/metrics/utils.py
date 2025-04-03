@@ -9,6 +9,7 @@ import jaxtyping as jt
 import numpy as np
 
 from .. import typing
+from .. import utils as reax_utils
 from ._metric import Metric
 
 __all__ = tuple()
@@ -91,11 +92,12 @@ def prepare_mask(
                 f"and values of dimension {values.shape}."
             )
 
-    mask = jnp.astype(mask, jnp.bool)
-    clu.internal.utils.check_param(mask, dtype=jnp.bool, ndim=values.ndim)
+    mask = mask.astype(bool)
+    clu.internal.utils.check_param(mask, dtype=bool, ndim=values.ndim)
     if return_count:
+        np_ = reax_utils.arrays.infer_backend(mask)
         # Calculate the number of non-masked elements in total
-        count = values.size if mask is None else jnp.array([mask.sum(), *values.shape[1:]]).prod()
+        count = values.size if mask is None else np_.array([mask.sum(), *values.shape[1:]]).prod()
         return mask, count
 
     return mask
