@@ -40,6 +40,12 @@ class FitEpoch(train.Train):
     ):
         """Init function."""
         if fast_dev_run:
+            if isinstance(fast_dev_run, int):
+                if fast_dev_run < 0:
+                    raise exceptions.MisconfigurationException("`fast_dev_run` should be >= 0")
+                if fast_dev_run == 1:
+                    fast_dev_run = True
+
             num_batches = 1 if fast_dev_run is True else fast_dev_run
             limit_train_batches = num_batches
             limit_val_batches = num_batches
@@ -298,11 +304,13 @@ class Fit(stages.Stage):
         limit_val_batches: Optional[Union[int, float]] = 1.0,
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
+        num_sanity_val_steps: Optional[int] = None,
         reload_dataloaders_every_n_epochs: int = 0,
     ):
         """Init function."""
         if fast_dev_run:
             max_epochs = 1
+            num_sanity_val_steps = 0
 
         super().__init__(
             "fit",
@@ -315,7 +323,8 @@ class Fit(stages.Stage):
         )
 
         # Params
-        self._reload_dataloaders_every_n_epochs = reload_dataloaders_every_n_epochs
+        self._num_sanity_val_steps: Final[Optional[int]] = num_sanity_val_steps
+        self._reload_dataloaders_every_n_epochs: Final[int] = reload_dataloaders_every_n_epochs
 
         # State
         self._fit_epoch = FitEpoch(
@@ -336,10 +345,26 @@ class Fit(stages.Stage):
             check_val_every_n_epoch=check_val_every_n_epoch,
             stopper=self._stopper,
         )
+        self._sanity_check: Optional[validation.Validate] = None
+        if self._fit_epoch.validate and num_sanity_val_steps:
+            self._sanity_check = validation.Validate(
+                module,
+                strategy,
+                dataloader=val_dataloaders,
+                datamodule=datamodule,
+                fast_dev_run=fast_dev_run,
+                limit_batches=num_sanity_val_steps,
+                name="sanity_check",
+            )
 
     @property
     def fast_dev_run(self) -> Union[bool, int]:
         return self._fit_epoch.fast_dev_run
+
+    @property
+    def sanity_checking(self) -> bool:
+        """`True` if currently sanity checking, `False` otherwise"""
+        return self._sanity_check is not None and self._child is self._sanity_check
 
     @property
     def max_epochs(self) -> Optional[int]:
@@ -349,6 +374,11 @@ class Fit(stages.Stage):
     def updates(self) -> int:
         """Updates function."""
         return self._fit_epoch.updates
+
+    @property
+    def enable_validation(self) -> bool:
+        """Returns `True` of validation is enabled, `False` otherwise"""
+        return self._fit_epoch.validate is not None
 
     @property
     def validate(self) -> Optional[validation.Validate]:
@@ -371,7 +401,14 @@ class Fit(stages.Stage):
 
     @property
     def num_val_batches(self) -> Optional[Union[int, float]]:
-        return self._fit_epoch.num_val_batches
+        if not self.enable_validation:
+            return None
+
+        return self._fit_epoch.validate.num_batches
+
+    @property
+    def num_sanity_val_steps(self) -> Optional[int]:
+        return self._num_sanity_val_steps
 
     @property
     def val_check_interval(self):
@@ -418,5 +455,7 @@ class Fit(stages.Stage):
     @override
     def _step(self) -> Any:
         """Step function."""
-        # Run the fit epoch
+        if self.iteration == 0 and self._sanity_check:
+            self._run_child(self._sanity_check)
+
         self._run_child(self._fit_epoch)

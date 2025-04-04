@@ -48,23 +48,29 @@ from reax.demos import boring_classes
 
 class MultiValDataLoaderBoringModel(boring_classes.BoringModel):
     def val_dataloader(self):
-        return [
-            reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64)),
-            reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64), batch_size=8),
-        ]
+        # return [
+        #     reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64)),
+        #     reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64), batch_size=8),
+        # ]
+        return reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64))
 
-    def validation_step(self, batch, batch_idx, dataloader_idx):
+    # def validation_step(self, batch, batch_idx, dataloader_idx):
+    #     return super().validation_step(batch, batch_idx)
+    def validation_step(self, batch, batch_idx):
         return super().validation_step(batch, batch_idx)
 
 
 class MultiTestDataLoaderBoringModel(boring_classes.BoringModel):
     def test_dataloader(self):
-        return [
-            reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64)),
-            reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64), batch_size=8),
-        ]
+        # return [
+        #     reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64)),
+        #     reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64), batch_size=8),
+        # ]
+        return reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64))
 
-    def test_step(self, batch, batch_idx, dataloader_idx):
+    # def test_step(self, batch, batch_idx, dataloader_idx):
+    #     return super().test_step(batch, batch_idx)
+    def test_step(self, batch, batch_idx):
         return super().test_step(batch, batch_idx)
 
 
@@ -511,41 +517,43 @@ def test_dataloaders_with_limit_num_batches(
             assert mocked.call_count == limit_test_batches * len(test.dataloaders)
 
 
-# @pytest.mark.parametrize("fast_dev_run", [True, 1, 3, -1])
-# def test_dataloaders_with_fast_dev_run(tmp_path, fast_dev_run):
-#     """Verify num_batches for train, val & test dataloaders passed with fast_dev_run."""
-#     model = MultiEvalDataLoaderModel()
-#     trainer = reax.Trainer(default_root_dir=tmp_path)
-#     fit_options = {"max_epochs": 2, "fast_dev_run": fast_dev_run}
-#
-#     if fast_dev_run == -1:
-#         with pytest.raises(reax.exceptions.MisconfigurationException, match="should be >= 0"):
-#             trainer.fit(model, **fit_options)
-#     else:
-#         fit = trainer.fit(model, **fit_options)
-#
-#         # fast_dev_run is set to True when it is 1
-#         if fast_dev_run == 1:
-#             fast_dev_run = True
-#
-#         assert fit.fast_dev_run is fast_dev_run
-#
-#         if fast_dev_run is True:
-#             fast_dev_run = 1
-#
-#         assert fit.limit_train_batches == fast_dev_run
-#         assert fit.limit_val_batches == fast_dev_run
-#
-#         # TODO: assert fit.num_sanity_val_steps == 0
-#         assert fit.max_epochs == 1
-#
-#         assert fit.enable_validation
-#         assert fit.num_training_batches == fast_dev_run
-#         assert fit.num_val_batches == [fast_dev_run] * len(fit.val_dataloaders)
-#
-#         test = trainer.test(model, fast_dev_run=fast_dev_run)
-#         assert test.limit_batches == fast_dev_run
-#         assert test.num_batches == [fast_dev_run] * len(test.dataloaders)
+@pytest.mark.parametrize("fast_dev_run", [True, 1, 3, -1])
+def test_dataloaders_with_fast_dev_run(tmp_path, fast_dev_run):
+    """Verify num_batches for train, val & test dataloaders passed with fast_dev_run."""
+    model = MultiEvalDataLoaderModel()
+    trainer = reax.Trainer(default_root_dir=tmp_path)
+    fit_options = {"max_epochs": 2, "fast_dev_run": fast_dev_run}
+
+    if fast_dev_run == -1:
+        with pytest.raises(reax.exceptions.MisconfigurationException, match="should be >= 0"):
+            trainer.fit(model, **fit_options)
+    else:
+        fit = trainer.fit(model, **fit_options)
+
+        # fast_dev_run is set to True when it is 1
+        if fast_dev_run == 1:
+            fast_dev_run = True
+
+        assert fit.fast_dev_run is fast_dev_run
+
+        if fast_dev_run is True:
+            fast_dev_run = 1
+
+        assert fit.limit_train_batches == fast_dev_run
+        assert fit.limit_val_batches == fast_dev_run
+
+        assert fit.num_sanity_val_steps == 0
+        assert fit.max_epochs == 1
+
+        assert fit.enable_validation
+        assert fit.num_training_batches == fast_dev_run
+        # TODO: assert fit.num_val_batches == [fast_dev_run] * len(fit.val_dataloaders)
+        assert fit.num_val_batches == fast_dev_run
+
+        test = trainer.test(model, fast_dev_run=fast_dev_run)
+        assert test.limit_batches == fast_dev_run
+        # TODO: assert test.num_batches == [fast_dev_run] * len(test.dataloaders)
+        assert test.num_batches == fast_dev_run
 
 
 @pytest.mark.parametrize(
@@ -1080,135 +1088,136 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #
 #     assert tracker.mock_calls == [call.val_dataloader(), call.train_dataloader()]
 
-#
-# def test_dataloaders_load_only_once_no_sanity_check(tmp_path):
-#     model = BoringModel()
-#
-#     # logger file to get meta
-#     trainer = Trainer(
-#         default_root_dir=tmp_path,
-#         limit_train_batches=0.3,
-#         limit_val_batches=0.3,
-#         num_sanity_val_steps=0,
-#         max_epochs=3,
-#     )
-#
-#     tracker = Mock()
-#     model.train_dataloader = Mock(wraps=model.train_dataloader)
-#     model.val_dataloader = Mock(wraps=model.val_dataloader)
-#     model.test_dataloader = Mock(wraps=model.test_dataloader)
-#
-#     tracker.attach_mock(model.train_dataloader, "train_dataloader")
-#     tracker.attach_mock(model.val_dataloader, "val_dataloader")
-#     tracker.attach_mock(model.test_dataloader, "test_dataloader")
-#
-#     trainer.fit(model)
-#
-#     # verify the sequence
-#     expected_sequence = [call.train_dataloader(), call.val_dataloader()]
-#     assert tracker.mock_calls == expected_sequence
-#
-#
-# @pytest.mark.parametrize(
-#     (
-#         "num_sanity_val_steps",
-#         "check_val_every_n_epoch",
-#         "reload_dataloaders_every_n_epochs",
-#         "train_reload_epochs_expect",
-#         "val_reload_epochs_expect",
-#         "val_step_epochs_expect",
-#     ),
-#     [
-#         # general case where sanity check reloads the dataloaders for validation on current_epoch=0
-#         (
-#             0,
-#             1,
-#             1,
-#             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-#             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-#             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-#         ),
-#         (
-#             1,
-#             1,
-#             1,
-#             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-#             [1, 2, 3, 4, 5, 6, 7, 8, 9],
-#             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-#         ),
-#         # case where check_val_every_n_epoch < reload_dataloaders_every_n_epochs so expected val_reload_epoch
-#         # and val_step_epoch will be different
-#         (0, 1, 2, [0, 2, 4, 6, 8], [0, 2, 4, 6, 8], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
-#         (1, 1, 2, [0, 2, 4, 6, 8], [2, 4, 6, 8], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
-#         (0, 3, 4, [0, 4, 8], [2, 8], [2, 5, 8]),
-#         (1, 3, 4, [0, 4, 8], [2, 8], [2, 5, 8]),
-#         # case where check_val_every_n_epoch > reload_dataloaders_every_n_epochs so expected val_reload_epoch
-#         # and val_step_epoch will be same
-#         (0, 2, 1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
-#         (1, 2, 1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
-#         (0, 3, 2, [0, 2, 4, 6, 8], [2, 5, 8], [2, 5, 8]),
-#         (1, 3, 2, [0, 2, 4, 6, 8], [2, 5, 8], [2, 5, 8]),
-#         (0, 5, 2, [0, 2, 4, 6, 8], [4, 9], [4, 9]),
-#         (1, 5, 2, [0, 2, 4, 6, 8], [4, 9], [4, 9]),
-#         # case where check_val_every_n_epoch = reload_dataloaders_every_n_epochs so expected val_reload_epoch
-#         # and val_step_epoch will be same
-#         (0, 2, 2, [0, 2, 4, 6, 8], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
-#         (1, 2, 2, [0, 2, 4, 6, 8], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
-#     ],
-# )
-# def test_dataloaders_load_every_n_epochs_infrequent_val(
-#     tmp_path,
-#     num_sanity_val_steps,
-#     check_val_every_n_epoch,
-#     reload_dataloaders_every_n_epochs,
-#     train_reload_epochs_expect,
-#     val_reload_epochs_expect,
-#     val_step_epochs_expect,
-# ):
-#     """Test dataloader reload behavior when infrequently checking validation set (via check_val_every_n_epoch)"""
-#     sanity_val_check_epochs, train_reload_epochs, val_reload_epochs = [], [], []
-#     sanity_val_step_epochs, val_step_epochs = [], []
-#
-#     class TestModel(BoringModel):
-#         def train_dataloader(self):
-#             train_reload_epochs.append(self.current_epoch)
-#             return super().train_dataloader()
-#
-#         def val_dataloader(self):
-#             if self.trainer.sanity_checking:
-#                 sanity_val_check_epochs.append(self.current_epoch)
-#             else:
-#                 val_reload_epochs.append(self.current_epoch)
-#             return super().val_dataloader()
-#
-#         def validation_step(self, *args, **kwargs):
-#             if self.trainer.sanity_checking:
-#                 sanity_val_step_epochs.append(self.current_epoch)
-#             else:
-#                 val_step_epochs.append(self.current_epoch)
-#
-#             return super().validation_step(*args, **kwargs)
-#
-#     model = TestModel()
-#
-#     trainer = Trainer(
-#         default_root_dir=tmp_path,
-#         limit_train_batches=1,
-#         limit_val_batches=1,
-#         check_val_every_n_epoch=check_val_every_n_epoch,
-#         reload_dataloaders_every_n_epochs=reload_dataloaders_every_n_epochs,
-#         max_epochs=10,
-#         num_sanity_val_steps=num_sanity_val_steps,
-#     )
-#     trainer.fit(model)
-#
-#     # Verify epoch of reloads
-#     sanity_val_check_epochs_expect = [0] if num_sanity_val_steps else []
-#     assert sanity_val_check_epochs == sanity_val_step_epochs == sanity_val_check_epochs_expect
-#     assert train_reload_epochs == train_reload_epochs_expect
-#     assert val_reload_epochs == val_reload_epochs_expect
-#     assert val_step_epochs == val_step_epochs_expect
-#
+
+def test_dataloaders_load_only_once_no_sanity_check(tmp_path):
+    model = boring_classes.BoringModel()
+
+    # logger file to get meta
+    trainer = reax.Trainer(default_root_dir=tmp_path)
+
+    tracker = Mock()
+    model.train_dataloader = Mock(wraps=model.train_dataloader)
+    model.val_dataloader = Mock(wraps=model.val_dataloader)
+    model.test_dataloader = Mock(wraps=model.test_dataloader)
+
+    tracker.attach_mock(model.train_dataloader, "train_dataloader")
+    tracker.attach_mock(model.val_dataloader, "val_dataloader")
+    tracker.attach_mock(model.test_dataloader, "test_dataloader")
+
+    trainer.fit(
+        model,
+        limit_train_batches=0.3,
+        limit_val_batches=0.3,
+        num_sanity_val_steps=0,
+        max_epochs=3,
+    )
+
+    # verify the sequence
+    expected_sequence = [call.train_dataloader(), call.val_dataloader()]
+    assert tracker.mock_calls == expected_sequence
+
+
+@pytest.mark.parametrize(
+    (
+        "num_sanity_val_steps",
+        "check_val_every_n_epoch",
+        "reload_dataloaders_every_n_epochs",
+        "train_reload_epochs_expect",
+        "val_reload_epochs_expect",
+        "val_step_epochs_expect",
+    ),
+    [
+        # general case where sanity check reloads the dataloaders for validation on current_epoch=0
+        (
+            0,
+            1,
+            1,
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        ),
+        (
+            1,
+            1,
+            1,
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        ),
+        # case where check_val_every_n_epoch < reload_dataloaders_every_n_epochs so expected val_reload_epoch
+        # and val_step_epoch will be different
+        (0, 1, 2, [0, 2, 4, 6, 8], [0, 2, 4, 6, 8], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        (1, 1, 2, [0, 2, 4, 6, 8], [2, 4, 6, 8], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        (0, 3, 4, [0, 4, 8], [2, 8], [2, 5, 8]),
+        (1, 3, 4, [0, 4, 8], [2, 8], [2, 5, 8]),
+        # case where check_val_every_n_epoch > reload_dataloaders_every_n_epochs so expected val_reload_epoch
+        # and val_step_epoch will be same
+        (0, 2, 1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
+        (1, 2, 1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
+        (0, 3, 2, [0, 2, 4, 6, 8], [2, 5, 8], [2, 5, 8]),
+        (1, 3, 2, [0, 2, 4, 6, 8], [2, 5, 8], [2, 5, 8]),
+        (0, 5, 2, [0, 2, 4, 6, 8], [4, 9], [4, 9]),
+        (1, 5, 2, [0, 2, 4, 6, 8], [4, 9], [4, 9]),
+        # case where check_val_every_n_epoch = reload_dataloaders_every_n_epochs so expected val_reload_epoch
+        # and val_step_epoch will be same
+        (0, 2, 2, [0, 2, 4, 6, 8], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
+        (1, 2, 2, [0, 2, 4, 6, 8], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
+    ],
+)
+def test_dataloaders_load_every_n_epochs_infrequent_val(
+    tmp_path,
+    num_sanity_val_steps,
+    check_val_every_n_epoch,
+    reload_dataloaders_every_n_epochs,
+    train_reload_epochs_expect,
+    val_reload_epochs_expect,
+    val_step_epochs_expect,
+):
+    """Test dataloader reload behavior when infrequently checking validation set (via check_val_every_n_epoch)"""
+    sanity_val_check_epochs, train_reload_epochs, val_reload_epochs = [], [], []
+    sanity_val_step_epochs, val_step_epochs = [], []
+
+    class TestModel(boring_classes.BoringModel):
+        def train_dataloader(self):
+            train_reload_epochs.append(self.current_epoch)
+            return super().train_dataloader()
+
+        def val_dataloader(self):
+            if self.trainer.sanity_checking:
+                sanity_val_check_epochs.append(self.current_epoch)
+            else:
+                val_reload_epochs.append(self.current_epoch)
+            return super().val_dataloader()
+
+        def validation_step(self, *args, **kwargs):
+            if self.trainer.sanity_checking:
+                sanity_val_step_epochs.append(self.current_epoch)
+            else:
+                val_step_epochs.append(self.current_epoch)
+
+            return super().validation_step(*args, **kwargs)
+
+    model = TestModel()
+
+    trainer = reax.Trainer(default_root_dir=tmp_path)
+    trainer.fit(
+        model,
+        limit_train_batches=1,
+        limit_val_batches=1,
+        check_val_every_n_epoch=check_val_every_n_epoch,
+        reload_dataloaders_every_n_epochs=reload_dataloaders_every_n_epochs,
+        max_epochs=10,
+        num_sanity_val_steps=num_sanity_val_steps,
+    )
+
+    # Verify epoch of reloads
+    sanity_val_check_epochs_expect = [0] if num_sanity_val_steps else []
+    assert sanity_val_check_epochs == sanity_val_step_epochs == sanity_val_check_epochs_expect
+    assert train_reload_epochs == train_reload_epochs_expect
+    assert val_reload_epochs == val_reload_epochs_expect
+    assert val_step_epochs == val_step_epochs_expect
+
+
 #
 # def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
 #     """Test dataloader reload behavior when frequently checking validation set (via val_check_interval)"""

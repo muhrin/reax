@@ -351,9 +351,11 @@ class EpochStage(Stage, abc.ABC):
         *,
         dataloader: "Optional[reax.DataLoader[_T_co]]" = None,
         datamodule: "Optional[reax.DataModule[_T_co]]" = None,
+        datamodule_loader_name: Optional[str] = None,
         fast_dev_run: Union[bool, int] = False,
         min_batches: int = 0,
         limit_batches: Optional[Union[int, float]] = None,
+        reload_dataloaders_every_n_epochs: int = 0,
     ):
         if fast_dev_run:
             limit_batches = 1 if fast_dev_run is True else fast_dev_run
@@ -371,6 +373,8 @@ class EpochStage(Stage, abc.ABC):
         # Params
         self._fast_dev_run = fast_dev_run
         self._limit_batches: Final[Union[int, float]] = limit_batches
+        self._datamodule_loader_name: Final[str] = datamodule_loader_name or self.name
+        self._reload_dataloaders_every_n_epochs = reload_dataloaders_every_n_epochs
 
         # State
         self._dataloader: "Optional[reax.DataLoader[_T_co]]" = dataloader
@@ -515,6 +519,12 @@ class EpochStage(Stage, abc.ABC):
         """On starting."""
         super()._on_starting()
 
+        if (
+            self._reload_dataloaders_every_n_epochs
+            and self._reload_dataloaders_every_n_epochs % self.iteration == 0
+        ):
+            self._dataloader = self._fetch_dataloader()
+
         if self._module is not None:
             was_uninitialised = self._module.parameters() is None
             example_batch = next(iter(self.dataloader))
@@ -599,10 +609,12 @@ class EpochStage(Stage, abc.ABC):
             self._datamodule.teardown(weakref.proxy(self))
         super()._teardown()
 
-    def _fetch_dataloader(self, name: str = None) -> "Optional[reax.DataLoader]":
-        if name is None:
-            name = self._name
+    def _fetch_dataloader(self) -> "Optional[reax.DataLoader]":
+        if self._dataloader is not None:
+            # Dataloader always has priority
+            return self._dataloader
 
+        name = self._datamodule_loader_name
         method_name = f"{name}_dataloader"
         if self._datamodule is not None and overrides.is_overridden(
             method_name, self._datamodule, data.DataModule

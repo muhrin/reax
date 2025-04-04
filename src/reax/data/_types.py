@@ -1,5 +1,5 @@
-from collections.abc import Iterable
-from typing import Callable, Sequence, TypeVar, Union
+from collections.abc import Iterable, Sequence
+from typing import Callable, TypeVar, Union
 
 __all__ = "Sampler", "DataLoader", "Dataset"
 

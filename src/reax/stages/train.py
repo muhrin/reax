@@ -49,6 +49,7 @@ class Train(stages.EpochStage):
             rng,
             dataloader=dataloader,
             datamodule=datamodule,
+            datamodule_loader_name="train",
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )
@@ -61,14 +62,6 @@ class Train(stages.EpochStage):
         self._optimizers = optimizers
         self._stopper = stopper if stopper is not None else common.Stopper()
         self._stopper.add_condition(lambda: self.updates >= self._min_updates)
-
-    @property
-    def dataloader(self) -> "Optional[reax.DataLoader]":
-        """Dataloader function."""
-        if self._dataloader is None:
-            self._dataloader = self._fetch_dataloader("train")
-
-        return self._dataloader
 
     @property
     def num_training_batches(self) -> Optional[Union[int, float]]:

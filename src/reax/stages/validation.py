@@ -22,26 +22,20 @@ class Validate(stages.EpochStage):
         datamodule: "Optional[reax.DataModule]" = None,
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[Union[int, float]] = None,
+        name: str = "validate",
     ):
         """Init function."""
         super().__init__(
-            "validate",
+            name,
             module,
             strategy,
             rng=None,
             dataloader=dataloader,
             datamodule=datamodule,
+            datamodule_loader_name="val",
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )
-
-    @property
-    def dataloader(self) -> "Optional[reax.DataLoader]":
-        """Dataloader function."""
-        if self._dataloader is None:
-            self._dataloader = self._fetch_dataloader("val")
-
-        return self._dataloader
 
     @override
     def _on_starting(self):

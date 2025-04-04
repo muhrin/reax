@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import contextlib
 import functools
 import logging
@@ -13,7 +14,6 @@ from typing import (
     Iterable,
     Literal,
     Optional,
-    Sequence,
     Union,
 )
 import weakref
@@ -193,6 +193,11 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         """Should stop."""
         if stop:
             self._stage.stop("None")
+
+    @property
+    def sanity_checking(self) -> bool:
+        """`True` if currently sanity checking, `False` otherwise"""
+        return isinstance(self._stage, stages.Fit) and self._stage.sanity_checking
 
     @property
     def default_root_dir(self) -> str:
@@ -420,6 +425,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
         num_sanity_val_steps: Optional[int] = None,
+        reload_dataloaders_every_n_epochs: int = 0,
     ) -> "reax.stages.Fit":
         """Fit function.
 
@@ -432,8 +438,6 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             raise ValueError("`max_updates` must be a non-negative integer")
         if max_epochs is not None and max_epochs < 0:
             raise ValueError(f"`max_epochs` must be a non-negative integer or {keys.NO_LIMIT}")
-        if num_sanity_val_steps:
-            _LOGGER.warning("`num_sanity_val_steps` is not supported yet, ignoring.")
 
         if fast_dev_run:
             num_batches = 1 if fast_dev_run is True else fast_dev_run
@@ -463,6 +467,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             limit_val_batches=limit_val_batches,
             val_check_interval=val_check_interval,
             check_val_every_n_epoch=check_val_every_n_epoch,
+            num_sanity_val_steps=num_sanity_val_steps,
+            reload_dataloaders_every_n_epochs=reload_dataloaders_every_n_epochs,
         )
         self._run_stage(fit)
         # Update state variables
@@ -501,6 +507,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         dataloaders=None,
         datamodule=None,
         ckpt_path: Optional[typing.Path] = None,
+        fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[Union[int, float]] = 1.0,
     ) -> "reax.stages.Test":
         """Test function."""
@@ -513,6 +520,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             self._rng,
             dataloader=dataloaders,
             datamodule=datamodule,
+            fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )
         self._run_stage(test)
