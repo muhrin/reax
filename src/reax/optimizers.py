@@ -62,7 +62,7 @@ class Optimizer(equinox.Module):
         return type(self)(self.optimizer, new_state, count=count)
 
 
-@functools.partial(jax.jit, static_argnames=("optimizer",), donate_argnames=("state", "params"))
+@functools.partial(jax.jit, static_argnames=("optimizer",), donate_argnames="params")
 def _update(optimizer: optax.GradientTransformation, state, grad: dict, params):
     """Jax jitted function that performs an optimizer update based on the passed gradients and
     parameters."""
