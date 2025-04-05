@@ -21,13 +21,11 @@ class FitEpoch(train.Train):
     def __init__(
         self,
         module: "reax.Module",
+        datamanager: "reax.data.DataSourceManager",
         optimizers: list["reax.Optimizer"],
         strategy: "reax.Strategy",
         rng: "reax.Generator",
         *,
-        train_dataloaders: "Optional[reax.DataLoader]" = None,
-        val_dataloaders: "Optional[reax.DataLoader]" = None,
-        datamodule: "Optional[reax.DataModule]" = None,
         fast_dev_run: Union[bool, int] = False,
         min_updates: Optional[int] = None,
         max_updates: Optional[Union[int, float]] = None,
@@ -54,11 +52,10 @@ class FitEpoch(train.Train):
 
         super().__init__(
             module,
+            datamanager,
             strategy,
             optimizers,
             rng,
-            dataloader=train_dataloaders,
-            datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             min_updates=min_updates,
             max_updates=max_updates,
@@ -72,11 +69,7 @@ class FitEpoch(train.Train):
 
         # State
         if (
-            (
-                val_dataloaders is None
-                and not overrides.is_overridden("val_dataloader", datamodule, data.DataModule)
-                and not overrides.is_overridden("val_dataloader", module, modules.Module)
-            )
+            not self._datamanager.has_dataloader("val")
             or limit_val_batches == 0.0
             or not overrides.is_overridden("validation_step", module, modules.Module)
         ):
@@ -85,9 +78,8 @@ class FitEpoch(train.Train):
         else:
             self._validate = validation.Validate(
                 module,
+                datamanager,
                 strategy,
-                dataloader=val_dataloaders,
-                datamodule=datamodule,
                 fast_dev_run=fast_dev_run,
                 limit_batches=limit_val_batches,
             )
@@ -163,8 +155,10 @@ class FitEpoch(train.Train):
             isinstance(self._val_check_interval, int)
             and self.iteration % self._val_check_interval == 0
         ):
-            # if self._should_check_val():
             self._run_child(self._validate)
+
+        # if self._should_check_val():
+        #     self._run_child(self._validate)
 
     @override
     def _on_stopping(self) -> None:
@@ -172,7 +166,7 @@ class FitEpoch(train.Train):
         if (
             self._validate is not None
             and self._check_val_every_n_epoch is not None
-            and self.epoch % self._check_val_every_n_epoch == 0
+            and (self.epoch + 1) % self._check_val_every_n_epoch == 0
         ):
             self._run_child(self._validate)
         super()._on_stopping()
@@ -287,13 +281,11 @@ class Fit(stages.Stage):
     def __init__(
         self,
         module: "reax.Module",
+        datamanager: "reax.data.DataSourceManager",
         optimizers: list["reax.Optimizer"],
         strategy: "reax.Strategy",
         rng: "reax.Generator",
         *,
-        train_dataloaders: "Optional[reax.DataLoader]" = None,
-        val_dataloaders: "Optional[reax.DataLoader]" = None,
-        datamodule: "Optional[reax.DataModule]" = None,
         fast_dev_run: Union[bool, int] = False,
         max_epochs: Optional[int] = None,
         min_epochs: int = 0,
@@ -304,7 +296,7 @@ class Fit(stages.Stage):
         limit_val_batches: Optional[Union[int, float]] = 1.0,
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
-        num_sanity_val_steps: Optional[int] = None,
+        num_sanity_val_steps: Optional[int] = 2,
         reload_dataloaders_every_n_epochs: int = 0,
     ):
         """Init function."""
@@ -317,7 +309,7 @@ class Fit(stages.Stage):
             module,
             strategy,
             rng,
-            datamodule=datamodule,
+            datamanager=datamanager,
             max_iters=max_epochs,
             min_iters=min_epochs,
         )
@@ -329,12 +321,10 @@ class Fit(stages.Stage):
         # State
         self._fit_epoch = FitEpoch(
             module,
+            datamanager,
             optimizers,
             strategy,
             rng,
-            train_dataloaders=train_dataloaders,
-            val_dataloaders=val_dataloaders,
-            datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             min_updates=min_updates,
             max_updates=max_updates,
@@ -349,13 +339,17 @@ class Fit(stages.Stage):
         if self._fit_epoch.validate and num_sanity_val_steps:
             self._sanity_check = validation.Validate(
                 module,
+                datamanager,
                 strategy,
-                dataloader=val_dataloaders,
-                datamodule=datamodule,
                 fast_dev_run=fast_dev_run,
                 limit_batches=num_sanity_val_steps,
                 name="sanity_check",
+                enable_checkpointing=False,
             )
+
+    @property
+    def epoch(self) -> int:
+        return self.iteration
 
     @property
     def fast_dev_run(self) -> Union[bool, int]:
@@ -450,7 +444,22 @@ class Fit(stages.Stage):
         on_epoch=True,
     ) -> None:
         """Log function."""
-        self._fit_epoch.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch)
+        if self._child is None:
+            raise RuntimeError(
+                "Fitting is not running a train, validation or sanity check epoch, "
+                "so cannot currently log anything"
+            )
+
+        self._child.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch)
+
+    @override
+    def _on_iteration_starting(self):
+        super()._on_iteration_starting()
+        if (
+            self._reload_dataloaders_every_n_epochs
+            and self.epoch % self._reload_dataloaders_every_n_epochs == 0
+        ):
+            self._datamanager.reset()
 
     @override
     def _step(self) -> Any:

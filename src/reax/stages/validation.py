@@ -16,25 +16,25 @@ class Validate(stages.EpochStage):
     def __init__(
         self,
         module: "reax.Module",
+        datamanager: "reax.data.DataSourceManager",
         strategy: "reax.Strategy",
         *,
-        dataloader: "Optional[reax.DataLoader]" = None,
-        datamodule: "Optional[reax.DataModule]" = None,
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[Union[int, float]] = None,
         name: str = "validate",
+        enable_checkpointing: bool = True,
     ):
         """Init function."""
         super().__init__(
             name,
             module,
+            datamanager,
             strategy,
             rng=None,
-            dataloader=dataloader,
-            datamodule=datamodule,
-            datamodule_loader_name="val",
+            dataloader_name="val",
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
+            enable_checkpointing=enable_checkpointing,
         )
 
     @override

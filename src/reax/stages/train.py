@@ -29,12 +29,11 @@ class Train(stages.EpochStage):
     def __init__(
         self,
         module: "reax.Module",
+        datamanager: "reax.data.DataSourceManager",
         strategy: "reax.Strategy",
         optimizers: "list[reax.Optimizer]",
         rng: "Optional[reax.Generator]",
         *,
-        dataloader: "Optional[reax.DataLoader]" = None,
-        datamodule: "Optional[reax.DataModule]" = None,
         fast_dev_run: Union[bool, int] = False,
         min_updates: int = 0,
         max_updates: Optional[Union[int, float]] = None,
@@ -45,13 +44,13 @@ class Train(stages.EpochStage):
         super().__init__(
             "fit",
             module,
+            datamanager,
             strategy,
             rng,
-            dataloader=dataloader,
-            datamodule=datamodule,
-            datamodule_loader_name="train",
+            dataloader_name="train",
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
+            enable_checkpointing=True,
         )
         # Params
         self._min_updates = min_updates

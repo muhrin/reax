@@ -406,20 +406,22 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     @override
     def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
         """On train epoch end."""
-        metrics = self._monitor_candidates(stage, trainer)
-        if self._should_save_on_train_epoch_end(stage):
+        if not self._should_skip_saving_checkpoint(
+            trainer, stage
+        ) and self._should_save_on_train_epoch_end(stage):
             if isinstance(stage, stages.Train):
-                self._do_save(trainer, metrics)
+                self._do_save(trainer, self._monitor_candidates(stage, trainer))
 
     @override
     def on_validation_epoch_end(
         self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /
     ) -> None:
         """On validation epoch end."""
-        metrics = self._monitor_candidates(stage, trainer)
-        if not self._should_save_on_train_epoch_end(stage):
+        if not self._should_skip_saving_checkpoint(
+            trainer, stage
+        ) and not self._should_save_on_train_epoch_end(stage):
             if isinstance(stage, stages.Validate):
-                self._do_save(trainer, metrics)
+                self._do_save(trainer, self._monitor_candidates(stage, trainer))
 
     def _monitor_candidates(
         self, stage: "reax.stages.EpochStage", trainer: "reax.Trainer", /
@@ -459,12 +461,11 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def _should_skip_saving_checkpoint(
         self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage"
     ) -> bool:
-        # or trainer.sanity_checking  # don't save anything during sanity check
         return (
-            # disable checkpointing with fast_dev_run
-            bool(stage.fast_dev_run)
+            bool(stage.fast_dev_run)  # disable checkpointing with fast_dev_run
             # don't save anything during non-fit
-            or not isinstance(stage, (stages.Fit, stages.Train))
+            or not stage.enable_checkpointing
+            or trainer.sanity_checking  # don't save anything during sanity check
             # already saved at the last step
             or self._last_global_step_saved == trainer.global_updates
         )

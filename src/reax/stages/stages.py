@@ -9,11 +9,11 @@ import weakref
 import beartype
 import jax
 import jaxtyping as jt
-from lightning_utilities.core import enums, overrides
+from lightning_utilities.core import enums
 from typing_extensions import deprecated, override
 
 from . import common
-from .. import data, keys, modules, results, typing
+from .. import data, keys, results, typing
 from ..lightning import rank_zero
 from ..utils import arrays
 
@@ -63,20 +63,22 @@ class Stage(abc.ABC):
         strategy: "reax.Strategy",
         rng: Optional["reax.Generator"],
         *,
-        datamodule: "Optional[reax.DataModule]" = None,
+        datamanager: "Optional[reax.data.DataSourceManager]" = None,
         max_iters: Optional[int] = None,
         min_iters: int = 0,
+        enable_checkpointing: bool = False,
     ):
         # Params
         self._name = name
         self._strategy = strategy
         self._min_iters: Final[int] = min_iters
         self._max_iters: Final[Optional[int]] = max_iters
+        self._enable_checkpointing: Final[bool] = enable_checkpointing
 
         # State
         self._state: StageState = StageState.INITIALIZING
         self._module: Optional["reax.Module"] = module
-        self._datamodule = datamodule
+        self._datamanager = datamanager
         self._rng = rng
         self._warning_cache = rank_zero.WarningCache()
         self._iter = -1
@@ -129,6 +131,11 @@ class Stage(abc.ABC):
     def max_iters(self) -> Optional[int]:
         """Max iters."""
         return self._max_iters
+
+    @property
+    def enable_checkpointing(self) -> bool:
+        """`True` if this stage would like checkpointing to be enabled, `False` otherwise"""
+        return self._enable_checkpointing
 
     @property
     def run_count(self) -> int:
@@ -314,18 +321,12 @@ class Stage(abc.ABC):
         return stage
 
     def _prepare_data(self) -> None:
-        if self._datamodule is not None and overrides.is_overridden(
-            "prepare_data", self._datamodule, data.DataModule
-        ):
-            self._datamodule.prepare_data()
-        if self._module is not None or overrides.is_overridden(
-            "prepare_data", self._module, modules.Module
-        ):
-            self._module.prepare_data()
+        self._datamanager.prepare_data()
 
     def _setup(self) -> None:
-        if self._datamodule is not None:
-            self._datamodule.setup(weakref.proxy(self))
+        if self._datamanager.source is not self._datamanager:
+            self._datamanager.setup(weakref.proxy(self))
+
         if self._module is not None:
             self._module.setup(weakref.proxy(self))
 
@@ -346,16 +347,16 @@ class EpochStage(Stage, abc.ABC):
         self,
         name: str,
         module: Optional["reax.Module"],
+        datamanager: "reax.data.DataSourceManager",
         strategy: "reax.Strategy",
         rng: "reax.Generator",
         *,
-        dataloader: "Optional[reax.DataLoader[_T_co]]" = None,
-        datamodule: "Optional[reax.DataModule[_T_co]]" = None,
-        datamodule_loader_name: Optional[str] = None,
+        dataloader_name: Optional[str] = None,
         fast_dev_run: Union[bool, int] = False,
         min_batches: int = 0,
         limit_batches: Optional[Union[int, float]] = None,
         reload_dataloaders_every_n_epochs: int = 0,
+        enable_checkpointing: bool = False,
     ):
         if fast_dev_run:
             limit_batches = 1 if fast_dev_run is True else fast_dev_run
@@ -365,20 +366,19 @@ class EpochStage(Stage, abc.ABC):
             module,
             strategy,
             rng,
-            datamodule=datamodule,
+            datamanager=datamanager,
             min_iters=min_batches,
             max_iters=limit_batches if isinstance(limit_batches, int) else None,
+            enable_checkpointing=enable_checkpointing,
         )
 
         # Params
         self._fast_dev_run = fast_dev_run
         self._limit_batches: Final[Union[int, float]] = limit_batches
-        self._datamodule_loader_name: Final[str] = datamodule_loader_name or self.name
+        self._dataloader_name: Final[str] = dataloader_name or self.name
         self._reload_dataloaders_every_n_epochs = reload_dataloaders_every_n_epochs
 
         # State
-        self._dataloader: "Optional[reax.DataLoader[_T_co]]" = dataloader
-        self._datamodule: "Optional[reax.DataModule[_T_co]]" = datamodule
         self._iterator = None
         self._batch: Optional[Any] = None
         self._total_batch_idx: int = 0
@@ -389,10 +389,7 @@ class EpochStage(Stage, abc.ABC):
     @property
     def dataloader(self) -> "Optional[reax.DataLoader]":
         """Dataloader function."""
-        if self._dataloader is None:
-            self._dataloader = self._fetch_dataloader()
-
-        return self._dataloader
+        return self._datamanager.get_dataloader(self._dataloader_name)
 
     @property
     def dataloaders(self) -> "Optional[reax.DataLoader]":
@@ -519,12 +516,6 @@ class EpochStage(Stage, abc.ABC):
         """On starting."""
         super()._on_starting()
 
-        if (
-            self._reload_dataloaders_every_n_epochs
-            and self._reload_dataloaders_every_n_epochs % self.iteration == 0
-        ):
-            self._dataloader = self._fetch_dataloader()
-
         if self._module is not None:
             was_uninitialised = self._module.parameters() is None
             example_batch = next(iter(self.dataloader))
@@ -600,33 +591,12 @@ class EpochStage(Stage, abc.ABC):
 
     @override
     def _on_exception(self, exception: BaseException) -> None:
-        if self._datamodule is not None:
-            self._datamodule.on_exception(exception)
+        self._datamanager.on_exception(exception)
 
     @override
     def _teardown(self) -> None:
-        if self._datamodule:
-            self._datamodule.teardown(weakref.proxy(self))
+        self._datamanager.teardown(weakref.proxy(self))
         super()._teardown()
-
-    def _fetch_dataloader(self) -> "Optional[reax.DataLoader]":
-        if self._dataloader is not None:
-            # Dataloader always has priority
-            return self._dataloader
-
-        name = self._datamodule_loader_name
-        method_name = f"{name}_dataloader"
-        if self._datamodule is not None and overrides.is_overridden(
-            method_name, self._datamodule, data.DataModule
-        ):
-            return getattr(self._datamodule, method_name)()
-
-        if self._module is not None and overrides.is_overridden(
-            method_name, self._module, modules.Module
-        ):
-            return getattr(self._module, method_name)()
-
-        return None
 
     @property
     @deprecated(

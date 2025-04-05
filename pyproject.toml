@@ -118,7 +118,7 @@ disable = [
 ]
 
 [tool.pylint.design]
-max-locals = 20
+max-locals = 22
 max-branches = 14
 max-returns = 8
 max-positional-arguments = 8

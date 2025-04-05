@@ -8,7 +8,8 @@ from lightning_utilities.core import rank_zero
 import optax
 from typing_extensions import deprecated
 
-from . import _module_hooks, data
+from . import _module_hooks
+from .data import _datasources
 
 if TYPE_CHECKING:
     import reax
@@ -25,7 +26,9 @@ LossAndGrad = tuple[jax.Array, jax.Array]
 TrainOutput = Union[LossAndGrad, LossAndGradDict]
 
 
-class Module(Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, data.DataSource[BatchT]):
+class Module(
+    Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, _datasources.DataSource[BatchT]
+):
     example_input_array: Optional[BatchT]
 
     def __init__(self):

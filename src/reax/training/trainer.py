@@ -26,7 +26,7 @@ from lightning_utilities.core import rank_zero
 from typing_extensions import override
 
 from . import _checkpointing, _deprecated, _logger_connector
-from .. import exceptions, hooks, keys
+from .. import data, exceptions, hooks, keys
 from .. import listeners as listeners_
 from .. import loggers as loggers_
 from .. import modules, random, stages, strategies, typing
@@ -424,7 +424,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         limit_val_batches: Optional[Union[int, float]] = 1.0,
         val_check_interval: Optional[Union[int, float]] = 1.0,
         check_val_every_n_epoch: int = 1,
-        num_sanity_val_steps: Optional[int] = None,
+        num_sanity_val_steps: Optional[int] = 2,
         reload_dataloaders_every_n_epochs: int = 0,
     ) -> "reax.stages.Fit":
         """Fit function.
@@ -449,14 +449,15 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if ckpt_path:
             _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
 
+        datamanager = data.create_manager(
+            module=module, datamodule=datamodule, train=train_dataloaders, val=val_dataloaders
+        )
         fit = stages.Fit(
             module,
+            datamanager,
             self.optimizers,
             self._strategy,
             self._rng,
-            train_dataloaders=train_dataloaders,
-            val_dataloaders=val_dataloaders,
-            datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             max_epochs=max_epochs,
             min_epochs=min_epochs,
@@ -489,13 +490,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if ckpt_path:
             _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
 
-        validate = stages.Validate(
-            module,
-            self._strategy,
-            dataloader=dataloaders,
-            datamodule=datamodule,
-            limit_batches=limit_batches,
-        )
+        datamanager = data.create_manager(module, datamodule, val=dataloaders)
+        validate = stages.Validate(module, datamanager, self._strategy, limit_batches=limit_batches)
         self._run_stage(validate)
 
         return validate
@@ -514,12 +510,12 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if ckpt_path:
             _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
 
+        datamanager = data.create_manager(module, datamodule, test=dataloaders)
         test = stages.Test(
             module,
+            datamanager,
             self._strategy,
             self._rng,
-            dataloader=dataloaders,
-            datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )
@@ -551,11 +547,11 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if return_predictions is None:
             return_predictions = True
 
+        datamanager = data.create_manager(module, datamodule, predict=dataloaders)
         predict = stages.Predict(
             module,
+            datamanager,
             self._strategy,
-            dataloader=dataloaders,
-            datamodule=datamodule,
             limit_batches=limit_batches,
             keep_predictions=return_predictions,
         )
@@ -569,7 +565,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
         dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
-        dataset_name: str = "train_dataloader",
+        dataset_name: str = "train",
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Union[int, float] = keys.NO_LIMIT,
     ) -> "reax.stages.EvaluateStats":
@@ -581,12 +577,12 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if fast_dev_run:
             limit_batches = 1
 
+        datamanager = data.create_manager(datamodule=datamodule, **{dataset_name: dataloaders})
         eval_stats = stages.EvaluateStats(
             stats,
+            datamanager,
             self._strategy,
             self._rng,
-            dataloader=dataloaders,
-            datamodule=datamodule,
             dataset_name=dataset_name,
             limit_batches=limit_batches,
         )

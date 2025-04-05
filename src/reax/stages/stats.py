@@ -5,10 +5,9 @@ from typing import TYPE_CHECKING, Optional, TypeVar, Union
 
 import beartype
 import jaxtyping as jt
-from lightning_utilities.core import overrides
 from typing_extensions import override
 
-from reax import data, metrics, modules
+from reax import metrics
 
 from . import stages
 
@@ -30,11 +29,10 @@ class EvaluateStats(stages.EpochStage):
     def __init__(
         self,
         stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
+        datamanager: "reax.data.DataSourceManager",
         strategy: Optional["reax.Strategy"],
         rng: "reax.Generator",
         *,
-        dataloader: "Optional[reax.DataLoader]" = None,
-        datamodule: "Optional[reax.DataModule]" = None,
         dataset_name: str = "train",
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[Union[int, float]] = None,
@@ -43,32 +41,16 @@ class EvaluateStats(stages.EpochStage):
         super().__init__(
             "stats",
             None,
+            datamanager,
             strategy,
             rng,
-            dataloader=dataloader,
-            datamodule=datamodule,
+            dataloader_name=dataset_name,
             limit_batches=limit_batches,
             fast_dev_run=fast_dev_run,
         )
 
         # Params
         self._stats = metrics.MetricCollection(stats)
-        self._dataset_name = dataset_name
-
-    @property
-    def dataloader(self) -> "Optional[reax.DataLoader]":
-        """Dataloader function."""
-        if self._dataloader is None:
-            if self._datamodule is not None and overrides.is_overridden(
-                "val_dataloader", self._datamodule, data.DataModule
-            ):
-                self._dataloader = self._datamodule.val_dataloader()
-            elif self._module is not None and overrides.is_overridden(
-                "val_dataloader", self._module, modules.Module
-            ):
-                self._dataloader = self._module.val_dataloader()
-
-        return self._dataloader
 
     @override
     def _step(self) -> None:

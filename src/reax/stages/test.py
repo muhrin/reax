@@ -23,11 +23,10 @@ class Test(stages.EpochStage):
     def __init__(
         self,
         module: "reax.Module",
+        datamanager: "reax.data.DataSourceManager",
         strategy: "reax.Strategy",
         rng: "Optional[reax.Generator]",
         *,
-        dataloader: "Optional[reax.DataLoader]" = None,
-        datamodule: "Optional[reax.DataModule]" = None,
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[Union[int, float]] = None,
     ):
@@ -35,10 +34,9 @@ class Test(stages.EpochStage):
         super().__init__(
             "test",
             module,
+            datamanager,
             strategy,
             rng,
-            dataloader=dataloader,
-            datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )

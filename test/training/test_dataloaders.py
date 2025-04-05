@@ -396,80 +396,78 @@ def test_dataloaders_with_limit_val_batches(tmp_path, dataset):
     assert epoch_listener.val_batches_seen == limit_val_batches * max_epochs
 
 
-#
-# @pytest.mark.parametrize(
-#     "dataset",
-#     [
-#         RandomDataset(32, 128),
-#         RandomIterableDataset(32, 128),
-#         RandomIterableDatasetWithLen(32, 128),
-#     ],
-# )
-# def test_datasets_dataloaders_with_limit_num_batches(tmp_path, dataset):
-#     """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit as number."""
-#     epoch_cb = Counter()
-#     max_epochs = 2
-#     limit_batches = 10
-#     trainer = Trainer(
-#         default_root_dir=tmp_path,
-#         num_sanity_val_steps=0,
-#         max_epochs=max_epochs,
-#         callbacks=[epoch_cb],
-#         limit_train_batches=limit_batches,
-#         limit_val_batches=limit_batches,
-#         limit_test_batches=limit_batches,
-#     )
-#     model = DummyModel()
-#
-#     batch_size = 8
-#     train_dl = DataLoader(dataset=dataset, batch_size=batch_size)
-#     val_dl = DataLoader(dataset=dataset, batch_size=batch_size)
-#     test_dl = DataLoader(dataset=dataset, batch_size=batch_size)
-#
-#     trainer.fit(model, train_dataloaders=train_dl, val_dataloaders=val_dl)
-#
-#     assert trainer.num_training_batches == limit_batches
-#     assert trainer.num_val_batches[0] == limit_batches
-#     assert epoch_cb.train_epoch_count == max_epochs
-#     assert epoch_cb.train_batches_seen == limit_batches * max_epochs
-#     assert epoch_cb.val_epoch_count == max_epochs
-#     assert epoch_cb.val_batches_seen == limit_batches * max_epochs
-#
-#     trainer.test(model, dataloaders=test_dl)
-#     assert trainer.num_test_batches[0] == limit_batches
-#     assert epoch_cb.test_epoch_count == 1
-#
-#
-# @pytest.mark.parametrize(
-#     ("limit_train_batches", "limit_val_batches", "limit_test_batches"),
-#     [(1.0, 1.0, 1.0), (0.2, 0.4, 0.4)],
-# )
-# def test_dataloaders_with_limit_percent_batches(
-#     tmp_path, limit_train_batches, limit_val_batches, limit_test_batches
-# ):
-#     """Verify num_batches for train, val & test dataloaders passed with batch limit in percent."""
-#     model = MultiEvalDataLoaderModel()
-#     # train, multiple val and multiple test passed with percent_check
-#     trainer = Trainer(
-#         default_root_dir=tmp_path,
-#         max_epochs=1,
-#         limit_train_batches=limit_train_batches,
-#         limit_val_batches=limit_val_batches,
-#         limit_test_batches=limit_test_batches,
-#     )
-#     trainer.fit(model)
-#     expected_train_batches = int(len(trainer.train_dataloader) * limit_train_batches)
-#     expected_val_batches = [
-#         int(len(dataloader) * limit_val_batches) for dataloader in trainer.val_dataloaders
-#     ]
-#     assert trainer.num_training_batches == expected_train_batches
-#     assert trainer.num_val_batches == expected_val_batches
-#
-#     trainer.test(model)
-#     expected_test_batches = [
-#         int(len(dataloader) * limit_test_batches) for dataloader in trainer.test_dataloaders
-#     ]
-#     assert trainer.num_test_batches == expected_test_batches
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        boring_classes.RandomDataset(32, 128),
+        boring_classes.RandomIterableDataset(32, 128),
+        # TODO: boring_classes.RandomIterableDatasetWithLen(32, 128),
+    ],
+)
+def test_datasets_dataloaders_with_limit_num_batches(tmp_path, dataset):
+    """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit as number."""
+    epoch_cb = Counter()
+    max_epochs = 2
+    limit_batches = 10
+    trainer = reax.Trainer(default_root_dir=tmp_path, listeners=[epoch_cb])
+    model = DummyModel()
+
+    batch_size = 8
+    train_dl = reax.data.ReaxDataLoader(dataset=dataset, batch_size=batch_size)
+    val_dl = reax.data.ReaxDataLoader(dataset=dataset, batch_size=batch_size)
+    test_dl = reax.data.ReaxDataLoader(dataset=dataset, batch_size=batch_size)
+
+    fit = trainer.fit(
+        model,
+        train_dataloaders=train_dl,
+        val_dataloaders=val_dl,
+        max_epochs=max_epochs,
+        limit_train_batches=limit_batches,
+        limit_val_batches=limit_batches,
+        num_sanity_val_steps=0,
+    )
+
+    assert fit.num_training_batches == limit_batches
+    assert fit.num_val_batches[0] == limit_batches
+    assert epoch_cb.train_epoch_count == max_epochs
+    assert epoch_cb.train_batches_seen == limit_batches * max_epochs
+    assert epoch_cb.val_epoch_count == max_epochs
+    assert epoch_cb.val_batches_seen == limit_batches * max_epochs
+
+    test = trainer.test(model, dataloaders=test_dl, limit_batches=limit_batches)
+    assert test.num_batches[0] == limit_batches
+    assert epoch_cb.test_epoch_count == 1
+
+
+@pytest.mark.parametrize(
+    ("limit_train_batches", "limit_val_batches", "limit_test_batches"),
+    [(1.0, 1.0, 1.0), (0.2, 0.4, 0.4)],
+)
+def test_dataloaders_with_limit_percent_batches(
+    tmp_path, limit_train_batches, limit_val_batches, limit_test_batches
+):
+    """Verify num_batches for train, val & test dataloaders passed with batch limit in percent."""
+    model = MultiEvalDataLoaderModel()
+    # train, multiple val and multiple test passed with percent_check
+    trainer = reax.Trainer(default_root_dir=tmp_path)
+    fit = trainer.fit(
+        model,
+        max_epochs=1,
+        limit_train_batches=limit_train_batches,
+        limit_val_batches=limit_val_batches,
+    )
+    expected_train_batches = int(len(fit.train_dataloader) * limit_train_batches)
+    expected_val_batches = [
+        int(len(dataloader) * limit_val_batches) for dataloader in fit.val_dataloaders
+    ]
+    assert fit.num_training_batches == expected_train_batches
+    assert fit.num_val_batches == expected_val_batches
+
+    test = trainer.test(model, limit_batches=limit_test_batches)
+    expected_test_batches = [
+        int(len(dataloader) * limit_test_batches) for dataloader in test.dataloaders
+    ]
+    assert test.num_batches == expected_test_batches
 
 
 @pytest.mark.skip(reason="Not updated yet")
@@ -763,18 +761,19 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #     model.val_dataloader = None
 #     trainer.fit(model, train_dataloaders=dataloader)
 #
+
 #
 # def test_warning_with_small_dataloader_and_logging_interval(tmp_path):
 #     """Test that a warning message is shown if the dataloader length is too short for the chosen logging interval."""
-#     model = BoringModel()
-#     dataloader = DataLoader(RandomDataset(32, length=10))
+#     model = boring_classes.BoringModel()
+#     dataloader = reax.ReaxDataLoader(boring_classes.RandomDataset(32, length=10))
 #     model.train_dataloader = lambda: dataloader
 #
 #     with pytest.warns(
 #         UserWarning,
 #         match=r"The number of training batches \(10\) is smaller than the logging interval",
 #     ):
-#         trainer = Trainer(
+#         trainer = reax.Trainer(
 #             default_root_dir=tmp_path,
 #             max_epochs=1,
 #             log_every_n_steps=11,
@@ -786,7 +785,7 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #         UserWarning,
 #         match=r"The number of training batches \(1\) is smaller than the logging interval",
 #     ):
-#         trainer = Trainer(
+#         trainer = reax.Trainer(
 #             default_root_dir=tmp_path,
 #             max_epochs=1,
 #             log_every_n_steps=2,
@@ -798,7 +797,8 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #     with no_warning_call(UserWarning, match="The number of training batches"):
 #         trainer = Trainer(default_root_dir=tmp_path, fast_dev_run=True, log_every_n_steps=2)
 #         trainer.fit(model)
-#
+
+
 #
 # def test_warning_with_iterable_dataset_and_len(tmp_path):
 #     """Tests that a warning message is shown when an IterableDataset defines `__len__`."""
@@ -1014,6 +1014,7 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #     # verify the num_training_batches according to the mode
 #     assert num_training_batches == trainer.num_training_batches
 #
+
 #
 # @pytest.mark.parametrize("check_interval", [50, 1.0])
 # @pytest.mark.parametrize(
@@ -1022,21 +1023,19 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 # def test_train_dataloader_not_implemented_error(tmp_path, check_interval, dataloader_wrapper):
 #     """Test not_implemented_error train data loader (e.g. IterableDataset)"""
 #
-#     class CustomBoringModel(BoringModel):
+#     class CustomBoringModel(boring_classes.BoringModel):
 #         def train_dataloader(self):
-#             return dataloader_wrapper(DataLoader(RandomDataset(32, 64)))
+#             return dataloader_wrapper(reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64)))
 #
 #         def val_dataloader(self):
-#             return dataloader_wrapper(DataLoader(RandomDataset(32, 64)))
+#             return dataloader_wrapper(reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64)))
 #
 #     model = CustomBoringModel()
-#     trainer = Trainer(
-#         default_root_dir=tmp_path, max_steps=5, max_epochs=1, val_check_interval=check_interval
-#     )
-#     trainer.fit(model)
+#     trainer = reax.Trainer(default_root_dir=tmp_path)
+#     trainer.fit(model, max_steps=5, max_epochs=1, val_check_interval=check_interval)
 #     # verify training completed
-#
-#
+
+
 # @pytest.mark.parametrize(
 #     "stage",
 #     [RunningStage.TRAINING, RunningStage.VALIDATING, RunningStage.TESTING, RunningStage.PREDICTING],
@@ -1067,26 +1066,26 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #
 
 
-# def test_dataloaders_load_only_once(tmp_path):
-#     model = boring_classes.BoringModel()
-#     tracker = Mock()
-#
-#     model.train_dataloader = Mock(wraps=model.train_dataloader)
-#     model.val_dataloader = Mock(wraps=model.val_dataloader)
-#     model.test_dataloader = Mock(wraps=model.test_dataloader)
-#
-#     tracker.attach_mock(model.train_dataloader, "train_dataloader")
-#     tracker.attach_mock(model.val_dataloader, "val_dataloader")
-#     tracker.attach_mock(model.test_dataloader, "test_dataloader")
-#
-#     trainer = reax.Trainer(default_root_dir=tmp_path)
-#     trainer.fit(model, limit_train_batches=0.3, limit_val_batches=0.3, max_epochs=3)
-#
-#     model.train_dataloader.assert_called_once()
-#     model.val_dataloader.assert_called_once()
-#     model.test_dataloader.assert_not_called()
-#
-#     assert tracker.mock_calls == [call.val_dataloader(), call.train_dataloader()]
+def test_dataloaders_load_only_once(tmp_path):
+    model = boring_classes.BoringModel()
+    tracker = Mock()
+
+    model.train_dataloader = Mock(wraps=model.train_dataloader)
+    model.val_dataloader = Mock(wraps=model.val_dataloader)
+    model.test_dataloader = Mock(wraps=model.test_dataloader)
+
+    tracker.attach_mock(model.train_dataloader, "train_dataloader")
+    tracker.attach_mock(model.val_dataloader, "val_dataloader")
+    tracker.attach_mock(model.test_dataloader, "test_dataloader")
+
+    trainer = reax.Trainer(default_root_dir=tmp_path)
+    trainer.fit(model, limit_train_batches=0.3, limit_val_batches=0.3, max_epochs=3)
+
+    model.train_dataloader.assert_called_once()
+    model.val_dataloader.assert_called_once()
+    model.test_dataloader.assert_not_called()
+
+    assert tracker.mock_calls == [call.val_dataloader(), call.train_dataloader()]
 
 
 def test_dataloaders_load_only_once_no_sanity_check(tmp_path):
@@ -1218,47 +1217,47 @@ def test_dataloaders_load_every_n_epochs_infrequent_val(
     assert val_step_epochs == val_step_epochs_expect
 
 
-#
-# def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
-#     """Test dataloader reload behavior when frequently checking validation set (via val_check_interval)"""
-#     train_reload_epochs, val_reload_epochs, val_check_epochs = [], [], []
-#
-#     class TestModel(BoringModel):
-#         def train_dataloader(self):
-#             train_reload_epochs.append(self.current_epoch)
-#             return super().train_dataloader()
-#
-#         def val_dataloader(self):
-#             val_reload_epochs.append(self.current_epoch)
-#             return super().val_dataloader()
-#
-#         def on_validation_epoch_end(self):
-#             val_check_epochs.append(self.current_epoch)
-#
-#     model = TestModel()
-#
-#     trainer = Trainer(
-#         default_root_dir=tmp_path,
-#         limit_train_batches=0.3,
-#         limit_val_batches=0.3,
-#         val_check_interval=0.3,
-#         reload_dataloaders_every_n_epochs=1,
-#         max_epochs=3,
-#     )
-#
-#     model.test_dataloader = Mock(wraps=model.test_dataloader)
-#
-#     trainer.fit(model)
-#     trainer.test(model)
-#
-#     # Verify epoch of reloads
-#     assert train_reload_epochs == [0, 1, 2]
-#     assert val_reload_epochs == [0, 1, 2]
-#     model.test_dataloader.assert_called_once()
-#
-#     # Verify validation happens 3 times per epoch + 1 for sanity check
-#     assert val_check_epochs == [0, 0, 0, 0, 1, 1, 1, 2, 2, 2]
-#
+def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
+    """Test dataloader reload behavior when frequently checking validation set (via val_check_interval)"""
+    train_reload_epochs, val_reload_epochs, val_check_epochs = [], [], []
+
+    class TestModel(boring_classes.BoringModel):
+        def train_dataloader(self):
+            train_reload_epochs.append(self.current_epoch)
+            return super().train_dataloader()
+
+        def val_dataloader(self):
+            val_reload_epochs.append(self.current_epoch)
+            return super().val_dataloader()
+
+        def on_validation_epoch_end(self, stage: "reax.stages.Validate", /):
+            val_check_epochs.append(self.current_epoch)
+
+    model = TestModel()
+
+    trainer = reax.Trainer(default_root_dir=tmp_path)
+
+    model.test_dataloader = Mock(wraps=model.test_dataloader)
+
+    trainer.fit(
+        model,
+        limit_train_batches=0.3,
+        limit_val_batches=0.3,
+        val_check_interval=0.3,
+        reload_dataloaders_every_n_epochs=1,
+        max_epochs=3,
+    )
+    trainer.test(model)
+
+    # Verify epoch of reloads
+    assert train_reload_epochs == [0, 1, 2]
+    assert val_reload_epochs == [0, 1, 2]
+    model.test_dataloader.assert_called_once()
+
+    # Verify validation happens 3 times per epoch + 1 for sanity check
+    assert val_check_epochs == [0, 0, 0, 0, 1, 1, 1, 2, 2, 2]
+
+
 #
 # @pytest.mark.parametrize("n", ["test", -1])
 # def test_dataloaders_load_every_n_epochs_exception(tmp_path, n):

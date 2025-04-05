@@ -18,10 +18,9 @@ class Predict(stages.EpochStage):
     def __init__(
         self,
         module: "reax.Module",
+        datamanager: "reax.data.DataSourceManager",
         strategy: "reax.Strategy",
         *,
-        dataloader: "Optional[reax.DataLoader]" = None,
-        datamodule: "Optional[reax.DataModule]" = None,
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[int] = None,
         keep_predictions=True,
@@ -30,10 +29,9 @@ class Predict(stages.EpochStage):
         super().__init__(
             "predict",
             module,
+            datamanager,
             strategy,
             None,
-            dataloader=dataloader,
-            datamodule=datamodule,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )
