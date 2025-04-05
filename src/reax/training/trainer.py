@@ -97,7 +97,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             default_args=(weakref.proxy(self),)
         )
 
-        self._loggers = _init_loggers(logger, self.default_root_dir)
+        self._loggers: list[loggers_.Logger] = _init_loggers(logger, self.default_root_dir)
 
         self._logging = _logger_connector.TrainerLogging()
 
