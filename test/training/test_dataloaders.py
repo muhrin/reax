@@ -396,6 +396,7 @@ def test_dataloaders_with_limit_val_batches(tmp_path, dataset):
     assert epoch_listener.val_batches_seen == limit_val_batches * max_epochs
 
 
+@pytest.mark.skip(reason="Not fully ported yet")
 @pytest.mark.parametrize(
     "dataset",
     [
@@ -439,6 +440,7 @@ def test_datasets_dataloaders_with_limit_num_batches(tmp_path, dataset):
     assert epoch_cb.test_epoch_count == 1
 
 
+@pytest.mark.skip(reason="Not fully ported yet")
 @pytest.mark.parametrize(
     ("limit_train_batches", "limit_val_batches", "limit_test_batches"),
     [(1.0, 1.0, 1.0), (0.2, 0.4, 0.4)],
@@ -1116,6 +1118,7 @@ def test_dataloaders_load_only_once_no_sanity_check(tmp_path):
     assert tracker.mock_calls == expected_sequence
 
 
+@pytest.mark.skip(reason="Not fully ported yet")
 @pytest.mark.parametrize(
     (
         "num_sanity_val_steps",

@@ -151,24 +151,24 @@ class FitEpoch(train.Train):
         super()._on_iteration_finished(outputs)
 
         # We've finished the train iteration, so check if we should do a validation
-        if (
-            isinstance(self._val_check_interval, int)
-            and self.iteration % self._val_check_interval == 0
-        ):
-            self._run_child(self._validate)
-
-        # if self._should_check_val():
+        # if (
+        #     isinstance(self._val_check_interval, int)
+        #     and self.iteration % self._val_check_interval == 0
+        # ):
         #     self._run_child(self._validate)
+
+        if self._should_check_val():
+            self._run_child(self._validate)
 
     @override
     def _on_stopping(self) -> None:
         """On stopping."""
-        if (
-            self._validate is not None
-            and self._check_val_every_n_epoch is not None
-            and (self.epoch + 1) % self._check_val_every_n_epoch == 0
-        ):
-            self._run_child(self._validate)
+        # if (
+        #     self._validate is not None
+        #     and self._check_val_every_n_epoch is not None
+        #     and (self.epoch + 1) % self._check_val_every_n_epoch == 0
+        # ):
+        #     self._run_child(self._validate)
         super()._on_stopping()
 
     @override
@@ -224,7 +224,7 @@ class FitEpoch(train.Train):
             current_iteration = (
                 self.total_batch_idx if self.check_val_every_n_epoch is None else self.batch_idx
             )
-            is_val_check_batch = (current_iteration + 1) % self._val_check_batch == 0
+            is_val_check_batch = (current_iteration) % self._val_check_batch == 0
 
         return is_val_check_batch
 
@@ -254,7 +254,7 @@ class FitEpoch(train.Train):
             has_len_all_ranks_ = dataloader_size is not None
             if not has_len_all_ranks_:
                 if val_check_interval == 1.0:
-                    val_check_batch = None
+                    val_check_batch = float("inf")
                 else:
                     raise exceptions.MisconfigurationException(
                         "When using an IterableDataset for `train_dataloader`,"
