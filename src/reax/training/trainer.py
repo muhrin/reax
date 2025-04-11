@@ -47,7 +47,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     def __init__(
         self,
         *,
-        accelerator: Literal["auto", "cpu", "gpu"] = "auto",
+        accelerator: str = "auto",
         devices: Union[list[int], str, int] = "auto",
         precision=None,
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = True,
@@ -72,7 +72,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
                 "see e.g.: https://github.com/jax-ml/jax/issues/22688"
             )
 
-        self._accelerator = (
+        self._accelerator: jax.Device = (
             jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
         )
         # Params
