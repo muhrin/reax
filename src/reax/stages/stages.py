@@ -559,7 +559,7 @@ class EpochStage(Stage, abc.ABC):
                     metrics[keys.PBAR][entry.meta.name] = value
 
         # Convert tensors to python scalars
-        self._metrics_results = jax.tree_map(arrays.to_base, metrics)
+        self._metrics_results = jax.tree.map(arrays.to_base, metrics)
 
         # Keep track of the total number of batches, even across multiple executions of this loop
         self._total_batch_idx += 1
@@ -584,7 +584,7 @@ class EpochStage(Stage, abc.ABC):
                     metrics[keys.PBAR][entry.meta.name] = value
 
         # Convert tensors to python scalars
-        self._metrics_results = jax.tree_map(arrays.to_base, metrics)
+        self._metrics_results = jax.tree.map(arrays.to_base, metrics)
 
     def _on_epoch_end(self) -> None:
         """The epoch is ending."""

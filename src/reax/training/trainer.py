@@ -12,7 +12,6 @@ from typing import (
     Final,
     Generator,
     Iterable,
-    Literal,
     Optional,
     Union,
 )
@@ -405,7 +404,6 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
     # region Stages
 
-    @jt.jaxtyped(typechecker=beartype.beartype)
     def fit(
         self,
         module: modules.Module,

@@ -33,6 +33,7 @@
 import os
 from unittest.mock import Mock, call, patch
 
+from lightning_utilities.test import warning
 import numpy
 import pytest
 
@@ -570,7 +571,7 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
     eval_dataloader = reax.ReaxDataLoader(boring_classes.RandomDataset(32, 64))
 
     # fit model
-    trainer = reax.Trainer(default_root_dir="tmp_path")
+    trainer = reax.Trainer(default_root_dir=tmp_path)
     fit = trainer.fit(
         model,
         val_dataloaders=eval_dataloader,
@@ -587,15 +588,13 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
     assert test.dataloaders == eval_dataloader
 
 
-#
-#
 # def test_warning_on_zero_len_dataloader():
 #     """Test that a warning is raised if a zero-length dataloader is defined."""
-#     model = BoringModel()
-#     trainer = Trainer()
+#     model = boring_classes.BoringModel()
+#     trainer = reax.Trainer()
 #     trainer.strategy.connect(model)
-#     train_dataloader = DataLoader(RandomDataset(32, 0))
-#     val_dataloader = DataLoader(RandomDataset(32, 0))
+#     train_dataloader = reax.ReaxDataLoader(boring_classes.RandomDataset(32, 0))
+#     val_dataloader = reax.ReaxDataLoader(boring_classes.RandomDataset(32, 0))
 #     trainer._data_connector.attach_data(
 #         model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader
 #     )
@@ -608,8 +607,8 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #     with pytest.warns(UserWarning, match="Total length of `DataLoader` across ranks is zero"):
 #         trainer.validate_loop.setup_data()
 #     assert trainer.num_val_batches == [0]
-#
-#
+
+
 # @RunIf(skip_windows=True)
 # @pytest.mark.parametrize("ckpt_path", [None, "best", "specific"])
 # @pytest.mark.parametrize("stage", ["train", "test", "val"])
@@ -764,7 +763,7 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #     trainer.fit(model, train_dataloaders=dataloader)
 #
 
-#
+
 # def test_warning_with_small_dataloader_and_logging_interval(tmp_path):
 #     """Test that a warning message is shown if the dataloader length is too short for the chosen logging interval."""
 #     model = boring_classes.BoringModel()
@@ -777,11 +776,10 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #     ):
 #         trainer = reax.Trainer(
 #             default_root_dir=tmp_path,
-#             max_epochs=1,
 #             log_every_n_steps=11,
-#             logger=CSVLogger(tmp_path),
+#             logger=reax.loggers.CsvLogger(tmp_path),
 #         )
-#         trainer.fit(model)
+#         trainer.fit(model, max_epochs=1)
 #
 #     with pytest.warns(
 #         UserWarning,
@@ -789,22 +787,19 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #     ):
 #         trainer = reax.Trainer(
 #             default_root_dir=tmp_path,
-#             max_epochs=1,
 #             log_every_n_steps=2,
-#             limit_train_batches=1,
-#             logger=CSVLogger(tmp_path),
+#             logger=reax.loggers.CsvLogger(tmp_path),
 #         )
-#         trainer.fit(model)
+#         trainer.fit(model, max_epochs=1, limit_train_batches=1)
 #
-#     with no_warning_call(UserWarning, match="The number of training batches"):
-#         trainer = Trainer(default_root_dir=tmp_path, fast_dev_run=True, log_every_n_steps=2)
+#     with warning.no_warning_call(UserWarning, match="The number of training batches"):
+#         trainer = reax.Trainer(default_root_dir=tmp_path, fast_dev_run=True, log_every_n_steps=2)
 #         trainer.fit(model)
 
 
-#
 # def test_warning_with_iterable_dataset_and_len(tmp_path):
 #     """Tests that a warning message is shown when an IterableDataset defines `__len__`."""
-#     model = BoringModel()
+#     model = boring_classes.BoringModel()
 #     original_dataset = model.train_dataloader().dataset
 #
 #     class IterableWithoutLen(IterableDataset):
@@ -816,8 +811,8 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #             return len(original_dataset)
 #
 #     # with __len__ defined
-#     trainer = Trainer(default_root_dir=tmp_path, max_steps=3)
-#     dataloader = DataLoader(IterableWithLen(), batch_size=16)
+#     trainer = reax.Trainer(default_root_dir=tmp_path, max_steps=3)
+#     dataloader = reax.ReaxDataLoader(IterableWithLen(), batch_size=16)
 #     assert has_len_all_ranks(dataloader, trainer.strategy)
 #     assert has_iterable_dataset(dataloader)
 #     with pytest.warns(UserWarning, match="Your `IterableDataset` has `__len__` defined."):
@@ -830,28 +825,28 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #         trainer.predict(model, dataloaders=[dataloader])
 #
 #     # without __len__ defined
-#     trainer = Trainer(default_root_dir=tmp_path, max_steps=3)
-#     dataloader = DataLoader(IterableWithoutLen(), batch_size=16)
+#     trainer = reax.Trainer(default_root_dir=tmp_path, max_steps=3)
+#     dataloader = reax.ReaxDataLoader(IterableWithoutLen(), batch_size=16)
 #     assert not has_len_all_ranks(dataloader, trainer.strategy)
 #     assert has_iterable_dataset(dataloader)
 #     trainer.validate(model, dataloaders=dataloader)
 #     trainer.fit(model, train_dataloaders=dataloader, val_dataloaders=[dataloader])
 #     trainer.test(model, dataloaders=dataloader)
 #     trainer.predict(model, dataloaders=dataloader)
-#
-#
+
+
 # @pytest.mark.parametrize("yield_at_all", [False, True])
 # def test_iterable_dataset_stop_iteration_at_epoch_beginning(yield_at_all, tmp_path):
 #     """Test that the training loop skips execution if the iterator is empty from the start."""
 #
-#     class TestDataset(IterableDataset):
+#     class TestDataset(reax.data.IterableDataset):
 #         def __init__(self, gen):
 #             self.gen = gen
 #
 #         def __iter__(self):
 #             return iter(self.gen())
 #
-#     class TestModel(BoringModel):
+#     class TestModel(boring_classes.BoringModel):
 #         def gen(self):
 #             # produce data in epoch 0, no data otherwise
 #             if yield_at_all and self.current_epoch == 0:
@@ -860,20 +855,19 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #                 yield torch.rand(32)
 #
 #     model = TestModel()
-#     train_dataloader = DataLoader(TestDataset(model.gen), batch_size=2)
-#     trainer = Trainer(
+#     train_dataloader = reax.ReaxDataLoader(TestDataset(model.gen), batch_size=2)
+#     trainer = reax.Trainer(
 #         default_root_dir=tmp_path,
 #         logger=False,
-#         max_epochs=2,
 #         enable_model_summary=False,
 #     )
-#     trainer.fit(model, train_dataloaders=train_dataloader)
-#     assert trainer.global_step == 2 * yield_at_all
+#     trainer.fit(model, train_dataloaders=train_dataloader, max_epochs=2)
+#     assert trainer.global_updates == 2 * yield_at_all
 #     # even though the generator might not yield any data, the fit_loop still advances so the
 #     # current epoch gets increased
 #     assert trainer.current_epoch == 2
-#
-#
+
+
 # class DistribSamplerCallback(Callback):
 #     def __init__(self, expected_seeds=(0, 0, 0)):
 #         self.expected_seed = expected_seeds
@@ -1017,7 +1011,7 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #     assert num_training_batches == trainer.num_training_batches
 #
 
-#
+
 # @pytest.mark.parametrize("check_interval", [50, 1.0])
 # @pytest.mark.parametrize(
 #     "dataloader_wrapper", [CustomNotImplementedErrorDataloader, CustomInfDataloader]
@@ -1034,7 +1028,7 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #
 #     model = CustomBoringModel()
 #     trainer = reax.Trainer(default_root_dir=tmp_path)
-#     trainer.fit(model, max_steps=5, max_epochs=1, val_check_interval=check_interval)
+#     trainer.fit(model, max_updates=5, max_epochs=1, val_check_interval=check_interval)
 #     # verify training completed
 
 
@@ -1261,63 +1255,62 @@ def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
     assert val_check_epochs == [0, 0, 0, 0, 1, 1, 1, 2, 2, 2]
 
 
-#
-# @pytest.mark.parametrize("n", ["test", -1])
-# def test_dataloaders_load_every_n_epochs_exception(tmp_path, n):
-#     with pytest.raises(MisconfigurationException, match="should be an int >"):
-#         Trainer(default_root_dir=tmp_path, reload_dataloaders_every_n_epochs=n)
-#
-#
-# def test_dataloaders_load_every_epoch_no_sanity_check(tmp_path):
-#     class TestModel(boring_classes.BoringModel):
-#         def validation_step(self, batch, batch_idx):
-#             self.log("dummy_val", 5.0)
-#             return super().validation_step(batch, batch_idx)
-#
-#     model = TestModel()
-#
-#     # This callback tests that the evaluation metrics are available by the time we run checkpointing
-#     checkpoint_listener = reax.listeners.ModelCheckpoint(monitor="dummy_val", save_top_k=1)
-#
-#     # logger file to get meta
-#     trainer = reax.Trainer(default_root_dir=tmp_path, listeners=[checkpoint_listener])
-#
-#     tracker = Mock()
-#     model.train_dataloader = Mock(wraps=model.train_dataloader)
-#     model.val_dataloader = Mock(wraps=model.val_dataloader)
-#     model.test_dataloader = Mock(wraps=model.test_dataloader)
-#
-#     tracker.attach_mock(model.train_dataloader, "train_dataloader")
-#     tracker.attach_mock(model.val_dataloader, "val_dataloader")
-#     tracker.attach_mock(model.test_dataloader, "test_dataloader")
-#
-#     trainer.fit(
-#         model,
-#         limit_train_batches=0.3,
-#         limit_val_batches=0.3,
-#         reload_dataloaders_every_n_epochs=1,
-#         max_epochs=3,
-#         num_sanity_val_steps=0,
-#     )
-#     trainer.test(model)
-#
-#     expected_calls = [
-#         call.train_dataloader(),
-#         call.val_dataloader(),
-#         call.train_dataloader(),
-#         call.val_dataloader(),
-#         call.train_dataloader(),
-#         call.val_dataloader(),
-#         call.test_dataloader(),
-#     ]
-#     assert tracker.mock_calls == expected_calls
-#
+@pytest.mark.parametrize("n", ["test", -1])
+def test_dataloaders_load_every_n_epochs_exception(tmp_path, n):
+    with pytest.raises(reax.exceptions.MisconfigurationException, match="should be an int >"):
+        trainer = reax.Trainer(default_root_dir=tmp_path)
+        trainer.fit(boring_classes.BoringModel(), reload_dataloaders_every_n_epochs=n)
+
+
+def test_dataloaders_load_every_epoch_no_sanity_check(tmp_path):
+    class TestModel(boring_classes.BoringModel):
+        def validation_step(self, batch, batch_idx):
+            self.log("dummy_val", 5.0)
+            return super().validation_step(batch, batch_idx)
+
+    model = TestModel()
+
+    # This callback tests that the evaluation metrics are available by the time we run checkpointing
+    checkpoint_listener = reax.listeners.ModelCheckpoint(monitor="dummy_val", save_top_k=1)
+
+    # logger file to get meta
+    trainer = reax.Trainer(default_root_dir=tmp_path, listeners=[checkpoint_listener])
+
+    tracker = Mock()
+    model.train_dataloader = Mock(wraps=model.train_dataloader)
+    model.val_dataloader = Mock(wraps=model.val_dataloader)
+    model.test_dataloader = Mock(wraps=model.test_dataloader)
+
+    tracker.attach_mock(model.train_dataloader, "train_dataloader")
+    tracker.attach_mock(model.val_dataloader, "val_dataloader")
+    tracker.attach_mock(model.test_dataloader, "test_dataloader")
+
+    trainer.fit(
+        model,
+        limit_train_batches=0.3,
+        limit_val_batches=0.3,
+        reload_dataloaders_every_n_epochs=1,
+        max_epochs=3,
+        num_sanity_val_steps=0,
+    )
+    trainer.test(model)
+
+    expected_calls = [
+        call.train_dataloader(),
+        call.val_dataloader(),
+        call.train_dataloader(),
+        call.val_dataloader(),
+        call.train_dataloader(),
+        call.val_dataloader(),
+        call.test_dataloader(),
+    ]
+    assert tracker.mock_calls == expected_calls
 
 
 #
 # @pytest.mark.parametrize("sanity_check", [False, True])
 # def test_dataloaders_load_only_once_passed_loaders(tmp_path, monkeypatch, sanity_check):
-#     model = BoringModel()
+#     model = boring_classes.BoringModel()
 #     train_dataloader = model.train_dataloader()
 #     val_dataloader = model.val_dataloader()
 #     test_dataloader = model.test_dataloader()
@@ -1327,31 +1320,37 @@ def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
 #     model.val_dataloader = None
 #     model.test_dataloader = None
 #
-#     stages = []
-#     original_request_dataloader = _request_dataloader
+#     stages: list[str] = []
 #
-#     def side_effect_request_dataloader(ds):
-#         stages.append(trainer.state.stage)
-#         return original_request_dataloader(ds)
+#     trainer = reax.Trainer(default_root_dir=tmp_path)
 #
-#     request_dataloader_mock = Mock(wraps=side_effect_request_dataloader)
+#     original_request_dataloader = reax.data.DataSourceManager.get_dataloader
+#
+#     def side_effect_request_dataloader(self, name):
+#         stages.append(str(trainer.stage))
+#         return original_request_dataloader(self, name)
+#
+#     # patch.object(reax.data.DataSourceManager, "_request_dataloader", side_effect_request_dataloader)
+#
+#     # request_dataloader_mock = Mock(wraps=side_effect_request_dataloader)
 #     monkeypatch.setattr(
-#         lightning.pytorch.loops.fit_loop, "_request_dataloader", request_dataloader_mock
+#         reax.data.DataSourceManager, "get_dataloader", side_effect_request_dataloader
 #     )
-#     monkeypatch.setattr(
-#         lightning.pytorch.loops.evaluation_loop, "_request_dataloader", request_dataloader_mock
-#     )
+#     # monkeypatch.setattr(
+#     #     lightning.pytorch.loops.evaluation_loop, "_request_dataloader", request_dataloader_mock
+#     # )
 #
-#     trainer = Trainer(
-#         default_root_dir=tmp_path,
+#     trainer.fit(
+#         model,
+#         train_dataloader,
+#         val_dataloader,
 #         limit_train_batches=0.3,
 #         limit_val_batches=0.3,
 #         max_epochs=3,
 #         num_sanity_val_steps=1 if sanity_check else 0,
 #     )
-#
-#     trainer.fit(model, train_dataloader, val_dataloader)
-#     assert request_dataloader_mock.call_count == 2
+#     # assert request_dataloader_mock.call_count == 2
+#     assert len(stages) == 2
 #
 #     request_dataloader_mock.reset_mock()
 #     trainer.test(model, dataloaders=test_dataloader)
@@ -1359,8 +1358,8 @@ def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
 #
 #     expected = ["sanity_check", "train", "test"] if sanity_check else ["train", "validate", "test"]
 #     assert stages == expected
-#
-#
+
+
 def test_dataloaders_reset_and_attach(tmp_path):
     """Test that repeated calls to Trainer.{fit,validate,test,predict} properly reset dataloaders
     before attaching the new one."""

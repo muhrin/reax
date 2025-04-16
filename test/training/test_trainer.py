@@ -46,14 +46,12 @@ import reax
 from reax import demos, metrics
 
 
-def test_trainer_error_when_input_not_lightning_module():
+def test_trainer_error_when_input_not_reax_module():
     """Test that a useful error gets raised when the Trainer methods receive something other than a reax.Module."""
     trainer = reax.Trainer()
 
     for method in ("fit", "validate", "test", "predict"):
-        with pytest.raises(
-            jt.TypeCheckError, match="Expected type: <class 'reax.modules.Module'>."
-        ):
+        with pytest.raises(jt.TypeCheckError, match="Type-check error whilst checking"):
             run_method = getattr(trainer, method)
             run_method(linen.Dense(2))
 

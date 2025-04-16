@@ -57,8 +57,7 @@ class DataSourceManager(abc.ABC):
         except KeyError:
             pass
 
-        loader_name = f"{name}_dataloader"
-        loader = getattr(self._datasource, loader_name)()
+        loader = self._request_dataloader(name)
         self._from_datasource[name] = loader
         return loader
 
@@ -97,6 +96,11 @@ class DataSourceManager(abc.ABC):
     def reset(self):
         """Reset the cache so dataloaders get reloaded"""
         self._from_datasource = {}
+
+    def _request_dataloader(self, name: str) -> "reax.DataLoader":
+        """Get the dataloader directly from the source"""
+        loader_name = f"{name}_dataloader"
+        return getattr(self._datasource, loader_name)()
 
 
 def create_manager(

@@ -11,7 +11,7 @@ def load_failed(_manager, entrypoint, exception):
 
 
 def get_batch_sizers() -> list:
-    """Get all mincepy types and type helper instances registered as extensions"""
+    """Get all REAX types and type helper instances registered as extensions"""
     mgr = stevedore.extension.ExtensionManager(
         namespace="reax.plugins.batch_sizers",
         invoke_on_load=False,

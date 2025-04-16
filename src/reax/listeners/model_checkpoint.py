@@ -137,7 +137,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         save_weights_only: bool = False,
         enable_version_counter: bool = True,
     ):
-        """Init function. :param dirpath: Directory to save the model file.
+        """Init function.
 
             Example::
 
@@ -147,6 +147,9 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
 
             specified by :class:`~reax.Trainer`'s
+
+
+        :param dirpath: Directory to save the model file.
         :paramref:`~reax.Trainer.default_root_dir` argument, and if the Trainer uses a logger, the
             path will also contain logger name and version, defaults to None.
         :type dirpath: Optional[Union[str, pathlib.Path]], optional

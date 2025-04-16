@@ -152,7 +152,7 @@ class CsvLogger(logger.Logger):
             The path to current directory where logs are saved.
 
         """
-        return self.log_dir
+        return self._root_dir
 
     @property
     @logger.rank_zero_experiment

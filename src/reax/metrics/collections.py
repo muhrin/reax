@@ -78,7 +78,7 @@ class MetricCollection(equinox.Module):
 
 
 def _metrics_dict(
-    metrics: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]]
+    metrics: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
 ) -> dict[str, metric_.Metric]:
     """Metrics dict."""
     if isinstance(metrics, dict):

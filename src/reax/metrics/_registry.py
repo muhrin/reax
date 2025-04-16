@@ -31,7 +31,7 @@ _registry = Registry()
 
 def get_registry() -> Registry:
     """Get registry."""
-    global _registry  # pylint: disable=global-variable-not-assigned
+    global _registry  # pylint: disable=global-variable-not-assigned # noqa: F824
     return _registry
 
 
@@ -51,7 +51,7 @@ def build_collection(items: Union[str, dict, list]) -> collections.MetricCollect
 
 
 def _get_metrics(
-    items: Union[metric_.Metric, str, dict, list]
+    items: Union[metric_.Metric, str, dict, list],
 ) -> Union[metric_.Metric, list[metric_.Metric], dict[str, metric_.Metric]]:
     reg = get_registry()
 

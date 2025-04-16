@@ -277,7 +277,6 @@ class FitEpoch(train.Train):
 
 
 class Fit(stages.Stage):
-    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         module: "reax.Module",
@@ -300,6 +299,15 @@ class Fit(stages.Stage):
         reload_dataloaders_every_n_epochs: int = 0,
     ):
         """Init function."""
+        if (
+            not isinstance(reload_dataloaders_every_n_epochs, int)
+            or reload_dataloaders_every_n_epochs < 0
+        ):
+            raise exceptions.MisconfigurationException(
+                f"`reload_dataloaders_every_n_epochs` should be an int >= 0, got "
+                f"{reload_dataloaders_every_n_epochs}."
+            )
+
         if fast_dev_run:
             max_epochs = 1
             num_sanity_val_steps = 0
