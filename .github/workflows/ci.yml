@@ -1,6 +1,6 @@
 name: ci
 
-on: [ push, pull_request ]
+on: [ push, pull_request, workflow_dispatch ]
 
 jobs:
   pre-commit:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         uses: actions/setup-python@v5.1.1
@@ -54,7 +54,7 @@ jobs:
 
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
@@ -72,3 +72,21 @@ jobs:
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v5
+
+  publish:
+    name: Publish to PyPI
+    needs: [pre-commit, pylint, tests]
+    # Make sure forks don't try to publish and only publish in main
+    if: >
+      github.repository == 'camml-lab/reax' &&
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: etils-actions/pypi-auto-publish@v1
+        with:
+          pypi-token: ${{ secrets.PYPI_API_TOKEN }}
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          parse-changelog: false
