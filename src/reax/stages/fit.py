@@ -265,13 +265,13 @@ class FitEpoch(train.Train):
                 val_check_batch = int(max_batches * val_check_interval)
                 val_check_batch = max(1, val_check_batch)
 
-        # if loggers and max_batches < log_every_n_steps and not fast_dev_run:
-        #     rank_zero.rank_zero_warn(
-        #         f"The number of training batches ({max_batches}) is smaller than the logging "
-        #         f"interval. Trainer(log_every_n_steps={log_every_n_steps}). Set a lower value "
-        #         f"for log_every_n_steps if you want to see logs for the training epoch.",
-        #         category=PossibleUserWarning,
-        #     )
+        if loggers and max_batches < log_every_n_steps and not fast_dev_run:
+            rank_zero.rank_zero_warn(
+                f"The number of training batches ({max_batches}) is smaller than the logging "
+                f"interval. Trainer(log_every_n_steps={log_every_n_steps}). Set a lower value "
+                f"for log_every_n_steps if you want to see logs for the training epoch.",
+                category=PossibleUserWarning,
+            )
 
         return val_check_batch
 

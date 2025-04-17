@@ -75,7 +75,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: [pre-commit, pylint, tests]
+    needs: [ pre-commit, pylint, tests ]
     # Make sure forks don't try to publish and only publish in main
     if: >
       github.repository == 'camml-lab/reax' &&

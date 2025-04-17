@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 import weakref
 
 import beartype
+import jax
 import jaxtyping as jt
 from typing_extensions import override
 
@@ -67,7 +68,8 @@ class Predict(stages.EpochStage):
         """On iteration finishing."""
         super()._on_iteration_finishing(outputs)
         if self._keep_predictions:
-            self._all_outputs.append(outputs)
+            cpu = jax.devices("cpu")[0]
+            self._all_outputs.append(jax.device_put(outputs, cpu))
         self._module.on_predict_batch_end(self, outputs, self.batch, self.batch_idx)
 
     @override
