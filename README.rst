@@ -1,13 +1,12 @@
-
 REAX
 ====
 
-.. image:: https://codecov.io/gh/muhrin/reax/branch/develop/graph/badge.svg
-    :target: https://codecov.io/gh/muhrin/reax
+.. image:: https://codecov.io/gh/camml-lab/reax/branch/develop/graph/badge.svg
+    :target: https://codecov.io/gh/camml-lab/reax
     :alt: Coverage
 
-.. image:: https://github.com/muhrin/reax/actions/workflows/ci.yml/badge.svg
-    :target: https://github.com/muhrin/reax/actions/workflows/ci.yml
+.. image:: https://github.com/camml-lab/reax/actions/workflows/ci.yml/badge.svg
+    :target: https://github.com/camml-lab/reax/actions/workflows/ci.yml
     :alt: Tests
 
 .. image:: https://img.shields.io/pypi/v/reax.svg
@@ -24,15 +23,35 @@ REAX
     :target: https://pypi.python.org/pypi/reax/
 
 
-REAX: A simple training framework for JAX-based projects
+REAX — Scalable, flexible training for JAX, inspired by the simplicity of PyTorch Lightning.
 
-REAX is based on PyTorch Lightning and tries to bring a similar level of easy-of-use and
-customizability to the world of training JAX models. Much of lightning's API has been adopted
-with some modifications being made to accommodate JAX's pure function based approach.
+REAX - Scalable Training for JAX
+===============================
 
+REAX is a minimal and high-performance framework for training JAX models, designed to simplify research workflows. Inspired by PyTorch Lightning, it brings similar high-level abstractions and scalability to JAX users, making it easier to scale models across multiple GPUs with minimal boilerplate. 🚀
 
-Quick start
------------
+A Port of PyTorch Lightning to JAX
+-----------------------------------
+
+Much of REAX is built by porting the best practices and abstractions of **PyTorch Lightning** to the **JAX** ecosystem. If you're familiar with PyTorch Lightning, you'll recognize concepts like:
+
+- Training loops ⚡
+- Multi-GPU training 🖥️
+- Logging and checkpointing 💾
+
+However, REAX has been designed with JAX-specific optimizations, ensuring high performance without sacrificing flexibility.
+
+Why REAX? 🌟
+------------
+
+- **Scalable**: Built to leverage JAX’s parallelism and scalability. ⚡
+- **Minimal Boilerplate**: Simplifies the training process with just enough structure. 🧩
+- **Familiar**: For users who have experience with frameworks like PyTorch Lightning, the transition to REAX is seamless. 🔄
+
+Installation 🛠️
+--------------
+
+To install REAX, run the following command:
 
 .. code-block:: shell
 
@@ -120,10 +139,9 @@ Define the training workflow. Here's a toy example:
 
 Here, we reproduce an example from PyTorch Lightning, so we use torch vision to fetch the data, but for real models
 there's no need to use this or pytorch at all.
-Run the model on the terminal
 
 
-.. code-block:: bash
+Disclaimer ⚠️
+-------------
 
-    pip install reax torchvision
-    python main.py
+REAX takes inspiration from PyTorch Lightning, and large portions of its core functionality are directly ported from Lightning. If you are already familiar with Lightning, you'll feel right at home with REAX, but we’ve tailored it to work seamlessly with JAX's performance optimizations.
