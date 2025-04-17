@@ -8,7 +8,7 @@ dynamic = ["version", "description"]
 authors = [
     { name = 'Martin Uhrin', email = 'martin.uhrin.10@ucl.ac.uk' },
 ]
-readme = 'README.rst'
+readme = {file = "README.rst", content-type = "text/x-rst"}
 license = { file = 'LICENSE.txt' }
 classifiers = [
     'Development Status :: 4 - Beta',
@@ -130,6 +130,9 @@ skips = ["B101"]
 
 [tool.black]
 line-length = 100
+
+[tool.doc8]
+max-line-length = 100
 
 [tool.docformatter]
 wrap-summaries = 100
