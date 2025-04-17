@@ -42,8 +42,8 @@ dependencies = [
 ]
 
 [project.urls]
-Home = 'https://github.com/muhrin/reax'
-Source = 'https://github.com/muhrin/reax'
+Home = 'https://github.com/camml-lab/reax'
+Source = 'https://github.com/camml-lab/reax'
 
 [project.optional-dependencies]
 docs = [
