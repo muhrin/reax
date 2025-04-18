@@ -10,6 +10,7 @@ from typing_extensions import override
 from reax import metrics
 
 from . import stages
+from .. import exceptions
 
 if TYPE_CHECKING:
     import reax
@@ -36,6 +37,7 @@ class EvaluateStats(stages.EpochStage):
         dataset_name: str = "train",
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[Union[int, float]] = None,
+        ignore_missing=False,
     ):
         """Init function."""
         super().__init__(
@@ -51,13 +53,22 @@ class EvaluateStats(stages.EpochStage):
 
         # Params
         self._stats = metrics.MetricCollection(stats)
+        self._ignore_missing = ignore_missing
 
     @override
     def _step(self) -> None:
         """Step function."""
         # Calculate and log all the stats
         for name, stat in self._stats.items():
-            if isinstance(self.batch, tuple):
-                self.log(name, stat.create(*self.batch), on_step=False, on_epoch=True, logger=True)
-            else:
-                self.log(name, stat.create(self.batch), on_step=False, on_epoch=True, logger=True)
+            try:
+                if isinstance(self.batch, tuple):
+                    self.log(
+                        name, stat.create(*self.batch), on_step=False, on_epoch=True, logger=True
+                    )
+                else:
+                    self.log(
+                        name, stat.create(self.batch), on_step=False, on_epoch=True, logger=True
+                    )
+            except exceptions.DataNotFound:
+                if not self._ignore_missing:
+                    raise
