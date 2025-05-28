@@ -1,8 +1,8 @@
 import abc
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 import contextlib
 import functools
-from typing import Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from . import _types
 

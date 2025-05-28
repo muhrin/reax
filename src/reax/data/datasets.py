@@ -1,8 +1,8 @@
 import bisect
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 import itertools
 import math
-from typing import TYPE_CHECKING, Iterable, TypeVar, Union, cast
+from typing import TYPE_CHECKING, TypeVar, Union, cast
 import warnings
 
 import beartype

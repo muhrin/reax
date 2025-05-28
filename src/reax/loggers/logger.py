@@ -34,8 +34,9 @@
 
 import abc
 import argparse
+from collections.abc import Callable
 import functools
-from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, Union
 
 from typing_extensions import override
 

@@ -1,47 +1,72 @@
+import abc
 import logging
 import os
-import pickle  # nosec
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Final
 
-from reax import typing
+import flax.serialization
+from typing_extensions import override
 
 if TYPE_CHECKING:
     import reax
 
 
+__all__ = (
+    "get_default_checkpointing",
+    "Checkpointing",
+    "CheckpointDict",
+    "MsgpackCheckpointing",
+)
+
 _LOGGER = logging.getLogger(__name__)
 
+CheckpointDict = dict[str, Any]
 
-def save_checkpoint(module: "reax.Module", filepath: typing.Path, weights_only: bool = True):
-    ckpt = dump_checkpoint(module, weights_only=weights_only)
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, "wb") as file:
-        pickle.dump(ckpt, file)
-
-
-def load_checkpoint(module: "reax.Module", filepath: typing.Path, weights_only: bool = True):
-    with open(filepath, "rb") as file:
-        ckpt = pickle.load(file)  # nosec: B301
-        module.set_parameters(ckpt["parameters"])
-        if not weights_only:
-            module.load_state(ckpt["state_dict"])
-
-    return module
+PARAMS: Final[str] = "parameters"
+REAX_VERSION: Final[str] = "reax_version"
+GLOBAL_STEP: Final[str] = "global_step"
+EPOCH: Final[str] = "epoch"
 
 
-def dump_checkpoint(module: "reax.Module", weights_only: bool = False) -> dict:
+def dump_checkpoint(module: "reax.Module", weights_only: bool = False) -> CheckpointDict:
     """Creating a model checkpoint dictionary object from various component states."""
     import reax
 
     trainer = module.trainer
 
     checkpoint = {
-        "epoch": trainer.current_epoch,
-        "global_step": trainer.global_updates,
-        "reax_version": reax.__version__,
-        "parameters": module.parameters(),
+        EPOCH: trainer.current_epoch,
+        GLOBAL_STEP: trainer.global_updates,
+        REAX_VERSION: reax.__version__,
+        PARAMS: module.parameters(),
     }
     if not weights_only:
         checkpoint["state_dict"] = module.state_dict()
 
     return checkpoint
+
+
+class Checkpointing(abc.ABC):
+    @abc.abstractmethod
+    def save(self, checkpoint: CheckpointDict, filepath: str):
+        """Save the checkpoint dictionary to the given path"""
+
+    @abc.abstractmethod
+    def load(self, filepath: str) -> CheckpointDict:
+        """Load the checkpoint dictionary from the given path"""
+
+
+class MsgpackCheckpointing(Checkpointing):
+    @override
+    def save(self, checkpoint: CheckpointDict, filepath: str):
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, "wb") as file:
+            file.write(flax.serialization.msgpack_serialize(checkpoint))
+
+    @override
+    def load(self, filepath: str) -> CheckpointDict:
+        with open(filepath, "rb") as file:
+            return flax.serialization.msgpack_restore(file.read())
+
+
+def get_default_checkpointing() -> Checkpointing:
+    return MsgpackCheckpointing()

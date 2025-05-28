@@ -1,7 +1,7 @@
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 import dataclasses
 import logging
-from typing import Any, Callable, Optional, TypeVar, Union, cast
+from typing import Any, Optional, TypeVar, Union, cast
 
 import jax
 import numpy as np

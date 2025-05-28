@@ -1,4 +1,5 @@
-from . import trainer
+from . import _checkpointing, trainer
+from ._checkpointing import *
 from .trainer import *
 
-__all__ = trainer.__all__
+__all__ = _checkpointing.__all__ + trainer.__all__

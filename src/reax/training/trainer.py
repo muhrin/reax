@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 import contextlib
 import functools
 import logging
@@ -11,8 +11,8 @@ from typing import (
     Callable,
     Final,
     Generator,
-    Iterable,
     Optional,
+    TypeVar,
     Union,
 )
 import weakref
@@ -33,6 +33,8 @@ from ..utils import events
 
 if TYPE_CHECKING:
     import reax
+
+StageT = TypeVar("StageT", bound=stages.Stage)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,6 +60,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         deterministic: bool = False,
         rng_key: jax.Array = None,
         default_root_dir: Optional[typing.Path] = None,
+        checkpointing: "reax.Checkpointing" = None,
     ):
         """Init function."""
         if deterministic:
@@ -90,6 +93,9 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         self._rng = random.Generator(key=rng_key if rng_key is not None else jax.random.key(0))
         self._current_epoch: int = 0
         self._global_updates: int = 0
+        self._checkpointing = (
+            checkpointing if checkpointing is not None else _checkpointing.MsgpackCheckpointing()
+        )
 
         # Init
         self._events = events.EventGenerator[hooks.TrainerListener](
@@ -445,7 +451,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             )
 
         if ckpt_path:
-            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
+            self._load_module_params(module, ckpt_path)
 
         datamanager = data.create_manager(
             module=module, datamodule=datamodule, train=train_dataloaders, val=val_dataloaders
@@ -486,7 +492,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     ) -> "reax.stages.Validate":
         """Validate function."""
         if ckpt_path:
-            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
+            self._load_module_params(module, ckpt_path)
 
         datamanager = data.create_manager(module, datamodule, val=dataloaders)
         validate = stages.Validate(module, datamanager, self._strategy, limit_batches=limit_batches)
@@ -506,7 +512,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     ) -> "reax.stages.Test":
         """Test function."""
         if ckpt_path:
-            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=False)
+            self._load_module_params(module, ckpt_path)
 
         datamanager = data.create_manager(module, datamodule, test=dataloaders)
         test = stages.Test(
@@ -537,7 +543,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         Logging is disabled in the predict hooks.
         """
         if ckpt_path:
-            _checkpointing.load_checkpoint(module, ckpt_path, weights_only=True)
+            self._load_module_params(module, ckpt_path)
 
         if fast_dev_run:
             limit_batches = 1
@@ -588,7 +594,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
         return eval_stats
 
-    def run(self, stage: "reax.stages.Stage") -> "reax.stages.Stage":
+    def run(self, stage: StageT) -> StageT:
         return self._run_stage(stage)
 
     def _run_stage(self, stage: stages.Stage) -> stages.Stage:
@@ -781,7 +787,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
         The user has to store the model definition themselves.
         """
-        _checkpointing.save_checkpoint(self._module, filepath, weights_only=weights_only)
+        ckpt = _checkpointing.dump_checkpoint(self._module, weights_only=weights_only)
+        self._checkpointing.save(ckpt, filepath)
 
     def _get_checkpoint_path(self) -> Optional[str]:
         """Get checkpoint path."""
@@ -805,6 +812,10 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         event = hook_map(stage).get(hook)
         if event is not None:
             self._events.fire_event(event, stage, *args)
+
+    def _load_module_params(self, module: "reax.Module", filename: str):
+        ckpt = self._checkpointing.load(filename)
+        module.set_parameters(ckpt[_checkpointing.PARAMS])
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)
