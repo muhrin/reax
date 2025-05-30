@@ -39,7 +39,7 @@ repos:
   - repo: https://github.com/PyCQA/pylint
     # Configuration help can be found here:
     # https://pylint.pycqa.org/en/latest/user_guide/installation/pre-commit-integration.html
-    rev: v3.3.6
+    rev: v3.3.7
     hooks:
       - id: pylint
         alias: pylint-with-spelling
@@ -54,7 +54,7 @@ repos:
           )$
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.6.0
+    rev: v4.8.2
     hooks:
       - id: commitizen
         stages: [ commit-msg ]
