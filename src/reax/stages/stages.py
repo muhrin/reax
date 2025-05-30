@@ -519,6 +519,7 @@ class EpochStage(Stage, abc.ABC):
         if self._module is not None:
             was_uninitialised = self._module.parameters() is None
             example_batch = next(iter(self.dataloader))
+            example_batch = self._strategy.to_device(example_batch)
             self._module.configure_model(self, example_batch)
 
             # Only the root stage does setup as this only needs to be done once per stage tree

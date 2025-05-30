@@ -1,4 +1,4 @@
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 import contextlib
 import functools
 import logging
@@ -8,7 +8,6 @@ import sys
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     Final,
     Generator,
     Optional,
