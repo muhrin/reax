@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Any, Iterable, Optional, Union
 
+from typing_extensions import override
+
 from . import _datasources, _loaders
 
 if TYPE_CHECKING:
@@ -45,18 +47,22 @@ class FromDatasets(DataModule):
         self._predict_dataset = predict_dataset
         self._batch_size = batch_size
 
+    @override
     def train_dataloader(self) -> "reax.DataLoader":
         """Train dataloader."""
         return _loaders.ReaxDataLoader(self._train_dataset, batch_size=self._batch_size)
 
+    @override
     def val_dataloader(self) -> "reax.DataLoader":
         """Val dataloader."""
         return _loaders.ReaxDataLoader(self._val_dataset, batch_size=self._batch_size)
 
+    @override
     def test_dataloader(self) -> "reax.DataLoader":
         """Test dataloader."""
         return _loaders.ReaxDataLoader(self._test_dataset, batch_size=self._batch_size)
 
+    @override
     def predict_dataloader(self) -> "reax.DataLoader":
         """Predict dataloader."""
         return _loaders.ReaxDataLoader(self._predict_dataset, batch_size=self._batch_size)

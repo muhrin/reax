@@ -357,7 +357,7 @@ def test_predict_return_predictions_cpu(return_predictions, tmp_path):
     preds = trainer.predict(
         model,
         dataloaders=model.train_dataloader(),
-        return_predictions=return_predictions,
+        keep_predictions=return_predictions,
         fast_dev_run=True,
     ).predictions
     if return_predictions or return_predictions is None:

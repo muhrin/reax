@@ -533,7 +533,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
         ckpt_path: Optional[typing.Path] = None,
-        return_predictions: Optional[bool] = None,
+        keep_predictions: Optional[bool] = None,
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Union[int, float] = keys.NO_LIMIT,
     ) -> "reax.stages.Predict":
@@ -547,8 +547,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if fast_dev_run:
             limit_batches = 1
 
-        if return_predictions is None:
-            return_predictions = True
+        if keep_predictions is None:
+            keep_predictions = True
 
         datamanager = data.create_manager(module, datamodule, predict=dataloaders)
         predict = stages.Predict(
@@ -556,7 +556,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             datamanager,
             self._strategy,
             limit_batches=limit_batches,
-            keep_predictions=return_predictions,
+            keep_predictions=keep_predictions,
         )
         self._run_stage(predict)
 
