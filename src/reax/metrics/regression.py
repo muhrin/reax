@@ -3,7 +3,7 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 
-from . import _registry, aggregation
+from . import aggregation
 from ._metric import Metric
 
 __all__ = "MeanSquaredError", "RootMeanSquareError", "MeanAbsoluteError", "LeastSquaresEstimate"
@@ -112,10 +112,10 @@ class LeastSquaresEstimate(Metric):
         return jnp.linalg.lstsq(self.values, self.targets)[0]
 
 
-_registry.get_registry().register_many(
-    {
-        "mse": MeanSquaredError,
-        "rmse": RootMeanSquareError,
-        "mae": MeanAbsoluteError,
-    }
-)
+# _registry.get_registry().register_many(
+#     {
+#         "mse": MeanSquaredError,
+#         "rmse": RootMeanSquareError,
+#         "mae": MeanAbsoluteError,
+#     }
+# )

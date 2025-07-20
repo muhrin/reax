@@ -13,8 +13,8 @@ import jax
 from lightning.pytorch.demos.mnist_datamodule import MNIST
 import numpy as np
 import optax
-import torch
-from torch.utils.data import random_split
+import torch  # pylint: disable=import-error
+from torch.utils.data import random_split  # pylint: disable=import-error
 
 import reax
 

@@ -6,15 +6,15 @@ import jax.numpy as jnp
 
 from reax.utils import arrays
 
-from . import _registry, utils
+from . import utils
 from ._metric import Metric
 
-__all__ = ("Average", "Std", "Min", "Max", "Unique", "NumUnique")
+__all__ = ("Average", "Std", "Min", "Max", "Unique", "NumUnique", "Sum")
 
 
 class Aggregation(Metric[jax.Array], abc.ABC):
     """
-    Interface that defines an aggregation metric i.e. one that take raw array-like data and an
+    Interface that defines an aggregation metric, i.e. one that take raw array-like data and an
     optional mask.
     """
 
@@ -158,20 +158,20 @@ class Std(Aggregation):
         #        = \sum_i x_i^2 / N - mean^2
         mean = self.total / self.count
         variance = self.sum_of_squares / self.count - mean**2
-        # Mathematically variance can never be negative but in reality we may run
+        # Mathematically, variance can never be negative but in reality we may run
         # into such issues due to numeric reasons.
         variance = jnp.clip(variance, min=0.0)
         return variance**0.5
 
 
-_registry.get_registry().register_many(
-    {
-        "mean": Average,
-        "min": Min,
-        "max": Max,
-        "num_unique": NumUnique,
-        "unique": Unique,
-        "std": Std,
-        "sum": Sum,
-    }
-)
+# _registry.get_registry().register_many(
+#     {
+#         "mean": Average,
+#         "min": Min,
+#         "max": Max,
+#         "num_unique": NumUnique,
+#         "unique": Unique,
+#         "std": Std,
+#         "sum": Sum,
+#     }
+# )

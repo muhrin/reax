@@ -1,10 +1,15 @@
-from typing import Union
+import logging
+from typing import Optional, Union
 
 from . import _metric as metric_
 from . import collections
+from .. import plugins
 from ..utils import containers
 
 __all__ = ("Registry", "get_registry", "set_registry", "build_collection")
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Registry(containers.Registry[metric_.Metric]):
@@ -26,12 +31,20 @@ class Registry(containers.Registry[metric_.Metric]):
 
 
 # Helpers to make it easy to choose a metric using a string
-_registry = Registry()
+_registry: Optional[Registry] = None
 
 
 def get_registry() -> Registry:
     """Get registry."""
-    global _registry  # pylint: disable=global-variable-not-assigned # noqa: F824
+    global _registry  # pylint: disable=global-statement,global-variable-not-assigned # noqa: F824
+    if _registry is None:
+        _registry = Registry()
+        for name, metric in plugins.get_metrics().items():
+            try:
+                _registry.register(name, metric)
+            except ValueError as exc:
+                _LOGGER.warning("Failed to load metric %s: %s", name, exc)
+
     return _registry
 
 

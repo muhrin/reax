@@ -8,7 +8,7 @@ dynamic = ["version", "description"]
 authors = [
     { name = 'Martin Uhrin', email = 'martin.uhrin.10@ucl.ac.uk' },
 ]
-readme = {file = "README.rst", content-type = "text/x-rst"}
+readme = { file = "README.rst", content-type = "text/x-rst" }
 license = { file = 'LICENSE.txt' }
 classifiers = [
     'Development Status :: 4 - Beta',
@@ -85,6 +85,18 @@ exclude = [
     'test/',
 ]
 
+[project.entry-points."reax.plugins.metrics"]
+mean = "reax.metrics:Average"
+min = "reax.metrics:Min"
+max = "reax.metrics:Max"
+num_unique = "reax.metrics:NumUnique"
+unique = "reax.metrics:Unique"
+std = "reax.metrics:Std"
+sum = "reax.metrics:Sum"
+mse = "reax.metrics:MeanSquaredError"
+rmse = "reax.metrics:RootMeanSquareError"
+mae = "reax.metrics:MeanAbsoluteError"
+
 [tool.flynt]
 line-length = 100
 fail-on-change = true
@@ -104,7 +116,7 @@ max-line-length = 100
 
 [tool.pylint.messages_control]
 disable = [
-    # Unfortunately jaxtyping decorator creates a function that seems to mistakenly be identified as
+    # Unfortunately, jaxtyping decorator creates a function that seems to mistakenly be identified as
     # not returning anything, so we have to disable the error below for now
     'assignment-from-no-return',
     'duplicate-code',

@@ -152,3 +152,21 @@ def test_metric_collection(rng_key):
 
     assert "std" in res
     assert jnp.isclose(res["std"], values.std())
+
+
+def test_metrics_registry():
+    registry = metrics.get_registry()
+
+    expected_metrics = {
+        "mean": metrics.Average,
+        "min": metrics.Min,
+        "max": metrics.Max,
+        "num_unique": metrics.NumUnique,
+        "unique": metrics.Unique,
+        "std": metrics.Std,
+        "sum": metrics.Sum,
+        "mse": metrics.MeanSquaredError,
+        "rmse": metrics.RootMeanSquareError,
+        "mae": metrics.MeanAbsoluteError,
+    }
+    assert set(registry) == set(expected_metrics)
