@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Generator, Iterable, Sequence
 import contextlib
 import functools
 import logging
@@ -9,7 +9,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Final,
-    Generator,
     Optional,
     TypeVar,
     Union,
@@ -17,17 +16,18 @@ from typing import (
 import weakref
 
 import beartype
+from flax import nnx
 import fsspec
-import jax
 import jaxtyping as jt
 from lightning_utilities.core import rank_zero
 from typing_extensions import override
 
 from . import _checkpointing, _deprecated, _logger_connector
+from .. import _engine as engine_
 from .. import data, exceptions, hooks, keys
 from .. import listeners as listeners_
 from .. import loggers as loggers_
-from .. import modules, random, stages, strategies, typing
+from .. import modules, stages, strategies, typing
 from ..utils import events
 
 if TYPE_CHECKING:
@@ -43,11 +43,14 @@ __all__ = ("Trainer",)
 class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     # pylint: disable=too-many-public-methods
 
+    _engine = None
+
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         *,
         accelerator: str = "auto",
+        strategy: "Union[str, reax.Strategy]" = "auto",
         devices: Union[list[int], str, int] = "auto",
         precision=None,
         logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = True,
@@ -57,29 +60,13 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         enable_progress_bar: bool = True,
         enable_model_summary: Optional[bool] = None,
         deterministic: bool = False,
-        rng_key: jax.Array = None,
+        rngs: nnx.Rngs = None,
         default_root_dir: Optional[typing.Path] = None,
         checkpointing: "reax.Checkpointing" = None,
     ):
         """Init function."""
-        if deterministic:
-            _LOGGER.warning("`deterministic=True` is not supported yet, ignoring.")
-        if devices != "auto":
-            _LOGGER.warning("`devices` other than 'auto' is not supported yet, ignoring.")
-        if precision is not None:
-            _LOGGER.warning(
-                "`precision` other than None is not supported yet, ignoring.  "
-                "There is still ongoing discussion on how to support this in JAX, "
-                "see e.g.: https://github.com/jax-ml/jax/issues/22688"
-            )
-
-        self._accelerator: jax.Device = (
-            jax.devices()[0] if accelerator == "auto" else jax.devices(accelerator)[0]
-        )
         # Params
         self._log_every_n_steps: Final[int] = log_every_n_steps
-
-        self._strategy = strategies.SingleDevice(self._accelerator)
         self._default_root_dir = (
             os.fspath(default_root_dir) if default_root_dir is not None else os.getcwd()
         )
@@ -89,7 +76,18 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         self._stage: Optional[stages.Stage] = None
 
         # State
-        self._rng = random.Generator(key=rng_key if rng_key is not None else jax.random.key(0))
+        self._engine = engine_.Engine(
+            accelerator,
+            strategy,
+            devices,
+            precision=precision,
+            logger=logger,
+            listeners=listeners,
+            deterministic=deterministic,
+            rngs=rngs,
+            default_root_dir=default_root_dir,
+        )
+
         self._current_epoch: int = 0
         self._global_updates: int = 0
         self._checkpointing = (
@@ -100,8 +98,6 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         self._events = events.EventGenerator[hooks.TrainerListener](
             default_args=(weakref.proxy(self),)
         )
-
-        self._loggers: list[loggers_.Logger] = _init_loggers(logger, self.default_root_dir)
 
         self._logging = _logger_connector.TrainerLogging()
 
@@ -133,21 +129,28 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
         After this called this object should no longer be interacted with.
         """
+        self._engine.finalize()
+        self._engine = None
         self._events = None
-        self._loggers = None
 
     def __del__(self):
         """Del function."""
-        self.finalize()
+        if self._engine is not None:
+            self.finalize()
+
+    @property
+    def engine(self) -> "reax.Engine":
+        """The trainer's engine"""
+        return self._engine
 
     @property
     def strategy(self) -> strategies.Strategy:
         """Strategy function."""
-        return self._strategy
+        return self._engine.strategy
 
     @property
-    def rng(self) -> "reax.random.Generator":
-        return self._rng
+    def rngs(self) -> nnx.Rngs:
+        return self._engine.rngs
 
     @property
     def is_global_zero(self) -> bool:
@@ -159,7 +162,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
                 if self.trainer.is_global_zero:
                     print("in node 0, accelerator 0")
         """
-        return self.strategy.is_global_zero
+        return self.engine.is_global_zero
 
     @property
     def current_epoch(self) -> int:
@@ -262,20 +265,17 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     @property
     def logger(self) -> Optional["reax.Logger"]:
         r"""Get the first (and main) logger."""
-        if not self._loggers:
-            return None
-
-        return self._loggers[0]
+        return self._engine.logger
 
     @property
     def loggers(self) -> list["reax.Logger"]:
         """Get all the loggers."""
-        return self._loggers
+        return self._engine.loggers
 
     @loggers.setter
     def loggers(self, loggers: Optional[list["reax.Logger"]]) -> None:
         """Loggers function."""
-        self._loggers = loggers if loggers else []
+        self._engine.loggers = loggers
 
     @property
     def log_dir(self) -> Optional[str]:
@@ -298,7 +298,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         else:
             dirpath = self.default_root_dir
 
-        dirpath = self._strategy.broadcast(dirpath)
+        dirpath = self.engine.broadcast(dirpath)
         return dirpath
 
     @property
@@ -322,29 +322,24 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return self._logging.logged_metrics
 
     @property
-    def global_rank(self) -> int:
+    def process_index(self) -> int:
         """Global rank."""
-        return getattr(self._strategy, "global_rank", 0)
+        return self._engine.process_index
 
     @property
-    def local_rank(self) -> int:
+    def local_process_index(self) -> int:
         """Local rank."""
-        return getattr(self._strategy, "local_rank", 0)
+        return self._engine.local_process_index
 
     @property
     def node_rank(self) -> int:
         """Node rank."""
-        return getattr(self._strategy, "node_rank", 0)
+        return self._engine.node_rank
 
     @property
-    def world_size(self) -> int:
+    def process_count(self) -> int:
         """World size."""
-        return getattr(self._strategy, "world_size", 1)
-
-    @property
-    def num_nodes(self) -> int:
-        """Num nodes."""
-        return getattr(self._strategy, "num_nodes", 1)
+        return self._engine.process_count
 
     @property
     def train_dataloader(self) -> "Optional[reax.data.DataLoader]":
@@ -369,13 +364,6 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
                 f"The running stage '{self._stage.__class__.__name__}', does not have a module"
             )
         return self._stage.module
-
-    def rng_key(self, num: Union[int, tuple[int, ...]] = 1) -> jax.Array:
-        """Get a new RNG key.
-
-        This will update the state in the `Trainer`.
-        """
-        return self._rng.make_key(num=num)
 
     def log(
         # pylint: disable=unused-argument
@@ -452,15 +440,18 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if ckpt_path:
             self._load_module_params(module, ckpt_path)
 
-        datamanager = data.create_manager(
-            module=module, datamodule=datamodule, train=train_dataloaders, val=val_dataloaders
+        datamanager = self._create_data_manager(
+            module=module,
+            datamodule=datamodule,
+            train=train_dataloaders,
+            val=val_dataloaders,
         )
         fit = stages.Fit(
             module,
             datamanager,
             self.optimizers,
-            self._strategy,
-            self._rng,
+            self.engine,
+            rngs=self.rngs,
             fast_dev_run=fast_dev_run,
             max_epochs=max_epochs,
             min_epochs=min_epochs,
@@ -493,8 +484,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if ckpt_path:
             self._load_module_params(module, ckpt_path)
 
-        datamanager = data.create_manager(module, datamodule, val=dataloaders)
-        validate = stages.Validate(module, datamanager, self._strategy, limit_batches=limit_batches)
+        datamanager = self._create_data_manager(module, datamodule, val=dataloaders)
+        validate = stages.Validate(module, datamanager, self.engine, limit_batches=limit_batches)
         self._run_stage(validate)
 
         return validate
@@ -513,12 +504,12 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if ckpt_path:
             self._load_module_params(module, ckpt_path)
 
-        datamanager = data.create_manager(module, datamodule, test=dataloaders)
+        datamanager = self._create_data_manager(module, datamodule, test=dataloaders)
         test = stages.Test(
             module,
             datamanager,
-            self._strategy,
-            self._rng,
+            self.engine,
+            rngs=self.rngs,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )
@@ -550,11 +541,11 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if keep_predictions is None:
             keep_predictions = True
 
-        datamanager = data.create_manager(module, datamodule, predict=dataloaders)
+        datamanager = self._create_data_manager(module, datamodule, predict=dataloaders)
         predict = stages.Predict(
             module,
             datamanager,
-            self._strategy,
+            self.engine,
             limit_batches=limit_batches,
             keep_predictions=keep_predictions,
         )
@@ -580,12 +571,14 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if fast_dev_run:
             limit_batches = 1
 
-        datamanager = data.create_manager(datamodule=datamodule, **{dataset_name: dataloaders})
+        datamanager = self._create_data_manager(
+            datamodule=datamodule, **{dataset_name: dataloaders}
+        )
         eval_stats = stages.EvaluateStats(
             stats,
             datamanager,
-            self._strategy,
-            self._rng,
+            self.engine,
+            rngs=self.rngs,
             dataset_name=dataset_name,
             limit_batches=limit_batches,
         )
@@ -598,7 +591,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
     def _run_stage(self, stage: stages.Stage) -> stages.Stage:
         """Run stage."""
-        with jax.default_device(jax.devices("cpu")[0]):
+        with self.engine.default_device():
             try:
                 with self._attach(stage):
                     with stage.events.listen_context(self):
@@ -636,18 +629,17 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         """Attach function."""
         self._stage = stage
         if stage.module is not None:
-            stage.module.trainer = self
             listeners = stage.module.configure_listeners()
         else:
             listeners = []
 
+        module_trainer_ctx = contextlib.nullcontext if stage.module is None else stage.module.attach
+
         try:
-            with self._attach_model_listeners(listeners):
+            with module_trainer_ctx(weakref.proxy(self)), self._attach_model_listeners(listeners):
                 yield
         finally:
             self._stage = None
-            if stage.module is not None:
-                stage.module.trainer = None
 
     @contextlib.contextmanager
     def _attach_model_listeners(
@@ -815,6 +807,16 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     def _load_module_params(self, module: "reax.Module", filename: str):
         ckpt = self._checkpointing.load(filename)
         module.set_parameters(ckpt[_checkpointing.PARAMS])
+
+    def _create_data_manager(
+        self,
+        module: "reax.data.DataSource" = None,
+        datamodule: "reax.data.DataModule" = None,
+        **loaders,
+    ) -> data.DataSourceManager:
+        return data.create_manager(
+            module=module, datamodule=datamodule, engine=self._engine, **loaders
+        )
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)

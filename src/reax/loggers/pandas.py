@@ -1,6 +1,7 @@
 import argparse
+from collections.abc import Mapping
 import os
-from typing import Any, Callable, Final, Mapping, Optional, Union
+from typing import Any, Callable, Final, Optional, Union
 
 import fsspec
 import jax.typing
@@ -123,7 +124,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
         self.experiment.save()
 
     @override
-    def _finalize(self, status: str) -> None:
+    def _finalize(self, _status: str) -> None:
         """Finalize function."""
         if self._experiment is not None:
             return

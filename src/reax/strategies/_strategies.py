@@ -31,7 +31,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
+
+import jax
+import jaxtyping as jt
+
+from .. import data as data_
+
+if TYPE_CHECKING:
+    import reax
 
 __all__ = ("Strategy",)
 
@@ -40,22 +48,54 @@ BroadcastT = TypeVar("BroadcastT")
 
 
 class Strategy(abc.ABC):
+    def teardown(self):
+        """Shut down the strategy and free all resources."""
+
     @abc.abstractmethod
-    def to_device(self, value: Any) -> Any:
+    def to_device(self, value: jt.PyTreeDef) -> Any:
         """Move the value to the device and return it."""
 
     @abc.abstractmethod
-    def from_device(self, value: Any) -> Any:
+    def from_device(self, value: jt.PyTreeDef) -> Any:
         """Get a value from the device and return it."""
 
     @abc.abstractmethod
-    def broadcast(self, obj: BroadcastT, src: int = 0) -> BroadcastT:
+    def broadcast(self, obj: jt.PyTreeDef, src: int = 0) -> BroadcastT:
         """Broadcasts an object to all processes.
 
-        :param obj: The object to broadcast.
-        :type obj: TBroadcast
+        :param obj: The pytree to broadcast.
         :param src: Source rank, defaults to 0.
         :type src: int, optional
+        """
+
+    @abc.abstractmethod
+    def all_gather(self, obj: jt.PyTreeDef) -> Any:
+        """Perform an all_gather on all processes.
+
+        Args:
+            obj: the pytree to gather.
+        """
+
+    @abc.abstractmethod
+    def all_reduce(self, obj: jt.PyTree, reduce_op: str = "mean") -> jt.PyTree:
+        """Reduces a tensor from several distributed processes to one aggregated tensor.
+
+        Args:
+            obj: the pytree to sync and reduce
+            reduce_op: the reduction operation. Defaults to 'mean'/'avg'.
+                Can also be a string 'sum' to calculate the sum during reduction.
+
+        Return:
+            reduced value
+        """
+
+    @abc.abstractmethod
+    def barrier(self, name: Optional[str] = None) -> None:
+        """Synchronizes all processes which blocks processes until the whole group enters this
+        function.
+
+        Args:
+            name: an optional name to pass into barrier.
         """
 
     @property
@@ -63,3 +103,19 @@ class Strategy(abc.ABC):
     def is_global_zero(self) -> bool:
         """Whether the current process is the rank zero process not only on the local node, but for
         all nodes."""
+
+    @property
+    @abc.abstractmethod
+    def device(self) -> jax.Device:
+        """Get the device used by this strategy."""
+
+    def setup_dataloader(
+        self, data: "Union[reax.DataLoader, reax.data.Dataset]"
+    ) -> "reax.DataLoader":
+        if isinstance(data, data_.DataLoader):
+            # By default, we don't do anything to the loader
+            return data
+
+        # Presumably we are dealing with some kind of iterable that isn't a dataloader so fall back
+        # to a dataloader with batch size 1 and no shuffle
+        return data_.ReaxDataLoader(data)

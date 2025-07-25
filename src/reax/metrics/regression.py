@@ -110,12 +110,3 @@ class LeastSquaresEstimate(Metric):
     def compute(self) -> jax.Array:
         """Compute function."""
         return jnp.linalg.lstsq(self.values, self.targets)[0]
-
-
-# _registry.get_registry().register_many(
-#     {
-#         "mse": MeanSquaredError,
-#         "rmse": RootMeanSquareError,
-#         "mae": MeanAbsoluteError,
-#     }
-# )

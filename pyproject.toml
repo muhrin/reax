@@ -23,7 +23,7 @@ classifiers = [
 keywords = ['machine learning', 'jax', 'research']
 requires-python = '>=3.9'
 dependencies = [
-    'beartype<0.20',
+    'beartype',
     "einops",
     "equinox",
     "clu",
@@ -134,11 +134,15 @@ disable = [
 max-locals = 22
 max-branches = 14
 max-returns = 8
-max-positional-arguments = 8
+max-positional-arguments = 10
+max-public-methods = 22
 
 [tool.bandit]
 exclude_dirs = ["test/"]
-skips = ["B101"]
+skips = [
+    "B101",
+    "B404" # This warns on import of subprocess
+]
 
 [tool.black]
 line-length = 100

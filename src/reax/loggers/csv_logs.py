@@ -39,10 +39,11 @@ CSV logger for basic experiment logging that does not require opening ports
 """
 
 from argparse import Namespace
+from collections.abc import Mapping
 import csv
 import logging
 import os
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Optional, Union
 
 import fsspec
 import jax
@@ -198,7 +199,7 @@ class CsvLogger(logger.Logger):
 
     @override
     @rank_zero.rank_zero_only
-    def finalize(self, status: str) -> None:
+    def finalize(self, _status: str) -> None:
         if self._experiment is None:
             # When using multiprocessing, finalize() should be a no-op on the main process, as no
             # experiment has been initialized there

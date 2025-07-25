@@ -52,25 +52,25 @@ class SklearnDataModule(reax.DataModule):
         )
 
     def train_dataloader(self):
-        return reax.data.GenericDataLoader(
+        return reax.data.ReaxDataLoader(
             SklearnDataset(self.x_train, self.y_train, self._x_type, self._y_type),
             batch_size=self.batch_size,
         )
 
     def val_dataloader(self):
-        return reax.data.GenericDataLoader(
+        return reax.data.ReaxDataLoader(
             SklearnDataset(self.x_valid, self.y_valid, self._x_type, self._y_type),
             batch_size=self.batch_size,
         )
 
     def test_dataloader(self):
-        return reax.data.GenericDataLoader(
+        return reax.data.ReaxDataLoader(
             SklearnDataset(self.x_test, self.y_test, self._x_type, self._y_type),
             batch_size=self.batch_size,
         )
 
     def predict_dataloader(self):
-        return reax.data.GenericDataLoader(
+        return reax.data.ReaxDataLoader(
             SklearnDataset(self.x_test, self.y_test, self._x_type, self._y_type),
             batch_size=self.batch_size,
         )

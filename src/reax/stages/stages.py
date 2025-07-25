@@ -7,13 +7,14 @@ from typing import TYPE_CHECKING, Any, Final, Optional, TypeVar, Union
 import weakref
 
 import beartype
+from flax import nnx
 import jax
 import jaxtyping as jt
 from lightning_utilities.core import enums
 from typing_extensions import deprecated, override
 
 from . import common
-from .. import data, keys, results, typing
+from .. import data, keys, modules, results, typing
 from ..lightning import rank_zero
 from ..utils import arrays
 
@@ -60,17 +61,20 @@ class Stage(abc.ABC):
         self,
         name: str,
         module: Optional["reax.Module"],
-        strategy: "reax.Strategy",
-        rng: Optional["reax.Generator"],
+        engine: "reax.Engine",
         *,
+        rngs: Optional[nnx.Rngs] = None,
         datamanager: "Optional[reax.data.DataSourceManager]" = None,
         max_iters: Optional[int] = None,
         min_iters: int = 0,
         enable_checkpointing: bool = False,
     ):
+        if module is not None and not isinstance(module, modules.Module):
+            raise TypeError("module must be a reax.Module")
+
         # Params
         self._name = name
-        self._strategy = strategy
+        self._engine = engine
         self._min_iters: Final[int] = min_iters
         self._max_iters: Final[Optional[int]] = max_iters
         self._enable_checkpointing: Final[bool] = enable_checkpointing
@@ -79,7 +83,7 @@ class Stage(abc.ABC):
         self._state: StageState = StageState.INITIALIZING
         self._module: Optional["reax.Module"] = module
         self._datamanager = datamanager
-        self._rng = rng
+        self._rngs = rngs
         self._warning_cache = rank_zero.WarningCache()
         self._iter = -1
         self._stopper = common.Stopper()
@@ -114,8 +118,8 @@ class Stage(abc.ABC):
         return self._module
 
     @property
-    def rng(self) -> "Optional[reax.Generator]":
-        return self._rng
+    def rngs(self) -> Optional[nnx.Rngs]:
+        return self._rngs
 
     @property
     def iteration(self) -> int:
@@ -348,9 +352,9 @@ class EpochStage(Stage, abc.ABC):
         name: str,
         module: Optional["reax.Module"],
         datamanager: "reax.data.DataSourceManager",
-        strategy: "reax.Strategy",
-        rng: "reax.Generator",
+        engine: "reax.Engine",
         *,
+        rngs: Optional[nnx.Rngs] = None,
         dataloader_name: Optional[str] = None,
         fast_dev_run: Union[bool, int] = False,
         min_batches: int = 0,
@@ -364,8 +368,8 @@ class EpochStage(Stage, abc.ABC):
         super().__init__(
             name,
             module,
-            strategy,
-            rng,
+            engine,
+            rngs=rngs,
             datamanager=datamanager,
             min_iters=min_batches,
             max_iters=limit_batches if isinstance(limit_batches, int) else None,
@@ -519,12 +523,12 @@ class EpochStage(Stage, abc.ABC):
         if self._module is not None:
             was_uninitialised = self._module.parameters() is None
             example_batch = next(iter(self.dataloader))
-            example_batch = self._strategy.to_device(example_batch)
+            example_batch = self._engine.to_device(example_batch)
             self._module.configure_model(self, example_batch)
 
             # Only the root stage does setup as this only needs to be done once per stage tree
             if was_uninitialised and self._module.parameters() is not None:
-                params = self._strategy.to_device(self._module.parameters())
+                params = self._engine.to_device(self._module.parameters())
                 self._module.set_parameters(params)
 
         self._metrics = results.ResultCollection()
@@ -542,7 +546,7 @@ class EpochStage(Stage, abc.ABC):
     def _on_iteration_starting(self):
         """On iteration starting."""
         batch = next(self._iterator)
-        self._batch = self._strategy.to_device(batch)
+        self._batch = self._engine.to_device(batch)
         super()._on_iteration_starting()
 
     @override

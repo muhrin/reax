@@ -379,7 +379,7 @@ class EarlyStoppingModel(boring_classes.BoringModel):
         should_diverge = (
             self.dist_diverge_epoch
             and self.current_epoch >= self.dist_diverge_epoch
-            and self.trainer.global_rank == 0
+            and self.trainer.process_index == 0
         )
         return 10 if should_diverge else None
 
@@ -602,7 +602,7 @@ def test_early_stopping_squeezes():
 
 
 @pytest.mark.parametrize(
-    ("log_rank_zero_only", "world_size", "global_rank", "expected_log"),
+    ("log_rank_zero_only", "process_count", "process_index", "expected_log"),
     [
         (False, 1, 0, "bar"),
         (False, 2, 0, "[rank: 0] bar"),
@@ -612,11 +612,11 @@ def test_early_stopping_squeezes():
         (True, 2, 1, None),
     ],
 )
-def test_early_stopping_log_info(log_rank_zero_only, world_size, global_rank, expected_log):
+def test_early_stopping_log_info(log_rank_zero_only, process_count, process_index, expected_log):
     """Checks if log.info() gets called with expected message when used within EarlyStopping."""
-    # set the global_rank and world_size if trainer is not None
+    # set the process_index and process_count if trainer is not None
     # or else always expect the simple logging message
-    trainer = Mock(global_rank=global_rank, world_size=world_size)
+    trainer = Mock(process_index=process_index, process_count=process_count)
 
     with mock.patch("reax.listeners.early_stopping._LOGGER.info") as log_mock:
         listeners.EarlyStopping._log_info(trainer, "bar", log_rank_zero_only)

@@ -1,5 +1,7 @@
-from typing import TYPE_CHECKING, Any, Iterable, Optional, Union
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, Optional, Union
 
+from flax import nnx
 from typing_extensions import override
 
 from . import _datasources, _loaders
@@ -13,6 +15,18 @@ Dataset = Any
 
 
 class DataModule(_datasources.DataSource):
+    def __init__(self):
+        super().__init__()
+        self._rngs = nnx.Rngs(0)
+
+    @property
+    def rngs(self) -> nnx.Rngs:
+        return self._rngs
+
+    @rngs.setter
+    def rngs(self, rngs: nnx.Rngs):
+        self._rngs = rngs
+
     @classmethod
     def from_datasets(
         cls,

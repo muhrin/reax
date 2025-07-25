@@ -200,7 +200,7 @@ def _stat_scores(
     :rtype - If ``reduce='samples'``, the returned tensors are ``: N,X
     """
 
-    dim: typing.Union[int, typing.List[int]] = 1  # for "samples"
+    dim: typing.Union[int, list[int]] = 1  # for "samples"
     if reduce == AverageMethod.MICRO:
         dim = [0, 1] if preds.ndim == 2 else [1, 2]
     elif reduce == AverageMethod.MACRO:

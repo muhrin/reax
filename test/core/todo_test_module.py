@@ -70,25 +70,25 @@ def test_property_global_update():
 
 
 @pytest.mark.skip(reason="Not supported yet")
-def test_property_global_rank():
-    """Test that the global rank in LightningModule is accessible via the Trainer."""
+def test_property_process_index():
+    """Test that the global rank in ReaxModule is accessible via the Trainer."""
     model = boring_classes.BoringModel()
-    assert model.global_rank == 0
+    assert model.process_index == 0
 
-    trainer = Mock(global_rank=123)
+    trainer = Mock(process_index=123)
     model.trainer = trainer
-    assert model.global_rank == 123
+    assert model.process_index == 123
 
 
 @pytest.mark.skip(reason="Not supported yet")
-def test_property_local_rank():
+def test_property_local_process_index():
     """Test that the local rank in LightningModule is accessible via the Trainer."""
     model = boring_classes.BoringModel()
-    assert model.local_rank == 0
+    assert model.local_process_index == 0
 
     trainer = Mock(local_rank=123)
     model.trainer = trainer
-    assert model.local_rank == 123
+    assert model.local_process_index == 123
 
 
 def test_property_logger(tmp_path):

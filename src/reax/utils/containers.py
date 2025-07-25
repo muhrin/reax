@@ -1,5 +1,5 @@
-from collections.abc import Hashable, Mapping
-from typing import Iterable, Optional, TypeVar, Union
+from collections.abc import Hashable, Iterable, Mapping
+from typing import Optional, TypeVar, Union
 
 K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")

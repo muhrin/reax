@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Optional, TypeVar, Union
 
 import beartype
+from flax import nnx
 import jaxtyping as jt
 from typing_extensions import override
 
@@ -31,9 +32,9 @@ class EvaluateStats(stages.EpochStage):
         self,
         stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
         datamanager: "reax.data.DataSourceManager",
-        strategy: Optional["reax.Strategy"],
-        rng: "reax.Generator",
+        engine: Optional["reax.Engine"],
         *,
+        rngs: nnx.Rngs,
         dataset_name: str = "train",
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[Union[int, float]] = None,
@@ -44,8 +45,8 @@ class EvaluateStats(stages.EpochStage):
             "stats",
             None,
             datamanager,
-            strategy,
-            rng,
+            engine,
+            rngs=rngs,
             dataloader_name=dataset_name,
             limit_batches=limit_batches,
             fast_dev_run=fast_dev_run,

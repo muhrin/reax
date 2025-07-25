@@ -159,19 +159,6 @@ class Std(Aggregation):
         mean = self.total / self.count
         variance = self.sum_of_squares / self.count - mean**2
         # Mathematically, variance can never be negative but in reality we may run
-        # into such issues due to numeric reasons.
+        # into such issues for numerical reasons.
         variance = jnp.clip(variance, min=0.0)
         return variance**0.5
-
-
-# _registry.get_registry().register_many(
-#     {
-#         "mean": Average,
-#         "min": Min,
-#         "max": Max,
-#         "num_unique": NumUnique,
-#         "unique": Unique,
-#         "std": Std,
-#         "sum": Sum,
-#     }
-# )

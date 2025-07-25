@@ -290,7 +290,7 @@ class MlflowLogger(logger.Logger):
     @rank_zero.rank_zero_only
     def log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
         """Log metrics."""
-        assert rank_zero.rank_zero_only.rank == 0, "experiment tried to log from global_rank != 0"
+        assert rank_zero.rank_zero_only.rank == 0, "experiment tried to log from process_index != 0"
 
         from mlflow.entities import Metric
 

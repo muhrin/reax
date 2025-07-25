@@ -74,7 +74,7 @@ class ClassificationModel(reax.Module):
     def configure_model(self, stage: reax.Stage, batch: Any, /):
         if self.parameters() is None:
             inputs = batch[0]
-            params = self._model.init(self.trainer.rng_key(), inputs)
+            params = self._model.init(self.trainer.rngs(), inputs)
             self.set_parameters(params)
 
     def forward(self, x):

@@ -1,6 +1,7 @@
-from typing import Any
+from typing import Any, Optional
 
 import jax
+import jaxtyping as jt
 from typing_extensions import override
 
 from . import _strategies
@@ -11,8 +12,14 @@ __all__ = ("SingleDevice",)
 class SingleDevice(_strategies.Strategy):
     """Strategy for a single device e.g. a single GPU."""
 
-    def __init__(self, device: jax.Device):
-        self._device = device
+    def __init__(self, platform: str):
+        self._device = jax.Device = (
+            jax.devices()[0] if platform == "auto" else jax.devices(platform)[0]
+        )
+
+    @property
+    def device(self) -> jax.Device:
+        return self._device
 
     @override
     def to_device(self, value: Any) -> Any:
@@ -31,6 +38,34 @@ class SingleDevice(_strategies.Strategy):
         return True
 
     @override
-    def broadcast(self, obj: _strategies.BroadcastT, src: int = 0) -> _strategies.BroadcastT:
+    def broadcast(self, obj: jt.PyTreeDef, src: int = 0) -> Any:
         """Broadcast function."""
         return obj
+
+    @override
+    def all_gather(self, obj: jt.PyTreeDef) -> Any:
+        return obj
+
+    @override
+    def all_reduce(self, obj: jt.PyTree, reduce_op: str = "mean") -> jt.PyTree:
+        """Reduces a tensor from several distributed processes to one aggregated tensor.
+
+        Args:
+            obj: the pytree to sync and reduce
+            reduce_op: the reduction operation. Defaults to 'mean'/'avg'.
+                Can also be a string 'sum' to calculate the sum during reduction.
+
+        Return:
+            reduced value
+        """
+        return obj
+
+    @override
+    def barrier(self, name: Optional[str] = None) -> None:
+        """Synchronizes all processes which blocks processes until the whole group enters this
+        function.
+
+        Args:
+            name: an optional name to pass into barrier.
+        """
+        return None  # Nothing to do in a single device

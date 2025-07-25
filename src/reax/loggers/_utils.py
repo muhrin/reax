@@ -1,7 +1,8 @@
 import argparse
+from collections.abc import Mapping
 import dataclasses
 import pathlib
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import jax.numpy as jnp
 import jax.typing

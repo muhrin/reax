@@ -1494,7 +1494,7 @@ def test_dataloaders_reset_and_attach(tmp_path):
 def test_request_dataloader(tmp_path):
     """This test asserts dataloader can be wrapped."""
 
-    class DataLoaderWrapper:
+    class DataLoaderWrapper(reax.data.DataLoader):
         def __init__(self, loader):
             self.loader = loader
             self._iter = iter(self.loader)
@@ -1505,6 +1505,17 @@ def test_request_dataloader(tmp_path):
 
         def __next__(self):
             return next(self._iter)
+
+        @property
+        def dataset(self):
+            return self.loader.dataset
+
+        @property
+        def sampler(self):
+            return self.loader.sampler
+
+        def with_new_sampler(self, sampler):
+            return DataLoaderWrapper(self.loader.with_new_sampler(sampler))
 
     class TestModel(boring_classes.BoringModel):
         def __init__(self):

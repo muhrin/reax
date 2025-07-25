@@ -16,15 +16,20 @@ ___all__ = ("DataSourceManager", "create_manager")
 class DataSourceManager(abc.ABC):
     """Manager for coordinating getting data from a source"""
 
-    def __init__(self, source: Optional[_datasources.DataSource], **loaders):
+    def __init__(
+        self, source: Optional[_datasources.DataSource], engine: "reax.Engine" = None, **loaders
+    ):
         self._datasource: Optional[_datasources.DataSource] = source
-        self._loaders: dict[str, "reax.data.DataLoader"] = loaders
+        self._engine = engine
+        self._loaders: dict[str, "reax.data.DataLoader"] = {
+            name: self._engine.setup_dataloaders(loaders) for name, loaders in loaders.items()
+        }
         self._from_datasource: dict[str, "reax.data.DataLoader"] = {}
 
     @property
     def _source_base_type(
         self,
-    ) -> Union[type[datamodules.DataModule], type[modules.Module]]:
+    ) -> "Union[type[reax.DataModule], type[reax.Module]]":
         if isinstance(self._datasource, datamodules.DataModule):
             return datamodules.DataModule
         if isinstance(self._datasource, modules.Module):
@@ -34,7 +39,6 @@ class DataSourceManager(abc.ABC):
 
     def has_dataloader(self, name: str) -> bool:
         """Returns `True` if this source provides the name dataloader, `False` otherwise"""
-
         if name in self._loaders:
             return True
 
@@ -69,7 +73,6 @@ class DataSourceManager(abc.ABC):
 
     def prepare_data(self) -> None:
         """Tell the data source to prepare the data for use"""
-
         if self._datasource is not None and overrides.is_overridden(
             "prepare_data", self._datasource, self._source_base_type
         ):
@@ -77,7 +80,6 @@ class DataSourceManager(abc.ABC):
 
     def setup(self, stage) -> None:
         """Tell the data source to set itself up"""
-
         if self._datasource is not None:
             self._datasource.setup(stage)
 
@@ -100,12 +102,15 @@ class DataSourceManager(abc.ABC):
     def _request_dataloader(self, name: str) -> "reax.DataLoader":
         """Get the dataloader directly from the source"""
         loader_name = f"{name}_dataloader"
-        return getattr(self._datasource, loader_name)()
+        loader = getattr(self._datasource, loader_name)()
+        loader = self._engine.setup_dataloaders(loader)
+        return loader
 
 
 def create_manager(
     module: _datasources.DataSource = None,
     datamodule: datamodules.DataModule = None,
+    engine: "reax.Engine" = None,
     **loaders,
 ) -> DataSourceManager:
     # Filter out any loaders that are `None` as this makes calling this method easier
@@ -118,4 +123,4 @@ def create_manager(
     else:
         source = None
 
-    return DataSourceManager(source, **passed_loaders)
+    return DataSourceManager(source, engine, **passed_loaders)

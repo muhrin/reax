@@ -116,7 +116,7 @@ class ProgressBar(hooks.TrainerListener):
         print(*args, **kwargs)
 
     @override
-    def setup(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
+    def setup(self, trainer: "reax.Trainer", _stage: "reax.Stage", /) -> None:
         self._trainer = trainer
         if not trainer.is_global_zero:
             self.disable()

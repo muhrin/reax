@@ -46,7 +46,7 @@ class ReaxAutoEncoder(reax.Module):
     def configure_model(self, _stage: "reax.Stage", batch: Any, /) -> None:
         if self.parameters() is None:
             inputs = self._prepare_batch(batch)
-            params = self.autoencoder.init(self.rng_key(), inputs)
+            params = self.autoencoder.init(self.rngs(), inputs)
             self.set_parameters(params)
 
     def __call__(self, *args, **kwargs):

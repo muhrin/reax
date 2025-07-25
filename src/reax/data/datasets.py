@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, TypeVar, Union, cast
 import warnings
 
 import beartype
+from flax import nnx
 import jax.random
 import jaxtyping as jt
 import numpy as np
@@ -130,7 +131,7 @@ class Subset(Sequence[_T_co]):
 
 
 def random_split(
-    rng: "reax.Generator",
+    rngs: nnx.Rngs,
     dataset: Sequence[_T],
     lengths: Sequence[Union[int, float]],
 ) -> list[Subset[_T]]:
@@ -182,7 +183,7 @@ def random_split(
     if sum(lengths) != len(dataset):
         raise ValueError("Sum of input lengths does not equal the length of the input dataset!")
 
-    indices = jax.random.permutation(rng.make_key(), sum(lengths)).tolist()
+    indices = jax.random.permutation(rngs(), sum(lengths)).tolist()
     lengths = cast(Sequence[int], lengths)
     return [
         Subset(dataset, indices[offset - length : offset])

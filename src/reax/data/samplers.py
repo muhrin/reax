@@ -2,16 +2,27 @@ from collections.abc import Hashable, Iterable, Iterator, Sequence
 import contextlib
 import functools
 import itertools
-from typing import TypeVar, Union
+import math
+from typing import TYPE_CHECKING, Optional, TypeVar, Union
 
+import jax
 import numpy as np
 
 from . import _types
 
-__all__ = "SequentialSampler", "RandomSampler", "BatchSampler", "IterableSampler"
+if TYPE_CHECKING:
+    import reax
 
-T_co = TypeVar("T_co", covariant=True)
-IdxT = TypeVar("IdxT", bound=Hashable)
+__all__ = (
+    "SequentialSampler",
+    "RandomSampler",
+    "BatchSampler",
+    "IterableSampler",
+    "DistributedSampler",
+)
+
+_T_co = TypeVar("_T_co", covariant=True)
+_IdxT = TypeVar("_IdxT", bound=Hashable)
 
 
 class SequentialSampler(_types.Sampler[int]):
@@ -74,15 +85,15 @@ class RandomSampler(_types.Sampler[int]):
             yield from np.random.permutation(total).tolist()[: self.num_samples % total]
 
 
-class BatchSampler(_types.Sampler[list[IdxT]]):
+class BatchSampler(_types.Sampler[list[_IdxT]]):
     r"""Sample batches of indexes from a given sample."""
 
-    def __init__(self, sampler: _types.Sampler[IdxT], batch_size: int, drop_last: bool) -> None:
+    def __init__(self, sampler: _types.Sampler[_IdxT], batch_size: int, drop_last: bool) -> None:
         self._sampler = sampler
         self._batch_size = batch_size
         self._drop_last = drop_last
 
-    def __iter__(self) -> Iterator[list[IdxT]]:
+    def __iter__(self) -> Iterator[list[_IdxT]]:
         """Iter function."""
         if self._drop_last:
             sampler_iter = iter(self._sampler)
@@ -119,13 +130,175 @@ class IterableSampler(_types.Sampler[list[None]]):
         yield from itertools.repeat([None])
 
 
-@functools.singledispatch
+class DistributedSampler(_types.Sampler[_IdxT]):
+    """
+    A sampler that distributes data across multiple processes, ensuring each process
+    receives a unique and non-overlapping subset of the dataset.
+
+    This sampler is designed for use with JAX's distributed training capabilities.
+    It handles shuffling, dropping the last incomplete batch (if specified),
+    and partitioning the dataset based on the process rank and number of replicas.
+    """
+
+    def __init__(
+        self,
+        dataset: "reax.data.Dataset",
+        num_replicas: Optional[int] = None,
+        process_index: Optional[int] = None,
+        shuffle: bool = True,
+        seed: int = 0,
+        drop_last: bool = False,
+    ) -> None:
+        """
+        Initializes the DistributedSampler.
+
+        Args:
+            dataset: The dataset to sample from.
+            num_replicas: The total number of replicas (processes).
+                Defaults to jax.process_count().
+            process_index: The index of the current process. Defaults to jax.process_index().
+            shuffle: Whether to shuffle the data.
+            seed: The seed for shuffling.
+            drop_last: Whether to drop the last incomplete batch.
+        """
+        if num_replicas == 0:
+            raise ValueError("Number of replicas cannot be 0.")
+
+        # Params
+        self._num_replicas = num_replicas if num_replicas is not None else jax.process_count()
+        self._process_index = process_index if process_index is not None else jax.process_index()
+        if self._process_index >= self._num_replicas:
+            raise ValueError(
+                f"Process index ({self._process_index}) must be less than the number of replicas "
+                f"({self._num_replicas})."
+            )
+
+        self._shuffle = shuffle
+        self._drop_last = drop_last
+        self._num_samples = self._init_num_samples(dataset, drop_last, self._num_replicas)
+        self._total_size = self._num_samples * self._num_replicas
+        self._shuffle = shuffle
+        self._seed = seed
+
+        # State
+        self._dataset = dataset
+        self._epoch = 0
+
+    @staticmethod
+    def _init_num_samples(dataset: "reax.data.Dataset", drop_last: bool, num_replicas: int):
+        """
+        Calculates the number of samples each process should receive.
+
+        If the dataset length is evenly divisible by the number of replicas,
+        no data is dropped. Otherwise, the dataset is split to the nearest
+        available length that is evenly divisible.
+
+        Args:
+            dataset: The dataset.
+            drop_last: Whether to drop the last incomplete batch.
+            num_replicas: The number of replicas.
+
+        Returns:
+            The number of samples each process should receive.
+        """
+        # If the dataset length is evenly divisible by # of replicas, then there
+        # is no need to drop any data, since the dataset will be split equally.
+        if drop_last and len(dataset) % num_replicas != 0:
+            # Split to nearest available length that is evenly divisible.
+            # This is to ensure each rank receives the same amount of data when
+            # using this Sampler.
+            return math.ceil((len(dataset) - num_replicas) / num_replicas)
+
+        return math.ceil(len(dataset) / num_replicas)
+
+    def __iter__(self) -> Iterator[_IdxT]:
+        """
+        Returns an iterator over the sampled indices.
+
+        The indices are shuffled (if specified) and partitioned across processes.
+        If `drop_last` is True, the last incomplete batch is removed.  Otherwise,
+        the dataset is padded to ensure each process receives the same number of samples.
+
+        Returns:
+            An iterator over the sampled indices.
+        """
+        if self._shuffle:
+            # deterministically shuffle based on epoch and seed
+            key = jax.random.key(self._seed + self._epoch)
+            indices = jax.random.permutation(key, len(self._dataset)).tolist()
+        else:
+            indices = list(range(len(self._dataset)))
+
+        if self._drop_last:
+            # remove the last set of indices
+            indices = indices[: self._total_size]
+        else:
+            # pad up to evenly divisible
+            padding_size = self._total_size - len(indices)
+            if padding_size <= len(indices):
+                indices += indices[:padding_size]
+            else:
+                indices += (indices * math.ceil(padding_size / len(indices)))[:padding_size]
+
+        assert len(indices) == self.total_size
+
+        # subsample
+        indices = indices[self._process_index : self._total_size : self._num_replicas]
+        assert len(indices) == self._num_samples
+
+        return iter(indices)
+
+    def __len__(self) -> int:
+        """
+        Returns the number of samples in the sampler.
+
+        Returns:
+            The number of samples.
+        """
+        return self._num_samples
+
+    @property
+    def total_size(self) -> int:
+        return self._total_size
+
+    def set_epoch(self, epoch: int) -> None:
+        """
+        Sets the epoch for shuffling.
+
+        This allows for different shuffles in each epoch.
+
+        Args:
+            epoch: The epoch number.
+        """
+        self._epoch = epoch
+
+
 def create_sampler(
-    dataset: _types.Dataset[T_co],
-    batch_size: int = 1,
+    dataset: _types.Dataset[_T_co],
+    batch_size: Optional[int] = None,
     replacements: bool = False,
     shuffle: bool = False,
-) -> _types.Sampler:
+    sampler: "reax.data.Sampler[_T_co]" = None,
+) -> "reax.data.Sampler[_T_co]":
+    """Create sampler."""
+    if sampler is None:
+        # Need this special case because jax arrays are not really subclasses of jax.Array and won't
+        # be matched by singledispatch
+        if isinstance(dataset, jax.Array):
+            sampler = create_sequence_sampler(dataset, replacements=replacements, shuffle=shuffle)
+        else:
+            sampler = _create_sampler(dataset, replacements=replacements, shuffle=shuffle)
+
+    if batch_size is not None:
+        sampler = BatchSampler(sampler, batch_size, False)
+
+    return sampler
+
+
+@functools.singledispatch
+def _create_sampler(
+    dataset: _types.Dataset[_T_co], replacements: bool = False, shuffle: bool = False
+) -> "reax.data.Sampler[_T_co]":
     """Create sampler."""
     raise TypeError(f"Unsupported type {type(dataset).__name__}")
 
@@ -133,53 +306,38 @@ def create_sampler(
 with contextlib.suppress(ImportError):
     import torch.utils.data
 
-    @create_sampler.register(torch.utils.data.IterableDataset)
+    @_create_sampler.register(torch.utils.data.IterableDataset)
     def create_torch_iterable_dataset_sampler(
-        dataset: torch.utils.data.IterableDataset[T_co],
-        batch_size: int = 1,
+        dataset: torch.utils.data.IterableDataset[_T_co],
         replacements: bool = False,
         shuffle: bool = False,
     ):
         """Create torch iterable dataset sampler."""
-        return create_iterable_sampler(
-            dataset, batch_size=batch_size, replacements=replacements, shuffle=shuffle
-        )
+        return create_iterable_sampler(dataset, replacements=replacements, shuffle=shuffle)
 
-    @create_sampler.register(torch.utils.data.Dataset)
+    @_create_sampler.register(torch.utils.data.Dataset)
     def create_torch_dataset_sampler(
-        dataset: torch.utils.data.Dataset[T_co],
-        batch_size: int = 1,
-        replacements: bool = False,
-        shuffle: bool = False,
+        dataset: torch.utils.data.Dataset[_T_co], replacements: bool = False, shuffle: bool = False
     ):
         """Create torch dataset sampler."""
-        return create_sequence_sampler(
-            dataset, batch_size=batch_size, replacements=replacements, shuffle=shuffle
-        )
+        return create_sequence_sampler(dataset, replacements=replacements, shuffle=shuffle)
 
 
-@create_sampler.register(Sequence)
+@_create_sampler.register(Sequence)
+@_create_sampler.register(np.ndarray)
 def create_sequence_sampler(
-    dataset: Sequence[T_co],
-    batch_size: int = 1,
-    replacements: bool = False,
-    shuffle: bool = False,
-) -> _types.Sampler[list[IdxT]]:
+    dataset, replacements: bool = False, shuffle: bool = False
+) -> "reax.data.Sampler[_T_co]":
     """Create sequence sampler."""
     if shuffle:
-        sampler = RandomSampler(len(dataset), replacements=replacements)
-    else:
-        sampler = SequentialSampler(len(dataset))
+        return RandomSampler(len(dataset), replacements=replacements)
 
-    return BatchSampler(sampler, batch_size, False)
+    return SequentialSampler(len(dataset))
 
 
-@create_sampler.register(Iterable)
+@_create_sampler.register(Iterable)
 def create_iterable_sampler(
-    dataset: Iterable[T_co],
-    batch_size: int = 1,
-    replacements: bool = False,
-    shuffle: bool = False,
+    dataset: Iterable[_T_co], replacements: bool = False, shuffle: bool = False
 ) -> Union[_types.Sampler[None], _types.Sampler[list[None]]]:
     """Create iterable sampler."""
     if shuffle:
@@ -193,23 +351,14 @@ def create_iterable_sampler(
             f"which does not support random access"
         )
 
-    sampler = IterableSampler()
-    if batch_size == 1:
-        return sampler
-
-    return BatchSampler(sampler, batch_size, False)
+    return IterableSampler()
 
 
 def create_batch_sampler(
-    dataset: Sequence[T_co],
-    batch_size: int = 1,
-    replacements: bool = False,
-    shuffle: bool = False,
+    dataset: Sequence[_T_co], replacements: bool = False, shuffle: bool = False
 ) -> BatchSampler[int]:
     """Create batch sampler."""
     if shuffle:
-        sampler = RandomSampler(len(dataset), replacements=replacements)
-    else:
-        sampler = SequentialSampler(len(dataset))
+        return RandomSampler(len(dataset), replacements=replacements)
 
-    return BatchSampler(sampler, batch_size, False)
+    return SequentialSampler(len(dataset))

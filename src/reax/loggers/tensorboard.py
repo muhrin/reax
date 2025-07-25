@@ -36,8 +36,9 @@ TensorBoard Logger
 """
 
 import argparse
+from collections.abc import Mapping
 import os
-from typing import Any, Callable, Final, Mapping, Optional, Union
+from typing import Any, Callable, Final, Optional, Union
 
 import fsspec
 import jax.typing
@@ -207,7 +208,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         if self._exp is not None:
             return self._exp
 
-        assert rank_zero.rank_zero_only.rank == 0, "tried to init log dirs in non global_rank=0"
+        assert rank_zero.rank_zero_only.rank == 0, "tried to init log dirs in non process_index=0"
 
         if self.root_dir:
             self._fs.makedirs(self.root_dir, exist_ok=True)

@@ -1,9 +1,9 @@
+from collections.abc import Iterable
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Generic,
-    Iterable,
     Optional,
     TypedDict,
     TypeVar,
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 __all__ = ("MetricResults", "StageListener")
 
 _T_co = TypeVar("_T_co", covariant=True)
+_U = TypeVar("_U")
 StageEvents = events.EventGenerator["StageListener"]
 
 
@@ -136,11 +137,11 @@ def batches_limit(
 
 
 class DataSourceManager(Generic[_T_co]):
-    class LoaderProxy(data.DataLoader[_T_co]):
+    class LoaderProxy(data.DataLoader[_T_co, _U]):
         def __init__(self, manager: "DataSourceManager[_T_co]", method_name: str):
             self._manager = manager
             self._method_name = method_name
-            self._iterable: Optional[Iterable[_T_co]] = None
+            self._iterable: Optional[Iterable[_U]] = None
 
         def __iter__(self):
             return iter(self.dataloader)
@@ -152,20 +153,33 @@ class DataSourceManager(Generic[_T_co]):
             return self.dataloader.__getitem__(index)
 
         @property
-        def dataloader(self) -> Iterable[_T_co]:
+        def sampler(self) -> "reax.data.Sampler":
+            return self.dataloader.sampler
+
+        @property
+        def dataset(self) -> "reax.data.Dataset[_T_co]":
+            return self.dataloader.dataset
+
+        @property
+        def dataloader(self) -> "reax.data.DataLoader[_T_co, _U]":
             if self._iterable is None:
                 self._iterable = getattr(self._manager.source, self._method_name)()
             return self._iterable
 
+        def with_new_sampler(
+            self, sampler: "reax.data.Sampler"
+        ) -> "reax.data.DataLoader[_T_co, _U]":
+            return self.dataloader.with_new_sampler(sampler)
+
     def __init__(self, source: "reax.data.DataSource[_T_co]"):
-        self._source: "reax.data.DataSource[_T_co]" = source
-        self._ready: bool = False
+        self._source = source
+        self._ready = False
 
     @property
     def ready(self) -> bool:
         return self._ready
 
-    def get_loader_proxy(self, method_name: str) -> LoaderProxy[_T_co]:
+    def get_loader_proxy(self, method_name: str) -> LoaderProxy[_T_co, _U]:
         return DataSourceManager.LoaderProxy(self, method_name)
 
     @property

@@ -31,8 +31,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Generator
-from dataclasses import dataclass
-from datetime import timedelta
+import dataclasses
+import datetime
 import math
 from typing import TYPE_CHECKING, Any, Final, Optional, Union, cast
 
@@ -77,7 +77,7 @@ if _RICH_AVAILABLE:  # noqa: C901
                 pulse_style=self.pulse_style,
             )
 
-    @dataclass
+    @dataclasses.dataclass
     class CustomInfiniteTask(rich.progress.Task):
         """Overrides ``Task`` to define an infinite task.
 
@@ -139,9 +139,11 @@ if _RICH_AVAILABLE:  # noqa: C901
         def render(self, task: rich.progress.Task) -> text_.Text:
             elapsed = task.finished_time if task.finished else task.elapsed
             remaining = task.time_remaining
-            elapsed_delta = "-:--:--" if elapsed is None else str(timedelta(seconds=int(elapsed)))
+            elapsed_delta = (
+                "-:--:--" if elapsed is None else str(datetime.timedelta(seconds=int(elapsed)))
+            )
             remaining_delta = (
-                "-:--:--" if remaining is None else str(timedelta(seconds=int(remaining)))
+                "-:--:--" if remaining is None else str(datetime.timedelta(seconds=int(remaining)))
             )
             return text_.Text(f"{elapsed_delta} • {remaining_delta}", style=self.style)
 
@@ -220,7 +222,7 @@ if _RICH_AVAILABLE:  # noqa: C901
                 yield f"{name}: {value}"
 
 
-@dataclass
+@dataclasses.dataclass
 class RichProgressBarTheme:
     """Styles to associate to different base components.
 
@@ -370,7 +372,8 @@ class RichProgressBar(progress_bar.ProgressBar):
             self._reset_progress_bar_ids()
             rich.reconfigure(**self._console_kwargs)
             self._console = rich.get_console()
-            self._console.clear_live()
+            if self._console.is_terminal:
+                self._console.clear_live()
             self._metric_component = MetricsTextColumn(
                 trainer,
                 self.theme.metrics,
@@ -519,7 +522,7 @@ class RichProgressBar(progress_bar.ProgressBar):
 
     @override
     def on_validation_epoch_end(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /
+        self, trainer: "reax.Trainer", _stage: "reax.stages.Validate", /
     ) -> None:
         if (
             self.is_enabled
@@ -572,7 +575,7 @@ class RichProgressBar(progress_bar.ProgressBar):
     @override
     def on_validation_batch_end(
         self,
-        trainer: "reax.Trainer",
+        _trainer: "reax.Trainer",
         _stage: "reax.stages.Validate",
         _outputs: Any,
         _batch: Any,
@@ -660,6 +663,10 @@ class RichProgressBar(progress_bar.ProgressBar):
         self._stop_progress()
 
     def _configure_columns(self, _trainer: "reax.Trainer", /) -> list:
+        if not _RICH_AVAILABLE:
+            return []
+
+        # pylint: disable=possibly-used-before-assignment
         return [
             rich.progress.TextColumn("[progress.description]{task.description}"),
             CustomBarColumn(

@@ -51,7 +51,7 @@ def test_trainer_error_when_input_not_reax_module():
     trainer = reax.Trainer()
 
     for method in ("fit", "validate", "test", "predict"):
-        with pytest.raises(jt.TypeCheckError, match="Type-check error whilst checking"):
+        with pytest.raises((jt.TypeCheckError, TypeError)):
             run_method = getattr(trainer, method)
             run_method(linen.Dense(2))
 

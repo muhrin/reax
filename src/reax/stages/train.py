@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 import weakref
 
 import beartype
+from flax import nnx
 import jaxtyping as jt
 import optax
 from typing_extensions import override
@@ -30,10 +31,10 @@ class Train(stages.EpochStage):
         self,
         module: "reax.Module",
         datamanager: "reax.data.DataSourceManager",
-        strategy: "reax.Strategy",
+        engine: "reax.Engine",
         optimizers: "list[reax.Optimizer]",
-        rng: "Optional[reax.Generator]",
         *,
+        rngs: Optional[nnx.Rngs] = None,
         fast_dev_run: Union[bool, int] = False,
         min_updates: int = 0,
         max_updates: Optional[Union[int, float]] = None,
@@ -45,8 +46,8 @@ class Train(stages.EpochStage):
             "fit",
             module,
             datamanager,
-            strategy,
-            rng,
+            engine,
+            rngs=rngs,
             dataloader_name="train",
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
@@ -103,7 +104,7 @@ class Train(stages.EpochStage):
             optimizers: list[optimizers_.Optimizer] = []
             for opt, state in opts:
                 # Move optimizer parameters to device
-                state = self._strategy.to_device(state)
+                state = self._engine.to_device(state)
                 if self._accumulate_grad_batches > 1:
                     stepper = optax.MultiSteps(opt, every_k_schedule=self._accumulate_grad_batches)
                     state = stepper.init(self._module.parameters())

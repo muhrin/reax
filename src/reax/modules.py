@@ -1,7 +1,9 @@
-from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, Generic, Mapping, Optional, TypedDict, TypeVar, Union
+from collections.abc import Callable, Generator, Mapping, Sequence
+import contextlib
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypedDict, TypeVar, Union
 
 import beartype
+from flax import nnx
 import jax
 import jaxtyping as jt
 from lightning_utilities.core import rank_zero
@@ -21,7 +23,12 @@ OutputT_co = TypeVar("OutputT_co", covariant=True)
 BatchT = TypeVar("BatchT")
 OptimizerData = tuple[optax.GradientTransformation, Any]
 
-LossAndGradDict = TypedDict("LossAndGradDict", {"loss": jax.Array, "grad": jt.PyTree}, total=False)
+
+class LossAndGradDict(TypedDict, total=False):
+    loss: jax.Array
+    grad: jt.PyTree
+
+
 LossAndGrad = tuple[jax.Array, jax.Array]
 TrainOutput = Union[LossAndGrad, LossAndGradDict]
 
@@ -61,6 +68,12 @@ class Module(
 
         self._trainer = trainer
 
+    @contextlib.contextmanager
+    def attach(self, trainer: "reax.Trainer") -> Generator[None, Any, None]:
+        self._trainer = trainer
+        yield
+        self._trainer = None
+
     @property
     def global_updates(self) -> int:
         """Get the global number of optimizer updates."""
@@ -79,9 +92,10 @@ class Module(
         """Set parameters."""
         self._parameters = params
 
-    def rng_key(self, num=1) -> jax.Array:
-        """Rng key."""
-        return self._trainer.rng_key(num=num)
+    @property
+    def rngs(self) -> nnx.Rngs:
+        """Random number generators."""
+        return self._trainer.rngs
 
     def optimizers(self) -> Union["reax.Optimizer", list["reax.Optimizer"]]:
         """Optimizers function."""

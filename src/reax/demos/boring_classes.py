@@ -1,5 +1,6 @@
 import collections.abc
-from typing import Any, Iterable, Iterator, Optional
+from collections.abc import Iterable, Iterator
+from typing import Any, Optional
 
 from flax import linen
 import jax
@@ -36,10 +37,10 @@ class BoringModel(modules.Module):
         self.layer = linen.Dense(2)
 
     @override
-    def configure_model(self, stage, batch: Any, /) -> None:
+    def configure_model(self, _stage, batch: Any, /) -> None:
         """Configure our model."""
         if self._parameters is None:
-            params = self.layer.init(self.rng_key(), batch[0])
+            params = self.layer.init(self.rngs(), batch[0])
             self.set_parameters(params)
 
     def forward(self, x: jax.Array) -> jax.Array:
@@ -64,20 +65,24 @@ class BoringModel(modules.Module):
         output = model.apply(parameters, batch)
         return BoringModel.loss(output)
 
-    def training_step(self, batch: Any, batch_idx: int, /) -> Any:
+    @override
+    def training_step(self, batch: Any, _batch_idx: int, /) -> Any:
         """Training step."""
         loss, grad = jax.value_and_grad(self.step, argnums=1)(self.layer, self._parameters, batch)
         return {"loss": loss, "grad": grad}
 
-    def validation_step(self, batch: Any, batch_idx: int, /) -> Any:
+    @override
+    def validation_step(self, batch: Any, _batch_idx: int, /) -> Any:
         """Validation step."""
         return {"x": self.step(self.layer, self._parameters, batch)}
 
-    def test_step(self, batch: Any, batch_idx: int, /) -> Any:
+    @override
+    def test_step(self, batch: Any, _batch_idx: int, /) -> Any:
         """Test step."""
         return {"y": self.step(self.layer, self._parameters, batch)}
 
-    def predict_step(self, batch: Any, batch_idx: int, /) -> Any:
+    @override
+    def predict_step(self, batch: Any, _batch_idx: int, /) -> Any:
         """Predict step."""
         return self.forward(batch)
 

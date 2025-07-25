@@ -31,7 +31,7 @@ class DataSource(Generic[_T_co]):
 
     def prepare_data(self) -> None:
         """Use this to download and prepare data. Downloading and saving data with multiple
-        processes (distributed settings) will result in corrupted data. Lightning ensures this
+        processes (distributed settings) will result in corrupted data. REAX ensures this
         method is called only within a single process, so you can safely add your downloading logic
         within.
 
@@ -60,14 +60,14 @@ class DataSource(Generic[_T_co]):
 
             # DEFAULT
             # called once per node on LOCAL_RANK=0 of that node
-            class LitDataModule(LightningDataModule):
+            class ReDataModule(ReaxDataModule):
                 def __init__(self):
                     super().__init__()
                     self.prepare_data_per_node = True
 
 
             # call on GLOBAL_RANK=0 (great for shared file systems)
-            class LitDataModule(LightningDataModule):
+            class ReDataModule(ReaxDataModule):
                 def __init__(self):
                     super().__init__()
                     self.prepare_data_per_node = False
@@ -140,12 +140,12 @@ class DataSource(Generic[_T_co]):
         - :meth:`setup`
 
         Note:
-            Lightning tries to add the correct sampler for distributed and arbitrary hardware.
+            REAX tries to add the correct sampler for distributed and arbitrary hardware.
             There is no need to set it yourself.
 
         """
         raise exceptions.MisconfigurationException(
-            "`train_dataloader` must be implemented to be used with the Lightning Trainer"
+            "`train_dataloader` must be implemented to be used with the REAX Trainer"
         )
 
     def val_dataloader(self) -> Optional["reax.DataLoader[_T_co]"]:
@@ -194,7 +194,7 @@ class DataSource(Generic[_T_co]):
         - :meth:`setup`
 
         Note:
-            Lightning tries to add the correct sampler for distributed and arbitrary hardware.
+            REAX tries to add the correct sampler for distributed and arbitrary hardware.
             There is no need to set it yourself.
 
         Note:
@@ -203,7 +203,7 @@ class DataSource(Generic[_T_co]):
 
         """
         raise exceptions.MisconfigurationException(
-            "`test_dataloader` must be implemented to be used with the Lightning Trainer"
+            "`test_dataloader` must be implemented to be used with the REAX Trainer"
         )
 
     def predict_dataloader(self) -> "reax.DataLoader[_T_co]":

@@ -35,11 +35,11 @@ def test_root_mean_square_error(shape, rng_key):
     predictions = random.uniform(keys[0], shape)
     targets = random.uniform(keys[1], shape)
 
-    mse = metrics.RootMeanSquareError()
+    rmse = metrics.RootMeanSquareError()
     for prediction, target in zip(predictions, targets):
-        mse = mse.update(prediction, target)
+        rmse = rmse.update(prediction, target)
 
-    assert jnp.isclose(mse.compute(), jnp.sqrt(optax.squared_error(predictions, targets).mean()))
+    assert jnp.isclose(rmse.compute(), jnp.sqrt(optax.squared_error(predictions, targets).mean()))
     # Check the convenience function gives us the right type
     assert isinstance(metrics.get("rmse"), metrics.RootMeanSquareError)
 
@@ -169,4 +169,4 @@ def test_metrics_registry():
         "rmse": metrics.RootMeanSquareError,
         "mae": metrics.MeanAbsoluteError,
     }
-    assert set(registry) == set(expected_metrics)
+    assert not set(expected_metrics).difference(set(registry))

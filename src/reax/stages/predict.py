@@ -20,7 +20,7 @@ class Predict(stages.EpochStage):
         self,
         module: "reax.Module",
         datamanager: "reax.data.DataSourceManager",
-        strategy: "reax.Strategy",
+        engine: "reax.Engine",
         *,
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[int] = None,
@@ -31,8 +31,7 @@ class Predict(stages.EpochStage):
             "predict",
             module,
             datamanager,
-            strategy,
-            None,
+            engine,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )

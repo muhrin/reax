@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Any, Final, Optional, Union
 
 import beartype
+from flax import nnx
 import jax
 import jaxtyping as jt
 from lightning_utilities.core import overrides
@@ -23,9 +24,9 @@ class FitEpoch(train.Train):
         module: "reax.Module",
         datamanager: "reax.data.DataSourceManager",
         optimizers: list["reax.Optimizer"],
-        strategy: "reax.Strategy",
-        rng: "reax.Generator",
+        engine: "reax.Engine",
         *,
+        rngs: nnx.Rngs = None,
         fast_dev_run: Union[bool, int] = False,
         min_updates: Optional[int] = None,
         max_updates: Optional[Union[int, float]] = None,
@@ -53,9 +54,9 @@ class FitEpoch(train.Train):
         super().__init__(
             module,
             datamanager,
-            strategy,
+            engine,
             optimizers,
-            rng,
+            rngs=rngs,
             fast_dev_run=fast_dev_run,
             min_updates=min_updates,
             max_updates=max_updates,
@@ -79,7 +80,7 @@ class FitEpoch(train.Train):
             self._validate = validation.Validate(
                 module,
                 datamanager,
-                strategy,
+                engine,
                 fast_dev_run=fast_dev_run,
                 limit_batches=limit_val_batches,
             )
@@ -142,7 +143,7 @@ class FitEpoch(train.Train):
         # Only the root stage does setup as this only needs to be done once per stage tree
         if self.is_root and self._module is not None:
             self._module.setup(self, next(iter(self.train_dataloader)))
-            params = self._strategy.to_device(self._module.parameters())
+            params = self._engine.to_device(self._module.parameters())
             self._module.set_parameters(params)
 
     @override
@@ -282,9 +283,9 @@ class Fit(stages.Stage):
         module: "reax.Module",
         datamanager: "reax.data.DataSourceManager",
         optimizers: list["reax.Optimizer"],
-        strategy: "reax.Strategy",
-        rng: "reax.Generator",
+        engine: "reax.Engine",
         *,
+        rngs: nnx.Rngs = None,
         fast_dev_run: Union[bool, int] = False,
         max_epochs: Optional[int] = None,
         min_epochs: int = 0,
@@ -315,8 +316,8 @@ class Fit(stages.Stage):
         super().__init__(
             "fit",
             module,
-            strategy,
-            rng,
+            engine,
+            rngs=rngs,
             datamanager=datamanager,
             max_iters=max_epochs,
             min_iters=min_epochs,
@@ -331,8 +332,8 @@ class Fit(stages.Stage):
             module,
             datamanager,
             optimizers,
-            strategy,
-            rng,
+            engine,
+            rngs=rngs,
             fast_dev_run=fast_dev_run,
             min_updates=min_updates,
             max_updates=max_updates,
@@ -348,7 +349,7 @@ class Fit(stages.Stage):
             self._sanity_check = validation.Validate(
                 module,
                 datamanager,
-                strategy,
+                engine,
                 fast_dev_run=fast_dev_run,
                 limit_batches=num_sanity_val_steps,
                 name="sanity_check",

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional, Union
 import weakref
 
 import beartype
+from flax import nnx
 import jaxtyping as jt
 from typing_extensions import override
 
@@ -24,9 +25,9 @@ class Test(stages.EpochStage):
         self,
         module: "reax.Module",
         datamanager: "reax.data.DataSourceManager",
-        strategy: "reax.Strategy",
-        rng: "Optional[reax.Generator]",
+        engine: "reax.Engine",
         *,
+        rngs: nnx.Rngs = None,
         fast_dev_run: Union[bool, int] = False,
         limit_batches: Optional[Union[int, float]] = None,
     ):
@@ -35,8 +36,8 @@ class Test(stages.EpochStage):
             "test",
             module,
             datamanager,
-            strategy,
-            rng,
+            engine,
+            rngs=rngs,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )

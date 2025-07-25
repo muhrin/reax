@@ -174,7 +174,7 @@ class EarlyStopping(hooks.TrainerListener):
         return not isinstance(trainer.stage, stages.Fit)
 
     @override
-    def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
+    def on_fit_start(self, _trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """On fit start."""
         if self.__check_on_train_epoch_end is None:
             # if the user runs validation multiple times per training epoch or multiple training
@@ -210,7 +210,7 @@ class EarlyStopping(hooks.TrainerListener):
         current = jnp.squeeze(logs[self._monitor])
         should_stop, reason = self._evaluate_stopping_criteria(current)
 
-        # stop every ddp process if any world process decides to stop
+        # stop every ddp process if any process decides to stop
         # should_stop = trainer.strategy.reduce_boolean_decision(should_stop, all=False)
         trainer.should_stop = trainer.should_stop or should_stop
         if should_stop:
@@ -301,7 +301,7 @@ class EarlyStopping(hooks.TrainerListener):
     @staticmethod
     def _log_info(trainer: "reax.Trainer", message: str, log_rank_zero_only: bool) -> None:
         """Log info."""
-        rank = trainer.global_rank if trainer.world_size > 1 else None
+        rank = trainer.process_index if trainer.process_count > 1 else None
         message = rank_zero.rank_prefixed_message(message, rank)
         if rank is None or not log_rank_zero_only or rank == 0:
             _LOGGER.info(message)

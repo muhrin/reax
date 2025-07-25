@@ -1,36 +1,41 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: end-of-file-fixer
-      - id: fix-encoding-pragma
-        args: [ --remove ]
       - id: mixed-line-ending
       - id: trailing-whitespace
 
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.0
+    hooks:
+      - id: pyupgrade
+        args: [ --py39-plus ]
+
   - repo: https://github.com/ikamensh/flynt/
-    rev: '1.0.1'
+    rev: '1.0.6'
     hooks:
       - id: flynt
 
   - repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 25.9.0
     hooks:
       - id: black
         exclude: (.*)/migrations
 
   - repo: https://github.com/pycqa/flake8
-    rev: 7.2.0
+    rev: 7.3.0
     hooks:
       - id: flake8
 
   - repo: https://github.com/pycqa/isort
-    rev: '6.0.1'
+    rev: '7.0.0'
     hooks:
       - id: isort
 
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.3
+    rev: 1.8.6
     hooks:
       - id: bandit
         args: [ "-c", "pyproject.toml" ]
@@ -39,7 +44,7 @@ repos:
   - repo: https://github.com/PyCQA/pylint
     # Configuration help can be found here:
     # https://pylint.pycqa.org/en/latest/user_guide/installation/pre-commit-integration.html
-    rev: v3.3.7
+    rev: v4.0.0
     hooks:
       - id: pylint
         alias: pylint-with-spelling
@@ -54,7 +59,7 @@ repos:
           )$
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.8.2
+    rev: v4.9.1
     hooks:
       - id: commitizen
         stages: [ commit-msg ]
@@ -65,6 +70,6 @@ repos:
       - id: nb-clean
 
   - repo: https://github.com/pycqa/doc8
-    rev: v1.1.2
+    rev: v2.0.0
     hooks:
       - id: doc8

@@ -62,6 +62,41 @@ class Optimizer(equinox.Module):
         return type(self)(self.optimizer, new_state, count=count)
 
 
+class DistributedOptimizer(Optimizer):
+    def __init__(
+        self,
+        opt: optax.GradientTransformation,
+        state: optax.OptState,
+        engine: "reax.Engine",
+        count: Union[int, jt.Int[jax.Array, ""]] = 0,
+    ):
+        super().__init__(opt, state, count)
+        self._engine = engine
+
+    @equinox.filter_jit
+    def update(self, params: optax.Params, grad: jt.PyTree) -> tuple[Any, "Optimizer"]:
+        """Return an updated version of the passed parameters using the passed gradients.
+
+        :return: A tuple of the updated parameters and an instance of this optimizer updated with
+            the new state.
+        :rtype: tuple[Any, "Optimizer"]
+        """
+        # Average the gradients across processes
+        grad = self._engine.all_reduce(grad, reduce_op="mean")
+        return super().update(params, grad)
+
+    def update_module(self, module: "reax.Module", grad: jt.PyTree) -> "Optimizer":
+        """Perform an inplace update of the module parameters given the passed gradients.
+
+        :return: An instance of this optimizer updated with the new state.
+        :rtype: "Optimizer"
+        """
+        new_params, new_state = _update(self.optimizer, self.state, grad, module.parameters())
+        module.set_parameters(new_params)
+        count = getattr(new_state, "gradient_step", self.update_count + 1)
+        return type(self)(self.optimizer, new_state, engine=self._engine, count=count)
+
+
 @functools.partial(jax.jit, static_argnames=("optimizer",), donate_argnames="params")
 def _update(optimizer: optax.GradientTransformation, state, grad: dict, params):
     """Jax jitted function that performs an optimizer update based on the passed gradients and

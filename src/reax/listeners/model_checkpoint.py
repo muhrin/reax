@@ -364,13 +364,13 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def setup(self, trainer: "reax.Trainer", stage: "reax.Stage", /) -> None:
         """Setup function."""
         dirpath = self.__resolve_ckpt_dir(trainer)
-        dirpath = trainer.strategy.broadcast(dirpath)
+        dirpath = trainer.engine.broadcast(dirpath)
         self._dirpath = dirpath
         if trainer.is_global_zero and stage == "fit":
             self.__warn_if_dir_not_empty(self.dirpath)
 
     @override
-    def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
+    def on_fit_start(self, _trainer: "reax.Trainer", _stage: "reax.stages.Fit", /) -> None:
         self._last_time_checked = time.monotonic()
 
     @override
@@ -395,7 +395,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             )
             # in case we have time differences across ranks
             # broadcast the decision on whether to checkpoint from rank 0 to avoid possible hangs
-            skip_time = trainer.strategy.broadcast(skip_time)
+            skip_time = trainer.engine.broadcast(skip_time)
 
         if skip_batch and skip_time:
             return
