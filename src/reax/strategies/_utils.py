@@ -7,7 +7,9 @@ def probe_local_device_count(platform: str) -> int:
     if we want to avoid calling any jax functions in this process which would already set in stone
     the device setup"""
     if platform == "auto":
-        platform = None
+        platform = "None"
+    else:
+        platform = f"'{platform}'"
 
     code = [
         "import jax",

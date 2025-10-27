@@ -581,7 +581,7 @@ class EpochStage(Stage, abc.ABC):
         for _name, entry in self.metrics.items():
             if entry.meta.on_epoch:  # Here we are completing an epoch
                 # Ask the metric to compute itself using results accumulated during the epoch
-                value = entry.metric.compute()
+                value = self._engine.compute(entry.metric)
                 metrics[keys.LISTENER][entry.meta.name] = value
                 if entry.meta.logger:
                     metrics[keys.LOG][entry.meta.name] = value

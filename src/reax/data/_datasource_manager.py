@@ -103,7 +103,8 @@ class DataSourceManager(abc.ABC):
         """Get the dataloader directly from the source"""
         loader_name = f"{name}_dataloader"
         loader = getattr(self._datasource, loader_name)()
-        loader = self._engine.setup_dataloaders(loader)
+        if self._engine is not None:
+            loader = self._engine.setup_dataloaders(loader)
         return loader
 
 

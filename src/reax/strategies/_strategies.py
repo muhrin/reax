@@ -45,6 +45,7 @@ __all__ = ("Strategy",)
 
 
 BroadcastT = TypeVar("BroadcastT")
+_OutT = TypeVar("_OutT")
 
 
 class Strategy(abc.ABC):
@@ -119,3 +120,8 @@ class Strategy(abc.ABC):
         # Presumably we are dealing with some kind of iterable that isn't a dataloader so fall back
         # to a dataloader with batch size 1 and no shuffle
         return data_.ReaxDataLoader(data)
+
+    @abc.abstractmethod
+    def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
+        """Compute the value of a metric, unlike metric.compute(), in a parallel setting this method
+        will compute the value across all processes."""

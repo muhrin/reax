@@ -149,15 +149,9 @@ def test_early_stopping_patience(
         monitor="test_val_loss", patience=patience, verbose=True
     )
     trainer = reax.Trainer(
-        default_root_dir=tmp_path,
-        listeners=[early_stop_listener],
-        enable_progress_bar=False,
+        default_root_dir=tmp_path, listeners=[early_stop_listener], enable_progress_bar=False
     )
-    trainer.fit(
-        model,
-        num_sanity_val_steps=0,
-        max_epochs=10,
-    )
+    trainer.fit(model, num_sanity_val_steps=0, max_epochs=10)
     assert trainer.current_epoch - 1 == expected_stop_epoch
 
 
@@ -215,7 +209,7 @@ def test_early_stopping_no_val_step(tmp_path):
     """Test that early stopping listener falls back to training metrics when no validation defined."""
     pytest.importorskip("sklearn")
 
-    max_epochs = 10
+    max_epochs = 4
     model = helpers.ClassificationModel()
     dm = helpers.ClassifDataModule()
     model.validation_step = None

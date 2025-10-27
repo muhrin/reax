@@ -181,7 +181,8 @@ def test_train_dataloader_passed_to_fit(tmp_path):
     fit_options = {"train_dataloaders": train_loader}
     stage = trainer.fit(model, fast_dev_run=2, **fit_options)
     assert stage.num_training_batches == 2
-    assert stage.train_dataloader == train_loader
+    assert isinstance(stage.train_dataloader, reax.data.DeviceDataLoader)
+    assert stage.train_dataloader.parent == train_loader
 
 
 @pytest.mark.parametrize(
@@ -226,7 +227,8 @@ def test_dataloaders_passed_to_fn(tmp_path, ckpt_path, n):
     if n > 1:
         assert len(fit.val_dataloaders) == n
     else:
-        assert isinstance(fit.val_dataloaders, reax.ReaxDataLoader)
+        assert isinstance(fit.val_dataloaders, reax.data.DeviceDataLoader)
+        assert isinstance(fit.val_dataloaders.parent, reax.ReaxDataLoader)
 
     if ckpt_path == "specific":
         ckpt_path = trainer.checkpoint_listener.best_model_path
@@ -235,13 +237,15 @@ def test_dataloaders_passed_to_fn(tmp_path, ckpt_path, n):
     if n > 1:
         assert len(test.dataloaders) == n
     else:
-        assert isinstance(test.dataloader, reax.ReaxDataLoader)
+        assert isinstance(test.dataloader, reax.data.DeviceDataLoader)
+        assert isinstance(test.dataloader.parent, reax.ReaxDataLoader)
 
     validate = trainer.validate(model, dataloaders=eval_dataloaders, ckpt_path=ckpt_path)
     if n > 1:
         assert len(validate.dataloaders) == n
     else:
-        assert isinstance(validate.dataloaders, reax.ReaxDataLoader)
+        assert isinstance(validate.dataloaders, reax.data.DeviceDataLoader)
+        assert isinstance(validate.dataloaders.parent, reax.ReaxDataLoader)
 
 
 class DummyModel(boring_classes.BoringModel):
@@ -579,13 +583,17 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
         limit_val_batches=0.1,
         limit_train_batches=0.2,
     )
-    assert fit.val_dataloaders == eval_dataloader
+    assert (
+        isinstance(fit.val_dataloaders, reax.data.DeviceDataLoader)
+        and fit.val_dataloaders.parent == eval_dataloader
+    )
 
     ckpt_path = (
         trainer.checkpoint_listener.best_model_path if ckpt_path == "specific" else ckpt_path
     )
     test = trainer.test(model, dataloaders=eval_dataloader, ckpt_path=ckpt_path)
-    assert test.dataloaders == eval_dataloader
+    assert isinstance(test.dataloaders, reax.data.DeviceDataLoader)
+    assert test.dataloaders.parent == eval_dataloader
 
 
 # def test_warning_on_zero_len_dataloader():
@@ -1528,7 +1536,9 @@ def test_request_dataloader(tmp_path):
             return DataLoaderWrapper(loader)
 
         def on_train_batch_start(self, *_) -> None:
-            assert isinstance(self.trainer.train_dataloader, DataLoaderWrapper)
+            assert isinstance(
+                self.trainer.train_dataloader, reax.data.DeviceDataLoader
+            ) and isinstance(self.trainer.train_dataloader.parent, DataLoaderWrapper)
             self.on_train_batch_start_called = True
 
         def val_dataloader(self):
@@ -1536,7 +1546,9 @@ def test_request_dataloader(tmp_path):
             return DataLoaderWrapper(loader)
 
         def on_validation_batch_start(self, *_):
-            assert isinstance(self.trainer.val_dataloaders, DataLoaderWrapper)
+            assert isinstance(
+                self.trainer.val_dataloaders, reax.data.DeviceDataLoader
+            ) and isinstance(self.trainer.val_dataloaders.parent, DataLoaderWrapper)
             self.on_val_batch_start_called = True
 
     trainer = reax.Trainer(default_root_dir=tmp_path)

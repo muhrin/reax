@@ -3,10 +3,10 @@ import random
 import socket
 import subprocess  # nosec  # Suppresses Bandit's B404 subprocess warning
 import sys
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 
 import jax
-from jax import distributed
+from jax import distributed, tree
 from jax.experimental import multihost_utils
 import jax.numpy as jnp
 import jaxtyping as jt
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 __all__ = ("JaxDdpStrategy",)
 
+_OutT = TypeVar("_OutT")
 Children = list[subprocess.Popen]
 
 
@@ -215,3 +216,68 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
             name: an optional name to pass into barrier.
         """
         multihost_utils.sync_global_devices(name)
+
+    @override
+    def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
+        if self.process_count == 1:
+            return metric.compute()
+
+        gathered = multihost_utils.process_allgather(metric)
+        unbatched: list["reax.Metric[_OutT]"] = unbatch_pytree(gathered)
+
+        metric = unbatched[0]
+        for entry in unbatched[1:]:
+            metric = metric.merge(entry)
+
+        return metric.compute()
+
+
+def unbatch_pytree(batched_tree: jt.PyTree) -> list[jt.PyTree]:
+    """
+    Splits a single batched Pytree (where all leaves have a leading batch
+    dimension) into a list of unbatched Pytrees.
+
+    Args:
+        batched_tree: A Pytree where every leaf array has shape (B, ...).
+
+    Returns:
+        A list of Pytrees, each corresponding to one element from the batch (B).
+    """
+    # 1. Separate the structure (aux_data) from the data (batched_leaves)
+    batched_leaves, tree_structure = tree.flatten(batched_tree)
+
+    if not batched_leaves:
+        # Handle empty or purely structural trees
+        return [batched_tree]
+
+    # 2. Determine the batch size (B) from the leading dimension of the first leaf
+    batch_size = batched_leaves[0].shape[0]
+
+    # Input validation: Ensure all leaves have the same batch size
+    for leaf in batched_leaves:
+        if leaf.shape[0] != batch_size:
+            raise ValueError(
+                f"All leaves must have the same leading batch dimension. "
+                f"Found shapes: {leaf.shape} and {batched_leaves[0].shape}"
+            )
+
+    # 3. Transpose/Split the leaves list by the batch dimension (B)
+    # We use jnp.split to divide each leaf array into 'B' pieces along axis 0.
+
+    # We need to reshape the data from:
+    # [ (B, ...), (B, ...), ... ]  (1 list of B-sized leaves)
+    # TO:
+    # [ [leaf_1_k0, leaf_2_k0, ...],   (Leaves for batch element 0)
+    #   [leaf_1_k1, leaf_2_k1, ...],   (Leaves for batch element 1)
+    #   ... ] (B lists of 1-sized leaves)
+
+    # The inner function splits one array (leaf) into 'B' components.
+    split_leaves = [jnp.split(leaf, batch_size, axis=0) for leaf in batched_leaves]
+
+    # 'zip' now groups the k-th elements from all split lists together
+    unbatched_leaves_list = zip(*split_leaves)
+
+    # 4. Reconstruct the Pytree for each set of unbatched leaves
+    unbatched_trees = [tree.unflatten(tree_structure, leaves) for leaves in unbatched_leaves_list]
+
+    return unbatched_trees

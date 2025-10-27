@@ -172,6 +172,7 @@ class WithAccumulatorAndCount(WithAccumulator):
         mask: Optional[typing.ArrayMask] = None,
     ) -> Self:
         """Create function."""
+        values = jnp.atleast_1d(values)
         mask, num_elements = prepare_mask(values, mask, return_count=True)
         return cls(accumulator=cls.reduce_fn(values, where=mask), count=num_elements)
 

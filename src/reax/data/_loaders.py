@@ -12,7 +12,7 @@ from . import _types, collate, fetchers, samplers
 if TYPE_CHECKING:
     import reax
 
-__all__ = "ArrayLoader", "CachingLoader", "ReaxDataLoader", "FetcherDataLoader", "DeviceLoader"
+__all__ = "ArrayLoader", "CachingLoader", "ReaxDataLoader", "FetcherDataLoader", "DeviceDataLoader"
 
 
 T = TypeVar("T")
@@ -193,7 +193,7 @@ class CachingLoader(_types.DataLoader[_T_co, _U]):
         return CachingLoader(self._loader.with_new_sampler(sampler), reset_every=self._reset_every)
 
 
-class DeviceLoader(_types.DataLoader[_T_co, _U]):
+class DeviceDataLoader(_types.DataLoader[_T_co, _U]):
     """A loader that wraps an existing dataloader the puts data onto the specified device."""
 
     def __init__(self, loader: "reax.DataLoader[_T_co, _U]", device: jax.Device):
@@ -203,6 +203,10 @@ class DeviceLoader(_types.DataLoader[_T_co, _U]):
     def __iter__(self) -> Iterator[_U]:
         for data in self._loader:
             yield jax.device_put(data, device=self._device)
+
+    @property
+    def parent(self) -> "reax.data.DataLoader[_T_co, _U]":
+        return self._loader
 
     @override
     @property
@@ -216,4 +220,4 @@ class DeviceLoader(_types.DataLoader[_T_co, _U]):
 
     @override
     def with_new_sampler(self, sampler: "reax.data.Sampler") -> "DataLoader[_T_co, U]":
-        return DeviceLoader(self._loader.with_new_sampler(sampler), device=self._device)
+        return DeviceDataLoader(self._loader.with_new_sampler(sampler), device=self._device)

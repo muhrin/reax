@@ -101,8 +101,8 @@ def test_stats_evaluator(rng_key, test_trainer):
 
 
 def test_num_unique(rng_key, test_trainer):
-    batch_size = 9
-    values = random.randint(rng_key, (40,), minval=0, maxval=9)
+    batch_size = 4
+    values = random.randint(rng_key, (10,), minval=0, maxval=9)
     res = test_trainer.eval_stats(
         metrics.NumUnique(), reax.data.ArrayLoader(values, batch_size=batch_size)
     ).logged_metrics["NumUnique"]

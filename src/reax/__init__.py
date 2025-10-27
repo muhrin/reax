@@ -13,6 +13,7 @@ from . import (
     saving,
     stages,
     strategies,
+    testing,
     training,
 )
 from ._engine import *
@@ -46,6 +47,7 @@ __all__ = (
         "listeners",
         "metrics",
         "strategies",
+        "testing",
     )
     # Classes/functions/variables
     + (

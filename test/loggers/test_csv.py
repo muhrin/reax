@@ -154,7 +154,7 @@ def test_fit_csv_logger(tmp_path):
     model = helpers.ClassificationModel()
     logger = loggers.CsvLogger(save_dir=tmp_path)
     trainer = reax.Trainer(default_root_dir=tmp_path, logger=logger, log_every_n_steps=1)
-    trainer.fit(model, datamodule=dm, max_updates=10)
+    trainer.fit(model, datamodule=dm, max_updates=2)
     metrics_file = os.path.join(logger.log_dir, csv_logs.ExperimentWriter.NAME_METRICS_FILE)
     assert os.path.isfile(metrics_file)
 

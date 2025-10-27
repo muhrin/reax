@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 import jax
 import jaxtyping as jt
@@ -6,7 +6,12 @@ from typing_extensions import override
 
 from . import _strategies
 
+if TYPE_CHECKING:
+    import reax
+
 __all__ = ("SingleDevice",)
+
+_OutT = TypeVar("_OutT")
 
 
 class SingleDevice(_strategies.Strategy):
@@ -69,3 +74,7 @@ class SingleDevice(_strategies.Strategy):
             name: an optional name to pass into barrier.
         """
         return None  # Nothing to do in a single device
+
+    @override
+    def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
+        return metric.compute()

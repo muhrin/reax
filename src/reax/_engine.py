@@ -3,7 +3,7 @@ import contextlib
 import functools
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
 import weakref
 
 import beartype
@@ -22,9 +22,10 @@ from .utils import events
 if TYPE_CHECKING:
     import reax
 
-_LOGGER = logging.getLogger(__name__)
-
 __all__ = ("Engine",)
+
+_OutT = TypeVar("_OutT")
+_LOGGER = logging.getLogger(__name__)
 
 
 class Engine:
@@ -159,10 +160,12 @@ class Engine:
 
         return res
 
-    def setup_dataloaders(self, *args) -> "Union[reax.ReaxDataLoader, list[reax.ReaxDataLoader]]":
+    def setup_dataloaders(
+        self, *args
+    ) -> "Union[reax.data.DeviceDataLoader, list[reax.data.DeviceDataLoader]]":
         loaders = list(map(self.strategy.setup_dataloader, args))
         # Wrap in DeviceLoader so all data is already on the selected device
-        loaders = [data_.DeviceLoader(loader, self.device) for loader in loaders]
+        loaders = [data_.DeviceDataLoader(loader, self.device) for loader in loaders]
         if len(args) == 1:
             return loaders[0]
 
@@ -213,6 +216,11 @@ class Engine:
     def call(self, name: str, *args, **kwargs):
         """Call an even hook any necessary arguments"""
         self._events.fire_event(getattr(hooks.TrainerListener, name), *args, **kwargs)
+
+    def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
+        """Compute the value of a metric, unlike metric.compute(), in a parallel setting this method
+        will compute the value across all processes."""
+        return self._strategy.compute(metric)
 
 
 @functools.singledispatch
