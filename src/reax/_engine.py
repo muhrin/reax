@@ -33,13 +33,13 @@ class Engine:
         self,
         accelerator: str = "auto",
         strategy: "Union[str, reax.Strategy]" = "auto",
-        devices: Union[list[int], str, int] = "auto",
+        devices: list[int] | str | int = "auto",
         precision=None,
-        logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = True,
+        logger: Union["reax.Logger", Iterable["reax.Logger"], bool] | None = True,
         listeners: "Optional[list[reax.TrainerListener], reax.TrainerListener]" = None,
         deterministic: bool = False,
         rngs: nnx.Rngs = None,
-        default_root_dir: Optional[typing.Path] = None,
+        default_root_dir: typing.Path | None = None,
     ):
         if deterministic:
             _LOGGER.warning("`deterministic=True` is not supported yet, ignoring.")
@@ -103,7 +103,7 @@ class Engine:
         return self._loggers
 
     @loggers.setter
-    def loggers(self, loggers: Optional[list["reax.Logger"]]) -> None:
+    def loggers(self, loggers: list["reax.Logger"] | None) -> None:
         """Loggers function."""
         self._loggers = loggers if loggers else []
 
@@ -174,7 +174,7 @@ class Engine:
     def to_device(self, data: jt.PyTree) -> jt.PyTree:
         return self._strategy.to_device(data)
 
-    def barrier(self, name: Optional[str] = None) -> None:
+    def barrier(self, name: str | None = None) -> None:
         """Wait for all processes to enter this call.
 
         Use this to synchronize all parallel processes, but only if necessary, otherwise the
@@ -247,7 +247,7 @@ def _(arg: data_.DataLoader, engine: Engine) -> data_.DataLoader:
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def _init_loggers(
-    logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]],
+    logger: Union["reax.Logger", Iterable["reax.Logger"], bool] | None,
     default_root_dir: str,
 ) -> list["reax.Logger"]:
     """Init loggers."""

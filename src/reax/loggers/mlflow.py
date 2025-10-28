@@ -36,14 +36,14 @@ MLflow Logger
 """
 
 from argparse import Namespace
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 import logging
 import os
 from pathlib import Path
 import re
 import tempfile
 from time import time
-from typing import TYPE_CHECKING, Any, Callable, Final, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Final, Literal
 
 import jax
 from lightning_utilities.core import imports
@@ -107,16 +107,16 @@ class MlflowLogger(logger.Logger):
     def __init__(
         self,
         experiment_name: str = "reax_logs",
-        run_name: Optional[str] = None,
-        tracking_uri: Optional[str] = os.getenv("MLFLOW_TRACKING_URI"),
+        run_name: str | None = None,
+        tracking_uri: str | None = os.getenv("MLFLOW_TRACKING_URI"),
         *,
-        tags: Optional[dict[str, Any]] = None,
-        save_dir: Optional[str] = "./mlruns",
+        tags: dict[str, Any] | None = None,
+        save_dir: str | None = "./mlruns",
         log_model: Literal[True, False, "all"] = False,
         prefix: str = "",
-        artifact_location: Optional[str] = None,
-        run_id: Optional[str] = None,
-        synchronous: Optional[bool] = None,
+        artifact_location: str | None = None,
+        run_id: str | None = None,
+        synchronous: bool | None = None,
     ):
         """Init function.
 
@@ -125,17 +125,17 @@ class MlflowLogger(logger.Logger):
         :param run_name: Name of the new run. The `run_name` is internally stored as a
             ``mlflow.runName`` tag. If the ``mlflow.runName`` tag has already been set in `tags`,
             the value is overridden by the `run_name`, defaults to ``None``.
-        :type run_name: Optional[str], optional
+        :type run_name: str | None, optional
         :param tracking_uri: Address of local or remote tracking server.
             If not provided
             back to `file:<save_dir>`, defaults to os.getenv("MLFLOW_TRACKING_URI").
-        :type tracking_uri: Optional[str], optional
+        :type tracking_uri: str | None, optional
         :param tags: A dictionary tags for the experiment, defaults to None.
-        :type tags: Optional[dict[str, Any]], optional
+        :type tags: dict[str, Any] | None, optional
         :param save_dir: A path to a local directory where the MLflow runs get saved.
 
             Has no effect if `tracking_uri` is provided, defaults to "./mlruns".
-        :type save_dir: Optional[str], optional
+        :type save_dir: str | None, optional
         :param log_model: Log checkpoints created by
             :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` as MLFlow artifacts.
 
@@ -149,10 +149,10 @@ class MlflowLogger(logger.Logger):
         :type prefix: str, optional
         :param artifact_location: The location to store run artifacts. If not provided, the server
             picks an appropriate default, defaults to None.
-        :type artifact_location: Optional[str], optional
+        :type artifact_location: str | None, optional
         :param run_id: The run identifier of the experiment. If not provided, a new run is started,
             defaults to None.
-        :type run_id: Optional[str], optional
+        :type run_id: str | None, optional
         :param synchronous: Hints mlflow whether to block the execution for every logging call until
             complete where applicable. Requires mlflow >= 2.8.0, defaults to None.
         :type synchronous: Optional[bool], optional
@@ -170,16 +170,16 @@ class MlflowLogger(logger.Logger):
         self._experiment_name: Final[str] = experiment_name
         self._prefix: Final[str] = prefix
         self._log_model: Final[Literal[True, False, "all"]] = log_model
-        self._artifact_location: Final[Optional[str]] = artifact_location
+        self._artifact_location: Final[str | None] = artifact_location
 
         # State
-        self._experiment_id: Optional[str] = None
+        self._experiment_id: str | None = None
         self._tracking_uri = tracking_uri
         self._run_name = run_name
         self._run_id = run_id
         self.tags = tags
         self._logged_model_time: dict[str, float] = {}
-        self._checkpoint_callback: Optional[reax.listeners.ModelCheckpoint] = None
+        self._checkpoint_callback: reax.listeners.ModelCheckpoint | None = None
         self._log_batch_kwargs = {} if synchronous is None else {"synchronous": synchronous}
         self._initialized = False
         self._warning_cache = rank_zero.WarningCache()
@@ -247,28 +247,28 @@ class MlflowLogger(logger.Logger):
         return self._mlflow_client
 
     @property
-    def run_id(self) -> Optional[str]:
+    def run_id(self) -> str | None:
         """Create the experiment if it does not exist to get the run id.
 
         :returns: The run id.
-        :rtype: Optional[str]
+        :rtype: str | None
         """
         _ = self.experiment
         return self._run_id
 
     @property
-    def experiment_id(self) -> Optional[str]:
+    def experiment_id(self) -> str | None:
         """Create the experiment if it does not exist to get the experiment id.
 
         :return s: The experiment id.
-        :rtype s: Optional[str]
+        :rtype s: str | None
         """
         _ = self.experiment
         return self._experiment_id
 
     @override
     @rank_zero.rank_zero_only
-    def log_hyperparams(self, params: Union[dict[str, Any], Namespace], *_, **__) -> None:
+    def log_hyperparams(self, params: dict[str, Any] | Namespace, *_, **__) -> None:
         """Log hyperparams."""
         params = _utils.convert_params(params)
         params = _utils.flatten_dict(params)
@@ -288,7 +288,7 @@ class MlflowLogger(logger.Logger):
 
     @override
     @rank_zero.rank_zero_only
-    def log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(self, metrics: Mapping[str, float], step: int | None = None) -> None:
         """Log metrics."""
         assert rank_zero.rank_zero_only.rank == 0, "experiment tried to log from process_index != 0"
 
@@ -344,7 +344,7 @@ class MlflowLogger(logger.Logger):
 
     @property
     @override
-    def save_dir(self) -> Optional[str]:
+    def save_dir(self) -> str | None:
         """The root file directory in which MLflow experiments are saved.
 
                 Local path to the root
@@ -356,21 +356,21 @@ class MlflowLogger(logger.Logger):
 
     @property
     @override
-    def name(self) -> Optional[str]:
+    def name(self) -> str | None:
         """Get the experiment id.
 
         :return s: The experiment id.
-        :rtype s: Optional[str]
+        :rtype s: str | None
         """
         return self.experiment_id
 
     @property
     @override
-    def version(self) -> Optional[str]:
+    def version(self) -> str | None:
         """Get the run id.
 
         :return s: The run id.
-        :rtype s: Optional[str]
+        :rtype s: str | None
         """
         return self.run_id
 
@@ -446,7 +446,7 @@ class MlflowLogger(logger.Logger):
 
 
 def _get_resolve_tags() -> Callable[
-    [Optional[TagsDict], Optional[list["mlflow.tracking.context.registry.RunContextProvider"]]],
+    [TagsDict | None, list["mlflow.tracking.context.registry.RunContextProvider"] | None],
     TagsDict,
 ]:
     """Get resolve tags."""

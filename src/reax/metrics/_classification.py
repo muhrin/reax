@@ -31,7 +31,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Optional, Union
 
 import beartype
 import jax.numpy as jnp
@@ -71,26 +70,26 @@ class Accuracy(_metric.Metric):
     mode: jm.DataType
     average: jm.AverageMethod
     mdmc_average: jm.MDMCAverageMethod
-    num_classes: Optional[int]
+    num_classes: int | None
     threshold: float
-    multiclass: Optional[bool]
-    ignore_index: Optional[int]
-    top_k: Optional[int]
+    multiclass: bool | None
+    ignore_index: int | None
+    top_k: int | None
     subset_accuracy: bool
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         threshold: float = 0.5,
-        num_classes: Optional[int] = None,
+        num_classes: int | None = None,
         *,
-        average: Union[str, jm.AverageMethod] = jm.AverageMethod.MICRO,
-        mdmc_average: Union[str, jm.MDMCAverageMethod] = jm.MDMCAverageMethod.GLOBAL,
-        ignore_index: Optional[int] = None,
-        top_k: Optional[int] = None,
-        multiclass: Optional[bool] = None,
+        average: str | jm.AverageMethod = jm.AverageMethod.MICRO,
+        mdmc_average: str | jm.MDMCAverageMethod = jm.MDMCAverageMethod.GLOBAL,
+        ignore_index: int | None = None,
+        top_k: int | None = None,
+        multiclass: bool | None = None,
         subset_accuracy: bool = False,
-        mode: Union[str, jm.DataType] = jm.DataType.MULTICLASS,
+        mode: str | jm.DataType = jm.DataType.MULTICLASS,
         tp: jax.Array = None,
         fp: jax.Array = None,
         tn: jax.Array = None,

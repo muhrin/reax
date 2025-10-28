@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from . import _jax, _single_device, _utils
 
@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 __all__ = ("create",)
 
 
-def create(name: str, platform: Optional[str], **kwargs) -> "reax.Strategy":
+def create(name: str, platform: str | None, **kwargs) -> "reax.Strategy":
     if name == "auto":
         if "devices" not in kwargs or kwargs["devices"] == "auto":
             num_devices = _utils.probe_local_device_count(platform)

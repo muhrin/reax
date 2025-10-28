@@ -1,5 +1,6 @@
 import abc
-from typing import Callable, ClassVar, Generic, Optional, TypeVar
+from collections.abc import Callable
+from typing import ClassVar, Generic, TypeVar
 
 import equinox
 
@@ -77,7 +78,7 @@ class FromFun(Metric[OutT]):
     metric: ClassVar[Metric]
     _state: Metric[OutT]
 
-    def __init__(self, state: Optional[Metric[OutT]] = None):
+    def __init__(self, state: Metric[OutT] | None = None):
         super().__init__()
         if self.metric is None:
             raise RuntimeError(

@@ -1,5 +1,6 @@
+from collections.abc import Callable
 import contextlib
-from typing import Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 import uuid
 
 ListenerT = TypeVar("ListenerT")

@@ -1,5 +1,5 @@
 from collections.abc import Hashable, Iterable, Mapping
-from typing import Optional, TypeVar, Union
+from typing import TypeVar, Union
 
 K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")
@@ -56,7 +56,7 @@ class Registry(BaseRegistry[str, V]):
 
 
 class TypeRegistry(BaseRegistry[Union[type, tuple[type, ...]], V]):
-    def find(self, obj: type) -> Optional[V]:
+    def find(self, obj: type) -> V | None:
         """Find function."""
         obj_type = type(obj)
         # First, try to match the type directly in this registry

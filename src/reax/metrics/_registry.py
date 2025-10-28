@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, Union
 
 from . import _metric as metric_
 from . import collections
@@ -13,7 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class Registry(containers.Registry[metric_.Metric]):
-    def register(self, key: str, obj: Union[metric_.Metric, type[metric_.Metric]]):
+    def register(self, key: str, obj: metric_.Metric | type[metric_.Metric]):
         """Register function."""
         try:
             if issubclass(obj, metric_.Metric):
@@ -31,7 +30,7 @@ class Registry(containers.Registry[metric_.Metric]):
 
 
 # Helpers to make it easy to choose a metric using a string
-_registry: Optional[Registry] = None
+_registry: Registry | None = None
 
 
 def get_registry() -> Registry:
@@ -59,13 +58,13 @@ def get(name: str) -> metric_.Metric:
     return get_registry()[name]
 
 
-def build_collection(items: Union[str, dict, list]) -> collections.MetricCollection:
+def build_collection(items: str | dict | list) -> collections.MetricCollection:
     return collections.MetricCollection(_get_metrics(items))
 
 
 def _get_metrics(
-    items: Union[metric_.Metric, str, dict, list],
-) -> Union[metric_.Metric, list[metric_.Metric], dict[str, metric_.Metric]]:
+    items: metric_.Metric | str | dict | list,
+) -> metric_.Metric | list[metric_.Metric] | dict[str, metric_.Metric]:
     reg = get_registry()
 
     if isinstance(items, metric_.Metric):

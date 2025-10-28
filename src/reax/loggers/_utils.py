@@ -2,7 +2,7 @@ import argparse
 from collections.abc import Mapping
 import dataclasses
 import pathlib
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import jax.numpy as jnp
 import jax.typing
@@ -11,11 +11,11 @@ if TYPE_CHECKING:
     import reax
 
 
-def convert_params(params: Optional[Union[dict[str, Any], argparse.Namespace]]) -> dict[str, Any]:
+def convert_params(params: dict[str, Any] | argparse.Namespace | None) -> dict[str, Any]:
     """Ensure parameters are a dict or convert to dict if necessary.
 
     :param params: Object to be converted to `dict`.
-    :type params: Optional[Union[dict[str, Any], argparse.Namespace]]
+    :type params: dict[str, Any] | argparse.Namespace | None
     """
     # in case converting from namespace
     if isinstance(params, argparse.Namespace):
@@ -77,18 +77,18 @@ def flatten_dict(
 
 
 def add_prefix(
-    metrics: Mapping[str, Union[jax.typing.ArrayLike, float]], prefix: str, separator: str
-) -> Mapping[str, Union[jax.typing.ArrayLike, float]]:
+    metrics: Mapping[str, jax.typing.ArrayLike | float], prefix: str, separator: str
+) -> Mapping[str, jax.typing.ArrayLike | float]:
     """Insert prefix before each key in a dict, separated by the separator.
 
     :param metrics: Dictionary with metric names as keys and measured quantities as values.
-    :type metrics: Mapping[str, Union[jax.typing.ArrayLike, float]]
+    :type metrics: Mapping[str, jax.typing.ArrayLike | float]
     :param prefix: Prefix to insert before each key.
     :type prefix: str
     :param separator: Separates prefix and original key name.
     :type separator: str
     :return s: Dictionary with prefix and separator inserted before each key.
-    :rtype s: Mapping[str, Union[jax.typing.ArrayLike, float]]
+    :rtype s: Mapping[str, jax.typing.ArrayLike | float]
     """
     if not prefix:
         return metrics

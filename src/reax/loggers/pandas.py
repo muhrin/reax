@@ -1,7 +1,7 @@
 import argparse
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 import os
-from typing import Any, Callable, Final, Optional, Union
+from typing import Any, Final, Optional, Union
 
 import fsspec
 import jax.typing
@@ -27,11 +27,11 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
     def __init__(
         self,
-        save_dir: Optional[Path] = None,
-        name: Optional[str] = "reax_logs",
+        save_dir: Path | None = None,
+        name: str | None = "reax_logs",
         *,
         fmt: str = DEFAULT_FORMAT,
-        version: Optional[Union[int, str]] = None,
+        version: int | str | None = None,
         prefix: str = "",
         flush_logs_every_n_steps: int = 100,
     ):
@@ -54,7 +54,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
     @property
     @override
-    def version(self) -> Union[int, str]:
+    def version(self) -> int | str:
         """Version function."""
         if self._version is None:
             self._version = self._get_next_version()
@@ -62,13 +62,13 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
     @property
     @override
-    def root_dir(self) -> Optional[str]:
+    def root_dir(self) -> str | None:
         """Root dir."""
         return self._root_dir
 
     @property
     @override
-    def log_dir(self) -> Optional[str]:
+    def log_dir(self) -> str | None:
         """Log dir."""
         if self.root_dir is None:
             return None
@@ -92,12 +92,12 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
     @property
     @override
-    def save_dir(self) -> Optional[str]:
+    def save_dir(self) -> str | None:
         """Save dir."""
         return self._root_dir
 
     @override
-    def _log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
+    def _log_metrics(self, metrics: Mapping[str, float], step: int | None = None) -> None:
         """Log metrics."""
         metrics = _utils.add_prefix(metrics, self._prefix, self.LOGGER_JOIN_CHAR)
 
@@ -112,7 +112,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
     def _log_hyperparams(
         # pylint: disable=arguments-differ
         self,
-        params: Union[dict[str, Any], argparse.Namespace],
+        params: dict[str, Any] | argparse.Namespace,
     ) -> None:
         """Log hyperparams."""
         params = _utils.convert_params(params)
@@ -178,7 +178,7 @@ class ExperimentWriter:
     DEFAULT_BASENAME = "metrics"
     HPARAMS_FILENAME = "hparams.yaml"
 
-    def __init__(self, log_dir: Optional[str], fmt: str = DEFAULT_FORMAT):
+    def __init__(self, log_dir: str | None, fmt: str = DEFAULT_FORMAT):
         try:
             getattr(pd.DataFrame, f"to_{fmt}")
         except AttributeError:
@@ -207,7 +207,7 @@ class ExperimentWriter:
         self.hparams: dict[str, Any] = {}
 
     @property
-    def log_dir(self) -> Optional[str]:
+    def log_dir(self) -> str | None:
         """Log dir."""
         return self._log_dir
 
@@ -217,7 +217,7 @@ class ExperimentWriter:
         return self._rows
 
     @property
-    def metrics_file_path(self) -> Optional[str]:
+    def metrics_file_path(self) -> str | None:
         """Metrics file path."""
         return self._metrics_file_path
 
@@ -226,10 +226,10 @@ class ExperimentWriter:
         """Get the experiment's dataframe."""
         return pd.DataFrame(self._rows)
 
-    def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
         """Log metrics."""
 
-        def _handle_value(value: Union[jax.Array, np.ndarray, Any]) -> Any:
+        def _handle_value(value: jax.Array | np.ndarray | Any) -> Any:
             """Handle value."""
             if isinstance(value, (jax.Array, np.ndarray)):
                 return value.item()

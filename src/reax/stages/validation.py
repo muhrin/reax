@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 import weakref
 
 from typing_extensions import override
@@ -19,8 +19,8 @@ class Validate(stages.EpochStage):
         datamanager: "reax.data.DataSourceManager",
         engine: "reax.Engine",
         *,
-        fast_dev_run: Union[bool, int] = False,
-        limit_batches: Optional[Union[int, float]] = None,
+        fast_dev_run: bool | int = False,
+        limit_batches: int | float | None = None,
         name: str = "validate",
         enable_checkpointing: bool = True,
     ):

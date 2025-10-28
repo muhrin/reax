@@ -36,8 +36,8 @@ class EvaluateStats(stages.EpochStage):
         *,
         rngs: nnx.Rngs,
         dataset_name: str = "train",
-        fast_dev_run: Union[bool, int] = False,
-        limit_batches: Optional[Union[int, float]] = None,
+        fast_dev_run: bool | int = False,
+        limit_batches: int | float | None = None,
         ignore_missing=False,
     ):
         """Init function."""

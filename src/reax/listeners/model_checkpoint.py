@@ -38,7 +38,7 @@ import os
 import pathlib
 import re
 import time
-from typing import TYPE_CHECKING, Final, Literal, Optional, Union
+from typing import TYPE_CHECKING, Final, Literal, Union
 import weakref
 
 import jax
@@ -121,18 +121,18 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
     def __init__(
         self,
-        dirpath: Optional[Union[str, pathlib.Path]] = None,
-        filename: Optional[str] = None,
-        monitor: Optional[str] = None,
+        dirpath: str | pathlib.Path | None = None,
+        filename: str | None = None,
+        monitor: str | None = None,
         *,
         verbose: bool = False,
         mode: Literal["min", "max"] = "min",
         auto_insert_metric_name: bool = True,
-        every_n_train_steps: Optional[int] = None,
-        train_time_interval: Optional[datetime.timedelta] = None,
-        every_n_epochs: Optional[int] = None,
-        save_on_train_epoch_end: Optional[bool] = None,
-        save_last: Optional[bool] = None,
+        every_n_train_steps: int | None = None,
+        train_time_interval: datetime.timedelta | None = None,
+        every_n_epochs: int | None = None,
+        save_on_train_epoch_end: bool | None = None,
+        save_last: bool | None = None,
         save_top_k: int = 1,
         save_weights_only: bool = False,
         enable_version_counter: bool = True,
@@ -276,42 +276,42 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             every_n_train_steps, every_n_epochs, train_time_interval
         )
         # Params
-        self._monitor: Final[Optional[str]] = monitor
+        self._monitor: Final[str | None] = monitor
         self._verbose: Final[bool] = verbose
         self._mode: Final[Literal["min", "max"]] = mode
         self._auto_insert_metric_name: Final[bool] = auto_insert_metric_name
-        self._save_on_train_epoch_end: Final[Optional[int]] = save_on_train_epoch_end
+        self._save_on_train_epoch_end: Final[int | None] = save_on_train_epoch_end
         self._enable_version_counter: Final[bool] = enable_version_counter
-        self._save_last: Final[Optional[bool]] = save_last
+        self._save_last: Final[bool | None] = save_last
         self._save_top_k: Final[int] = save_top_k
         self._save_weights_only: Final[bool] = save_weights_only
-        self.filename: Optional[str] = filename
+        self.filename: str | None = filename
         self._every_n_train_steps: Final[int] = every_n_train_steps
-        self._train_time_interval: Final[Optional[datetime.timedelta]] = train_time_interval
+        self._train_time_interval: Final[datetime.timedelta | None] = train_time_interval
         self._every_n_epochs: Final[int] = every_n_epochs
 
         # State
         self._kth_value: jax.Array = self.__init_monitor_mode(mode)
-        self._dirpath: Optional[str] = (
+        self._dirpath: str | None = (
             os.path.realpath(os.path.expanduser(dirpath)) if dirpath else dirpath
         )
         self.last_model_path = ""
-        self._last_time_checked: Optional[float] = None
-        self._current_score: Optional[jax.Array] = None
+        self._last_time_checked: float | None = None
+        self._current_score: jax.Array | None = None
         self._last_checkpoint_saved = ""
         self._best_model_path = ""
         self._best_k_models: dict[str, jax.Array] = {}
         self._kth_best_model_path = ""
-        self._best_model_score: Optional[jax.Array] = None
+        self._best_model_score: jax.Array | None = None
         # Keep track of the global number of optimizer steps
         self._last_global_step_saved = 0
 
     @staticmethod
     def __init_triggers(
-        every_n_train_steps: Optional[int],
-        every_n_epochs: Optional[int],
-        train_time_interval: Optional[datetime.timedelta],
-    ) -> [int, int, Optional[datetime.timedelta]]:
+        every_n_train_steps: int | None,
+        every_n_epochs: int | None,
+        train_time_interval: datetime.timedelta | None,
+    ) -> [int, int, datetime.timedelta | None]:
         """Init triggers."""
         # Default to running once after each validation epoch if neither
         # every_n_train_steps nor every_n_epochs is set
@@ -341,7 +341,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         return mode_dict[mode]
 
     @property
-    def dirpath(self) -> Optional[str]:
+    def dirpath(self) -> str | None:
         """Dirpath function."""
         return self._dirpath
 
@@ -351,7 +351,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         return self._best_model_path
 
     @property
-    def best_model_score(self) -> Optional[jax.Array]:
+    def best_model_score(self) -> jax.Array | None:
         """Best model score."""
         return self._best_model_score
 
@@ -435,7 +435,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         monitor_candidates.setdefault("step", trainer.global_updates)
         return monitor_candidates
 
-    def check_monitor_top_k(self, current: Optional[jax.Array] = None) -> bool:
+    def check_monitor_top_k(self, current: jax.Array | None = None) -> bool:
         """Check monitor top k."""
         if current is None:
             return False
@@ -613,8 +613,8 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def format_checkpoint_name(
         self,
         metrics: dict[str, jax.Array],
-        filename: Optional[str] = None,
-        version: Optional[int] = None,
+        filename: str | None = None,
+        version: int | None = None,
     ) -> str:
         """Generate a filename using a standard format."""
         filename = filename or self.filename
@@ -632,8 +632,8 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         self,
         trainer: "reax.Trainer",
         metrics: dict[str, jax.Array],
-        filename: Optional[str] = None,
-        version: Optional[int] = None,
+        filename: str | None = None,
+        version: int | None = None,
     ) -> str:
         """Get checkpoint filepath."""
         filepath = self.format_checkpoint_name(metrics, filename, version)
@@ -653,7 +653,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         self,
         trainer: "reax.Trainer",
         monitor_candidates: dict[str, jax.Array],
-        del_filepath: Optional[str] = None,
+        del_filepath: str | None = None,
     ) -> str:
         """Get metric interpolated filepath name."""
         filepath = self._get_checkpoint_filepath(trainer, monitor_candidates)
@@ -670,7 +670,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
     def _format_checkpoint_name(
         self,
-        filename: Optional[str],
+        filename: str | None,
         metrics: dict[str, jax.Array],
         prefix: str = "",
         auto_insert_metric_name: bool = True,

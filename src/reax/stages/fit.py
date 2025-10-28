@@ -27,15 +27,15 @@ class FitEpoch(train.Train):
         engine: "reax.Engine",
         *,
         rngs: nnx.Rngs = None,
-        fast_dev_run: Union[bool, int] = False,
-        min_updates: Optional[int] = None,
-        max_updates: Optional[Union[int, float]] = None,
-        limit_train_batches: Optional[Union[int, float]] = 1.0,
+        fast_dev_run: bool | int = False,
+        min_updates: int | None = None,
+        max_updates: int | float | None = None,
+        limit_train_batches: int | float | None = 1.0,
         accumulate_grad_batches: int = 1,
-        limit_val_batches: Optional[Union[int, float]] = 1.0,
-        val_check_interval: Optional[Union[int, float]] = 1.0,
+        limit_val_batches: int | float | None = 1.0,
+        val_check_interval: int | float | None = 1.0,
         check_val_every_n_epoch: int = 1,
-        stopper: Optional[common.Stopper] = None,
+        stopper: common.Stopper | None = None,
     ):
         """Init function."""
         if fast_dev_run:
@@ -65,7 +65,7 @@ class FitEpoch(train.Train):
             stopper=stopper,
         )
         # Params
-        self._val_check_interval: Final[Union[int, float]] = val_check_interval
+        self._val_check_interval: Final[int | float] = val_check_interval
         self._check_val_every_n_epoch: Final[int] = check_val_every_n_epoch
 
         # State
@@ -100,22 +100,22 @@ class FitEpoch(train.Train):
         return self._validate.dataloader
 
     @property
-    def val_check_interval(self) -> Optional[Union[int, float]]:
+    def val_check_interval(self) -> int | float | None:
         """Val check interval."""
         return self._val_check_interval
 
     @property
-    def check_val_every_n_epoch(self) -> Optional[int]:
+    def check_val_every_n_epoch(self) -> int | None:
         """Check val every n epoch."""
         return self._check_val_every_n_epoch
 
     @property
-    def limit_train_batches(self) -> Optional[Union[int, float]]:
+    def limit_train_batches(self) -> int | float | None:
         """The limit to the number of batches in a train epoch"""
         return self._limit_batches
 
     @property
-    def limit_val_batches(self) -> Optional[Union[int, float]]:
+    def limit_val_batches(self) -> int | float | None:
         """The limit to the number of batches in a validation epoch"""
         if self._validate is None:
             return None
@@ -123,7 +123,7 @@ class FitEpoch(train.Train):
         return self._validate.limit_batches
 
     @property
-    def validate(self) -> Optional[validation.Validate]:
+    def validate(self) -> validation.Validate | None:
         """Validate function."""
         return self._validate
 
@@ -177,7 +177,7 @@ class FitEpoch(train.Train):
         self,
         name: str,
         value: Union[jax.typing.ArrayLike, "reax.Metric"],
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
         prog_bar: bool = False,
         logger: bool = False,
         on_step=False,
@@ -231,11 +231,11 @@ class FitEpoch(train.Train):
 
     @staticmethod
     def _setup_val_check_batch_(
-        val_check_interval: Union[int, float],
-        max_batches: Union[int, float],
-        check_val_every_n_epoch: Optional[int],
+        val_check_interval: int | float,
+        max_batches: int | float,
+        check_val_every_n_epoch: int | None,
         dataloader: "reax.DataLoader",
-    ) -> Optional[Union[int, float]]:
+    ) -> int | float | None:
         """Setup val check batch."""
         if max_batches == 0:
             return None
@@ -286,17 +286,17 @@ class Fit(stages.Stage):
         engine: "reax.Engine",
         *,
         rngs: nnx.Rngs = None,
-        fast_dev_run: Union[bool, int] = False,
-        max_epochs: Optional[int] = None,
+        fast_dev_run: bool | int = False,
+        max_epochs: int | None = None,
         min_epochs: int = 0,
         min_updates: int = 0,
-        max_updates: Optional[Union[int, float]] = None,
-        limit_train_batches: Optional[Union[int, float]] = 1.0,
+        max_updates: int | float | None = None,
+        limit_train_batches: int | float | None = 1.0,
         accumulate_grad_batches: int = 1,
-        limit_val_batches: Optional[Union[int, float]] = 1.0,
-        val_check_interval: Optional[Union[int, float]] = 1.0,
+        limit_val_batches: int | float | None = 1.0,
+        val_check_interval: int | float | None = 1.0,
         check_val_every_n_epoch: int = 1,
-        num_sanity_val_steps: Optional[int] = 2,
+        num_sanity_val_steps: int | None = 2,
         reload_dataloaders_every_n_epochs: int = 0,
     ):
         """Init function."""
@@ -324,7 +324,7 @@ class Fit(stages.Stage):
         )
 
         # Params
-        self._num_sanity_val_steps: Final[Optional[int]] = num_sanity_val_steps
+        self._num_sanity_val_steps: Final[int | None] = num_sanity_val_steps
         self._reload_dataloaders_every_n_epochs: Final[int] = reload_dataloaders_every_n_epochs
 
         # State
@@ -344,7 +344,7 @@ class Fit(stages.Stage):
             check_val_every_n_epoch=check_val_every_n_epoch,
             stopper=self._stopper,
         )
-        self._sanity_check: Optional[validation.Validate] = None
+        self._sanity_check: validation.Validate | None = None
         if self._fit_epoch.validate and num_sanity_val_steps:
             self._sanity_check = validation.Validate(
                 module,
@@ -361,7 +361,7 @@ class Fit(stages.Stage):
         return self.iteration
 
     @property
-    def fast_dev_run(self) -> Union[bool, int]:
+    def fast_dev_run(self) -> bool | int:
         return self._fit_epoch.fast_dev_run
 
     @property
@@ -370,7 +370,7 @@ class Fit(stages.Stage):
         return self._sanity_check is not None and self._child is self._sanity_check
 
     @property
-    def max_epochs(self) -> Optional[int]:
+    def max_epochs(self) -> int | None:
         return self.max_iters
 
     @property
@@ -384,33 +384,33 @@ class Fit(stages.Stage):
         return self._fit_epoch.validate is not None
 
     @property
-    def validate(self) -> Optional[validation.Validate]:
+    def validate(self) -> validation.Validate | None:
         """Validate function."""
         return self._fit_epoch.validate
 
     @property
-    def limit_train_batches(self) -> Optional[Union[int, float]]:
+    def limit_train_batches(self) -> int | float | None:
         """The limit on the number of training batches per epoch"""
         return self._fit_epoch.limit_train_batches
 
     @property
-    def num_training_batches(self) -> Optional[Union[int, float]]:
+    def num_training_batches(self) -> int | float | None:
         return self._fit_epoch.num_training_batches
 
     @property
-    def limit_val_batches(self) -> Optional[Union[int, float]]:
+    def limit_val_batches(self) -> int | float | None:
         """The limit on the number of training batches per epoch"""
         return self._fit_epoch.limit_val_batches
 
     @property
-    def num_val_batches(self) -> Optional[Union[int, float]]:
+    def num_val_batches(self) -> int | float | None:
         if not self.enable_validation:
             return None
 
         return self._fit_epoch.validate.num_batches
 
     @property
-    def num_sanity_val_steps(self) -> Optional[int]:
+    def num_sanity_val_steps(self) -> int | None:
         return self._num_sanity_val_steps
 
     @property
@@ -419,7 +419,7 @@ class Fit(stages.Stage):
         return self._fit_epoch.val_check_interval
 
     @property
-    def check_val_every_n_epoch(self) -> Optional[int]:
+    def check_val_every_n_epoch(self) -> int | None:
         """Check val every n epoch."""
         return self._fit_epoch.check_val_every_n_epoch
 
@@ -446,7 +446,7 @@ class Fit(stages.Stage):
         self,
         name: str,
         value,
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
         prog_bar: bool = False,
         logger: bool = False,
         on_step=False,

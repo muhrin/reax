@@ -63,9 +63,9 @@ class Stage(abc.ABC):
         module: Optional["reax.Module"],
         engine: "reax.Engine",
         *,
-        rngs: Optional[nnx.Rngs] = None,
+        rngs: nnx.Rngs | None = None,
         datamanager: "Optional[reax.data.DataSourceManager]" = None,
-        max_iters: Optional[int] = None,
+        max_iters: int | None = None,
         min_iters: int = 0,
         enable_checkpointing: bool = False,
     ):
@@ -76,7 +76,7 @@ class Stage(abc.ABC):
         self._name = name
         self._engine = engine
         self._min_iters: Final[int] = min_iters
-        self._max_iters: Final[Optional[int]] = max_iters
+        self._max_iters: Final[int | None] = max_iters
         self._enable_checkpointing: Final[bool] = enable_checkpointing
 
         # State
@@ -118,7 +118,7 @@ class Stage(abc.ABC):
         return self._module
 
     @property
-    def rngs(self) -> Optional[nnx.Rngs]:
+    def rngs(self) -> nnx.Rngs | None:
         return self._rngs
 
     @property
@@ -132,7 +132,7 @@ class Stage(abc.ABC):
         return self._min_iters
 
     @property
-    def max_iters(self) -> Optional[int]:
+    def max_iters(self) -> int | None:
         """Max iters."""
         return self._max_iters
 
@@ -243,7 +243,7 @@ class Stage(abc.ABC):
         self,
         name: str,
         value,
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
         prog_bar: bool = False,
         logger: bool = False,
         on_step=False,
@@ -354,11 +354,11 @@ class EpochStage(Stage, abc.ABC):
         datamanager: "reax.data.DataSourceManager",
         engine: "reax.Engine",
         *,
-        rngs: Optional[nnx.Rngs] = None,
-        dataloader_name: Optional[str] = None,
-        fast_dev_run: Union[bool, int] = False,
+        rngs: nnx.Rngs | None = None,
+        dataloader_name: str | None = None,
+        fast_dev_run: bool | int = False,
         min_batches: int = 0,
-        limit_batches: Optional[Union[int, float]] = None,
+        limit_batches: int | float | None = None,
         reload_dataloaders_every_n_epochs: int = 0,
         enable_checkpointing: bool = False,
     ):
@@ -378,13 +378,13 @@ class EpochStage(Stage, abc.ABC):
 
         # Params
         self._fast_dev_run = fast_dev_run
-        self._limit_batches: Final[Union[int, float]] = limit_batches
+        self._limit_batches: Final[int | float] = limit_batches
         self._dataloader_name: Final[str] = dataloader_name or self.name
         self._reload_dataloaders_every_n_epochs = reload_dataloaders_every_n_epochs
 
         # State
         self._iterator = None
-        self._batch: Optional[Any] = None
+        self._batch: Any | None = None
         self._total_batch_idx: int = 0
         self._metrics: Optional["reax.results.ResultCollection"] = None
         self._metrics_results: Optional["reax.stages.MetricResults"] = None
@@ -401,11 +401,11 @@ class EpochStage(Stage, abc.ABC):
         return self.dataloader
 
     @property
-    def fast_dev_run(self) -> Union[bool, int]:
+    def fast_dev_run(self) -> bool | int:
         return self._fast_dev_run
 
     @property
-    def batch(self) -> Optional[Any]:
+    def batch(self) -> Any | None:
         """Get the current batch."""
         return self._batch
 
@@ -425,17 +425,17 @@ class EpochStage(Stage, abc.ABC):
         return self._run_count
 
     @property
-    def limit_batches(self) -> Optional[Union[int, float]]:
+    def limit_batches(self) -> int | float | None:
         """The limit on the number of batches specified by the user"""
         return self._limit_batches
 
     @property
-    def max_batches(self) -> Optional[Union[int, float]]:
+    def max_batches(self) -> int | float | None:
         """Get the current maximum number of batches."""
         return common.batches_limit(self._limit_batches, self.dataloader)
 
     @property
-    def num_batches(self) -> Optional[Union[int, float]]:
+    def num_batches(self) -> int | float | None:
         """The number of batches that will be used in this epoch"""
         return self.max_batches
 
@@ -445,7 +445,7 @@ class EpochStage(Stage, abc.ABC):
         return self._metrics
 
     @property
-    def results(self) -> Optional[dict]:
+    def results(self) -> dict | None:
         """The results for this epoch (if any)."""
         return self._metrics_results
 
@@ -492,7 +492,7 @@ class EpochStage(Stage, abc.ABC):
         self,
         name: str,
         value: Union[jax.typing.ArrayLike, "reax.Metric"],
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
         prog_bar: bool = False,
         logger: bool = False,
         on_step=False,

@@ -17,9 +17,9 @@ class DataSourceManager(abc.ABC):
     """Manager for coordinating getting data from a source"""
 
     def __init__(
-        self, source: Optional[_datasources.DataSource], engine: "reax.Engine" = None, **loaders
+        self, source: _datasources.DataSource | None, engine: "reax.Engine" = None, **loaders
     ):
-        self._datasource: Optional[_datasources.DataSource] = source
+        self._datasource: _datasources.DataSource | None = source
         self._engine = engine
         self._loaders: dict[str, "reax.data.DataLoader"] = {
             name: self._engine.setup_dataloaders(loaders) for name, loaders in loaders.items()

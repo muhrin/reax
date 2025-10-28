@@ -115,7 +115,8 @@ def test_trainer_max_steps_and_epochs_validation(max_epochs, max_updates, incorr
 
 def test_trainer_min_steps_and_epochs(tmp_path):
     """Verify model trains according to specified min steps."""
-    num_train_samples = math.floor(len(demos.BoringModel().train_dataloader()) * 0.125)
+    frac = 0.0625
+    num_train_samples = math.floor(len(demos.BoringModel().train_dataloader()) * frac)
 
     class CustomModel(demos.BoringModel):
         def training_step(self, *args, **kwargs):
@@ -134,7 +135,7 @@ def test_trainer_min_steps_and_epochs(tmp_path):
         "enable_progress_bar": False,
     }
     fit_kwargs = {
-        "limit_train_batches": 0.125,
+        "limit_train_batches": frac,
         "min_epochs": 1,
         "max_epochs": 7,
         # define less min steps than 1 epoch

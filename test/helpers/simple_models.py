@@ -30,9 +30,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Callable
 import functools
 from sys import dont_write_bytecode
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import equinox as eqx
 from flax import linen
@@ -116,7 +117,7 @@ class ClassificationModel(reax.Module):
         targets: Any,
         model: Callable[[jt.PyTree, Any], Any],
         loss_fn: Callable,
-    ) -> tuple[jax.Array, Optional[reax.metrics.MetricCollection]]:
+    ) -> tuple[jax.Array, reax.metrics.MetricCollection | None]:
         """Calculate loss and, optionally metrics"""
         predictions = model(params, inputs)
         return loss_fn(predictions, targets), predictions

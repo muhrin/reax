@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, TypeVar
 import weakref
 
 import beartype
@@ -34,13 +34,13 @@ class Train(stages.EpochStage):
         engine: "reax.Engine",
         optimizers: "list[reax.Optimizer]",
         *,
-        rngs: Optional[nnx.Rngs] = None,
-        fast_dev_run: Union[bool, int] = False,
+        rngs: nnx.Rngs | None = None,
+        fast_dev_run: bool | int = False,
         min_updates: int = 0,
-        max_updates: Optional[Union[int, float]] = None,
-        limit_batches: Optional[Union[int, float]] = None,
+        max_updates: int | float | None = None,
+        limit_batches: int | float | None = None,
         accumulate_grad_batches: int = 1,
-        stopper: Optional[common.Stopper] = None,
+        stopper: common.Stopper | None = None,
     ):
         super().__init__(
             "fit",
@@ -64,7 +64,7 @@ class Train(stages.EpochStage):
         self._stopper.add_condition(lambda: self.updates >= self._min_updates)
 
     @property
-    def num_training_batches(self) -> Optional[Union[int, float]]:
+    def num_training_batches(self) -> int | float | None:
         return self.max_batches
 
     @property
@@ -73,7 +73,7 @@ class Train(stages.EpochStage):
         return sum(opt.update_count for opt in self._optimizers)
 
     @property
-    def optimizers(self) -> Optional[list["reax.Optimizer"]]:
+    def optimizers(self) -> list["reax.Optimizer"] | None:
         """Optimizers function."""
         return self._optimizers
 

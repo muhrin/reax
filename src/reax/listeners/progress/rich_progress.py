@@ -34,7 +34,7 @@ from collections.abc import Generator
 import dataclasses
 import datetime
 import math
-from typing import TYPE_CHECKING, Any, Final, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Final, Union, cast
 
 from lightning_utilities.core.imports import RequirementCache
 from typing_extensions import override
@@ -86,7 +86,7 @@ if _RICH_AVAILABLE:  # noqa: C901
         """
 
         @property
-        def time_remaining(self) -> Optional[float]:
+        def time_remaining(self) -> float | None:
             return None
 
     class CustomProgress(rich.progress.Progress):
@@ -96,7 +96,7 @@ if _RICH_AVAILABLE:  # noqa: C901
             self,
             description: str,
             start: bool = True,
-            total: Optional[float] = 100.0,
+            total: float | None = 100.0,
             completed: int = 0,
             visible: bool = True,
             **fields: Any,
@@ -132,7 +132,7 @@ if _RICH_AVAILABLE:  # noqa: C901
         # Only refresh twice a second to prevent jitter
         max_refresh = 0.5
 
-        def __init__(self, style: Union[str, style_.Style]) -> None:
+        def __init__(self, style: str | style_.Style) -> None:
             self.style = style
             super().__init__()
 
@@ -148,7 +148,7 @@ if _RICH_AVAILABLE:  # noqa: C901
             return text_.Text(f"{elapsed_delta} • {remaining_delta}", style=self.style)
 
     class BatchesProcessedColumn(rich.progress.ProgressColumn):
-        def __init__(self, style: Union[str, style_.Style]):
+        def __init__(self, style: str | style_.Style):
             self.style = style
             super().__init__()
 
@@ -157,7 +157,7 @@ if _RICH_AVAILABLE:  # noqa: C901
             return text_.Text(f"{int(task.completed)}/{total}", style=self.style)
 
     class ProcessingSpeedColumn(rich.progress.ProgressColumn):
-        def __init__(self, style: Union[str, style_.Style]):
+        def __init__(self, style: str | style_.Style):
             self.style = style
             super().__init__()
 
@@ -176,9 +176,9 @@ if _RICH_AVAILABLE:  # noqa: C901
             metrics_format: str,
         ):
             self._trainer = trainer
-            self._tasks: dict[Union[int, rich.progress.TaskID], Any] = {}
+            self._tasks: dict[int | rich.progress.TaskID, Any] = {}
             self._current_task_id = 0
-            self._metrics: dict[Union[str, style_.Style], Any] = {}
+            self._metrics: dict[str | style_.Style, Any] = {}
             self._style = style
             self._text_delimiter = text_delimiter
             self._metrics_format = metrics_format
@@ -293,7 +293,7 @@ class RichProgressBar(progress_bar.ProgressBar):
         refresh_rate: int = 1,
         leave: bool = False,
         theme: RichProgressBarTheme = RichProgressBarTheme(),
-        console_kwargs: Optional[dict[str, Any]] = None,
+        console_kwargs: dict[str, Any] | None = None,
     ) -> None:
         if not _RICH_AVAILABLE:
             raise ModuleNotFoundError(
@@ -307,17 +307,17 @@ class RichProgressBar(progress_bar.ProgressBar):
         self._leave: Final[bool] = leave
 
         # State
-        self._console: Optional[rich.Console] = None
+        self._console: rich.Console | None = None
         self._console_kwargs = console_kwargs or {}
         self._enabled: bool = True
-        self.progress: Optional[CustomProgress] = None
-        self.train_progress_bar_id: Optional[rich.progress.TaskID]
-        self.val_sanity_progress_bar_id: Optional[rich.progress.TaskID] = None
-        self.val_progress_bar_id: Optional[rich.progress.TaskID]
-        self.test_progress_bar_id: Optional[rich.progress.TaskID]
-        self.predict_progress_bar_id: Optional[rich.progress.TaskID]
+        self.progress: CustomProgress | None = None
+        self.train_progress_bar_id: rich.progress.TaskID | None
+        self.val_sanity_progress_bar_id: rich.progress.TaskID | None = None
+        self.val_progress_bar_id: rich.progress.TaskID | None
+        self.test_progress_bar_id: rich.progress.TaskID | None
+        self.predict_progress_bar_id: rich.progress.TaskID | None
         self._reset_progress_bar_ids()
-        self._metric_component: Optional[MetricsTextColumn] = None
+        self._metric_component: MetricsTextColumn | None = None
         self._progress_stopped: bool = False
         self.theme = theme
 
@@ -493,7 +493,7 @@ class RichProgressBar(progress_bar.ProgressBar):
         self.refresh()
 
     def _add_task(
-        self, total_batches: Union[int, float], description: str, visible: bool = True
+        self, total_batches: int | float, description: str, visible: bool = True
     ) -> rich.progress.TaskID:
         assert self.progress is not None
         return self.progress.add_task(
@@ -503,7 +503,7 @@ class RichProgressBar(progress_bar.ProgressBar):
         )
 
     def _update(
-        self, progress_bar_id: Optional[rich.progress.TaskID], current: int, visible: bool = True
+        self, progress_bar_id: rich.progress.TaskID | None, current: int, visible: bool = True
     ) -> None:
         if self.progress is not None and self.is_enabled:
             assert progress_bar_id is not None
@@ -517,7 +517,7 @@ class RichProgressBar(progress_bar.ProgressBar):
             self.progress.update(progress_bar_id, advance=advance, visible=visible)
             self.refresh()
 
-    def _should_update(self, current: int, total: Union[int, float]) -> bool:
+    def _should_update(self, current: int, total: int | float) -> bool:
         return current % self.refresh_rate == 0 or current == total
 
     @override

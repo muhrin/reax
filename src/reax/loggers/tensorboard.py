@@ -36,9 +36,9 @@ TensorBoard Logger
 """
 
 import argparse
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 import os
-from typing import Any, Callable, Final, Optional, Union
+from typing import Any, Final
 
 import fsspec
 import jax.typing
@@ -88,13 +88,13 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     def __init__(
         self,
         log_dir: typing.Path,
-        name: Optional[str] = "reax_logs",
+        name: str | None = "reax_logs",
         *,
-        version: Optional[Union[int, str]] = None,
+        version: int | str | None = None,
         log_graph: bool = False,
         default_hp_metric: bool = True,
         prefix: str = "",
-        sub_dir: Optional[typing.Path] = None,
+        sub_dir: typing.Path | None = None,
         **kwargs: Any,
     ):
         """Init function.
@@ -106,12 +106,12 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         :param save_dir: Save directory.
         :param name: Experiment name.  If it is the empty string then no per-experiment
             subdirectory is used, defaults to "reax_logs".
-        :type name: Optional[str], optional
+        :type name: str | None, optional
         :param version: Experiment version. If version is not specified the logger inspects the save
             directory for existing versions, then automatically assigns the next available version.
             If it is a string then it is used as the run-specific subdirectory name,
             otherwise ``'version_${version}'`` is used, defaults to None.
-        :type version: Optional[Union[int, str]], optional
+        :type version: int | str | None, optional
         :param log_graph: Adds the computational graph to tensorboard. This requires that
             the user has defined the `self.example_input_array` attribute in their
             model, defaults to False.
@@ -125,7 +125,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         :param sub_dir: Sub-directory to group TensorBoard logs. If a sub_dir argument is passed
             then logs are saved in ``/save_dir/name/version/sub_dir/``.
             logs are saved in ``/save_dir/name/version/``, defaults to None.
-        :type sub_dir: Optional[typing.Path], optional
+        :type sub_dir: typing.Path | None, optional
         :param kwargs: Additional arguments used by :class:`tensorboardX.SummaryWriter` can be
             passed as keyword arguments in this logger. To automatically flush to disk, `max_queue`
             sets the sizeof the queue for pending logs before flushing. `flush_secs` determines how
@@ -141,10 +141,10 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         self._prefix = prefix
         self._fs: fsspec.AbstractFileSystem = fsspec.url_to_fs(log_dir)[0]
 
-        self._exp: Optional["tensorboardX.SummaryWriter"] = None
+        self._exp: "tensorboardX.SummaryWriter | None" = None
         self._kwargs = kwargs
         self._should_log_graph = log_graph
-        self.hparams: Union[dict[str, Any], argparse.Namespace] = {}
+        self.hparams: dict[str, Any] | argparse.Namespace = {}
 
     @property
     @override
@@ -154,7 +154,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
     @property
     @override
-    def version(self) -> Union[int, str]:
+    def version(self) -> int | str:
         """Version function."""
         if self._version is None:
             self._version = self._get_next_version()
@@ -189,7 +189,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         return log_dir
 
     @property
-    def sub_dir(self) -> Optional[str]:
+    def sub_dir(self) -> str | None:
         """Sub dir."""
         return self._sub_dir
 
@@ -203,7 +203,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         return self._root_dir
 
     @property
-    def _experiment(self) -> Optional["tensorboardX.SummaryWriter"]:
+    def _experiment(self) -> "tensorboardX.SummaryWriter | None":
         """Get the tensorboard object."""
         if self._exp is not None:
             return self._exp
@@ -218,7 +218,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
     @override
     def _log_metrics(
-        self, metrics: Mapping[str, jax.typing.ArrayLike], step: Optional[int] = None
+        self, metrics: Mapping[str, jax.typing.ArrayLike], step: int | None = None
     ) -> None:
         """Log metrics."""
         metrics = _utils.add_prefix(metrics, self._prefix, self.LOGGER_JOIN_CHAR)
@@ -242,8 +242,8 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     def _log_hyperparams(
         # pylint: disable=arguments-differ
         self,
-        params: Union[dict[str, Any], argparse.Namespace],
-        metrics: Optional[dict[str, Any]] = None,
+        params: dict[str, Any] | argparse.Namespace,
+        metrics: dict[str, Any] | None = None,
     ) -> None:
         """Record hyperparameters.
 
@@ -252,10 +252,10 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         previously saved logs to display the new ones with hyperparameters.
 
         :param params: A dictionary-like container with the hyperparameters.
-        :type params: Union[dict[str, Any], argparse.Namespace]
+        :type params: dict[str, Any] | argparse.Namespace
         :param metrics: Dictionary with metric names as keys and measured quantities as values,
             defaults to None.
-        :type metrics: Optional[dict[str, Any]], optional
+        :type metrics: dict[str, Any] | None, optional
         :param step: Optional global step number for the logged metrics.
         """
         params = _utils.convert_params(params)

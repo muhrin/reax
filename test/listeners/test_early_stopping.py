@@ -362,7 +362,7 @@ class EarlyStoppingModel(boring_classes.BoringModel):
         self,
         expected_end_epoch: int,
         early_stop_on_train: bool,
-        dist_diverge_epoch: Optional[int] = None,
+        dist_diverge_epoch: int | None = None,
     ):
         super().__init__()
         self.expected_end_epoch = expected_end_epoch

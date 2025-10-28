@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from lightning_utilities.core import rank_zero
 import tqdm.auto as tqdm
@@ -27,10 +27,10 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         self._refresh_rate = self._resolve_refresh_rate(refresh_rate)
         self._process_position = process_position
         self._enabled = True
-        self._train_progress_bar: Optional[tqdm.tqdm] = None
-        self._val_progress_bar: Optional[tqdm.tqdm] = None
-        self._test_progress_bar: Optional[tqdm.tqdm] = None
-        self._predict_progress_bar: Optional[tqdm.tqdm] = None
+        self._train_progress_bar: tqdm.tqdm | None = None
+        self._val_progress_bar: tqdm.tqdm | None = None
+        self._test_progress_bar: tqdm.tqdm | None = None
+        self._predict_progress_bar: tqdm.tqdm | None = None
 
     @property
     def train_progress_bar(self) -> tqdm.tqdm:

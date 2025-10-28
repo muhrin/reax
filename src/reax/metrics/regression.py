@@ -1,5 +1,3 @@
-from typing import Optional
-
 import jax
 import jax.numpy as jnp
 
@@ -34,7 +32,7 @@ class RootMeanSquareError(Metric):
         self,
         values: jax.Array,
         targets: jax.Array,
-        mask: Optional[jax.Array] = None,
+        mask: jax.Array | None = None,
     ) -> "RootMeanSquareError":
         """Create function."""
         return type(self)(mse=MeanSquaredError().create(values, targets, mask))
@@ -43,7 +41,7 @@ class RootMeanSquareError(Metric):
         self,
         values: jax.Array,
         targets: jax.Array,
-        mask: Optional[jax.Array] = None,
+        mask: jax.Array | None = None,
     ) -> "RootMeanSquareError":
         """Update function."""
         if self.is_empty:
@@ -66,8 +64,8 @@ class RootMeanSquareError(Metric):
 
 
 class LeastSquaresEstimate(Metric):
-    values: Optional[jax.Array]
-    targets: Optional[jax.Array]
+    values: jax.Array | None
+    targets: jax.Array | None
 
     def __init__(self, values: jax.Array = None, targets: jax.Array = None):
         """Init function."""

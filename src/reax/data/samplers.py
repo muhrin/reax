@@ -3,7 +3,7 @@ import contextlib
 import functools
 import itertools
 import math
-from typing import TYPE_CHECKING, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, TypeVar
 
 import jax
 import numpy as np
@@ -143,8 +143,8 @@ class DistributedSampler(_types.Sampler[_IdxT]):
     def __init__(
         self,
         dataset: "reax.data.Dataset",
-        num_replicas: Optional[int] = None,
-        process_index: Optional[int] = None,
+        num_replicas: int | None = None,
+        process_index: int | None = None,
         shuffle: bool = True,
         seed: int = 0,
         drop_last: bool = False,
@@ -275,7 +275,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
 
 def create_sampler(
     dataset: _types.Dataset[_T_co],
-    batch_size: Optional[int] = None,
+    batch_size: int | None = None,
     replacements: bool = False,
     shuffle: bool = False,
     sampler: "reax.data.Sampler[_T_co]" = None,
@@ -338,7 +338,7 @@ def create_sequence_sampler(
 @_create_sampler.register(Iterable)
 def create_iterable_sampler(
     dataset: Iterable[_T_co], replacements: bool = False, shuffle: bool = False
-) -> Union[_types.Sampler[None], _types.Sampler[list[None]]]:
+) -> _types.Sampler[None] | _types.Sampler[list[None]]:
     """Create iterable sampler."""
     if shuffle:
         raise ValueError(

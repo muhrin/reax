@@ -36,7 +36,7 @@ import abc
 import argparse
 from collections.abc import Callable
 import functools
-from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, Union
 
 from typing_extensions import override
 
@@ -55,16 +55,16 @@ class Logger(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def name(self) -> Optional[str]:
+    def name(self) -> str | None:
         """Return the name of the experiment."""
 
     @property
     @abc.abstractmethod
-    def version(self) -> Optional[Union[int, str]]:
+    def version(self) -> int | str | None:
         """Return the experiment version."""
 
     @property
-    def root_dir(self) -> Optional[str]:
+    def root_dir(self) -> str | None:
         """Returns the root directory where all experimental versions are saved.
 
         Returns `None` if the logger does not save locally.
@@ -72,7 +72,7 @@ class Logger(abc.ABC):
         return None
 
     @property
-    def save_dir(self) -> Optional[str]:
+    def save_dir(self) -> str | None:
         """Get the directory where logs are saved.
 
         Returns `None` if logger does not save locally.
@@ -80,7 +80,7 @@ class Logger(abc.ABC):
         return None
 
     @property
-    def log_dir(self) -> Optional[str]:
+    def log_dir(self) -> str | None:
         """Returns the directory used to store logs for the current experiment or `None` if logger
         does not save locally."""
         return None
@@ -91,7 +91,7 @@ class Logger(abc.ABC):
         return "/"
 
     @abc.abstractmethod
-    def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
         """Log the passed metrics.
 
         :param metrics: Dictionary of metrics to log.
@@ -102,7 +102,7 @@ class Logger(abc.ABC):
 
     @abc.abstractmethod
     def log_hyperparams(
-        self, params: Union[dict[str, Any], argparse.Namespace], *args: Any, **kwargs: Any
+        self, params: dict[str, Any] | argparse.Namespace, *args: Any, **kwargs: Any
     ) -> None:
         """Log the passed hyperparameters.
 
@@ -201,13 +201,13 @@ class WithDdp(Generic[Exp], abc.ABC):
 
     @rank_zero.rank_zero_only
     def log_hyperparams(
-        self, params: Union[dict[str, Any], argparse.Namespace], *args: Any, **kwargs: Any
+        self, params: dict[str, Any] | argparse.Namespace, *args: Any, **kwargs: Any
     ) -> None:
         """Log hyperparams."""
         return self._log_hyperparams(params, *args, **kwargs)
 
     @rank_zero.rank_zero_only
-    def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
         """Log metrics."""
         return self._log_metrics(metrics, step)
 
@@ -227,18 +227,18 @@ class WithDdp(Generic[Exp], abc.ABC):
         return self._finalize(status)
 
     @property
-    def _experiment(self) -> Optional[Exp]:
+    def _experiment(self) -> Exp | None:
         """Experiment function."""
         return None
 
     @abc.abstractmethod
     def _log_hyperparams(
-        self, params: Union[dict[str, Any], argparse.Namespace], *args: Any, **kwargs: Any
+        self, params: dict[str, Any] | argparse.Namespace, *args: Any, **kwargs: Any
     ) -> None:
         """Log hyperparams implementation."""
 
     @abc.abstractmethod
-    def _log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
+    def _log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
         """Log metrics implementation."""
 
     def _log_graph(self, model: Callable, *args, **kwargs) -> None:
@@ -256,7 +256,7 @@ def rank_zero_experiment(fn: Callable) -> Callable:
     """Returns the real experiment on rank 0 and otherwise the _DummyExperiment."""
 
     @functools.wraps(fn)
-    def experiment(self: Logger) -> Union[Any, _DummyExperiment]:
+    def experiment(self: Logger) -> Any | _DummyExperiment:
         """Get the experiment.
 
         ..note::

@@ -51,17 +51,17 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         *,
         accelerator: str = "auto",
         strategy: "Union[str, reax.Strategy]" = "auto",
-        devices: Union[list[int], str, int] = "auto",
+        devices: list[int] | str | int = "auto",
         precision=None,
-        logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]] = True,
+        logger: Union["reax.Logger", Iterable["reax.Logger"], bool] | None = True,
         listeners: "Optional[list[reax.TrainerListener], reax.TrainerListener]" = None,
         log_every_n_steps: int = 50,
-        enable_checkpointing: Optional[bool] = True,
+        enable_checkpointing: bool | None = True,
         enable_progress_bar: bool = True,
-        enable_model_summary: Optional[bool] = None,
+        enable_model_summary: bool | None = None,
         deterministic: bool = False,
         rngs: nnx.Rngs = None,
-        default_root_dir: Optional[typing.Path] = None,
+        default_root_dir: typing.Path | None = None,
         checkpointing: "reax.Checkpointing" = None,
     ):
         """Init function."""
@@ -73,7 +73,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
         self._automatic_optimization = True
         self._optimizers = []
-        self._stage: Optional[stages.Stage] = None
+        self._stage: stages.Stage | None = None
 
         # State
         self._engine = engine_.Engine(
@@ -222,7 +222,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return self._events.find()
 
     @property
-    def early_stopping_listener(self) -> Optional[listeners_.EarlyStopping]:
+    def early_stopping_listener(self) -> listeners_.EarlyStopping | None:
         """The first :class:`~reax.listeners.early_stopping.EarlyStopping` listener in the
         Trainer.listeners list, or ``None`` if it doesn't exist."""
         listeners = self.early_stopping_listeners
@@ -273,12 +273,12 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return self._engine.loggers
 
     @loggers.setter
-    def loggers(self, loggers: Optional[list["reax.Logger"]]) -> None:
+    def loggers(self, loggers: list["reax.Logger"] | None) -> None:
         """Loggers function."""
         self._engine.loggers = loggers
 
     @property
-    def log_dir(self) -> Optional[str]:
+    def log_dir(self) -> str | None:
         """The directory for the current experiment. Use this to save images to, etc...
 
         .. note:: You must call this on all processes. Failing to do so will cause your program to
@@ -372,7 +372,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         value,
         *,
         prog_bar: bool = False,
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
         logger: bool = None,
         on_step=True,
         on_epoch=True,
@@ -404,18 +404,18 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         val_dataloaders: "Optional[reax.DataLoader]" = None,
         *,
         datamodule: "Optional[reax.DataModule]" = None,
-        ckpt_path: Optional[typing.Path] = None,
-        fast_dev_run: Union[bool, int] = False,
-        max_epochs: Optional[int] = 1_000,
+        ckpt_path: typing.Path | None = None,
+        fast_dev_run: bool | int = False,
+        max_epochs: int | None = 1_000,
         min_epochs: int = 0,
         min_updates: int = 0,
-        max_updates: Union[int, float] = None,
-        limit_train_batches: Optional[Union[int, float]] = 1.0,
+        max_updates: int | float = None,
+        limit_train_batches: int | float | None = 1.0,
         accumulate_grad_batches: int = 1,
-        limit_val_batches: Optional[Union[int, float]] = 1.0,
-        val_check_interval: Optional[Union[int, float]] = 1.0,
+        limit_val_batches: int | float | None = 1.0,
+        val_check_interval: int | float | None = 1.0,
         check_val_every_n_epoch: int = 1,
-        num_sanity_val_steps: Optional[int] = 2,
+        num_sanity_val_steps: int | None = 2,
         reload_dataloaders_every_n_epochs: int = 0,
     ) -> "reax.stages.Fit":
         """Fit function.
@@ -477,8 +477,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         module: modules.Module,
         dataloaders=None,
         datamodule=None,
-        ckpt_path: Optional[typing.Path] = None,
-        limit_batches: Union[int, type(keys.NO_LIMIT)] = keys.NO_LIMIT,
+        ckpt_path: typing.Path | None = None,
+        limit_batches: int | type(keys.NO_LIMIT) = keys.NO_LIMIT,
     ) -> "reax.stages.Validate":
         """Validate function."""
         if ckpt_path:
@@ -496,9 +496,9 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         module: modules.Module,
         dataloaders=None,
         datamodule=None,
-        ckpt_path: Optional[typing.Path] = None,
-        fast_dev_run: Union[bool, int] = False,
-        limit_batches: Optional[Union[int, float]] = 1.0,
+        ckpt_path: typing.Path | None = None,
+        fast_dev_run: bool | int = False,
+        limit_batches: int | float | None = 1.0,
     ) -> "reax.stages.Test":
         """Test function."""
         if ckpt_path:
@@ -523,10 +523,10 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         module: modules.Module,
         dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
-        ckpt_path: Optional[typing.Path] = None,
-        keep_predictions: Optional[bool] = None,
-        fast_dev_run: Union[bool, int] = False,
-        limit_batches: Union[int, float] = keys.NO_LIMIT,
+        ckpt_path: typing.Path | None = None,
+        keep_predictions: bool | None = None,
+        fast_dev_run: bool | int = False,
+        limit_batches: int | float = keys.NO_LIMIT,
     ) -> "reax.stages.Predict":
         r"""Run inference on the data.
 
@@ -560,8 +560,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         dataloaders: "Optional[reax.DataLoader]" = None,
         datamodule: "Optional[reax.DataModule]" = None,
         dataset_name: str = "train",
-        fast_dev_run: Union[bool, int] = False,
-        limit_batches: Union[int, float] = keys.NO_LIMIT,
+        fast_dev_run: bool | int = False,
+        limit_batches: int | float = keys.NO_LIMIT,
     ) -> "reax.stages.EvaluateStats":
         r"""Evaluate metrics on a dataset to get statistics about it.
 
@@ -781,7 +781,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         ckpt = _checkpointing.dump_checkpoint(self._module, weights_only=weights_only)
         self._checkpointing.save(ckpt, filepath)
 
-    def _get_checkpoint_path(self) -> Optional[str]:
+    def _get_checkpoint_path(self) -> str | None:
         """Get checkpoint path."""
         checkpointers = self.checkpoint_listeners
         if not checkpointers:
@@ -821,7 +821,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def _init_loggers(
-    logger: Optional[Union["reax.Logger", Iterable["reax.Logger"], bool]],
+    logger: Union["reax.Logger", Iterable["reax.Logger"], bool] | None,
     default_root_dir: str,
 ) -> list["reax.Logger"]:
     """Init loggers."""
@@ -839,7 +839,7 @@ def _init_loggers(
 
 def _init_progress_bar(
     listeners: list[hooks.TrainerListener], enable_progress_bar: bool = True
-) -> Optional[listeners_.ProgressBar]:
+) -> listeners_.ProgressBar | None:
     progress_bars = [
         listener for listener in listeners if isinstance(listener, listeners_.progress.ProgressBar)
     ]

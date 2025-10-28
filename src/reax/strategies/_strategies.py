@@ -31,7 +31,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, TypeVar, Union
 
 import jax
 import jaxtyping as jt
@@ -91,7 +91,7 @@ class Strategy(abc.ABC):
         """
 
     @abc.abstractmethod
-    def barrier(self, name: Optional[str] = None) -> None:
+    def barrier(self, name: str | None = None) -> None:
         """Synchronizes all processes which blocks processes until the whole group enters this
         function.
 

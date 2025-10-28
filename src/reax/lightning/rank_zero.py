@@ -52,7 +52,7 @@ from typing_extensions import ParamSpec
 rank_zero_module.log = logging.getLogger(__name__)
 
 
-def _get_rank() -> Optional[int]:
+def _get_rank() -> int | None:
     """Get rank."""
     # SLURM_PROCID can be set even if SLURM is not managing the multiprocessing,
     # therefore LOCAL_RANK needs to be checked first

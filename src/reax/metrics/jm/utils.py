@@ -21,8 +21,6 @@
 # SOFTWARE.
 
 import enum
-import typing
-from typing import Optional
 
 import einops
 import jax
@@ -86,11 +84,11 @@ def stat_scores_update(
     intended_mode: DataType,
     *,
     average_method: AverageMethod = AverageMethod.MICRO,
-    mdmc_average_method: Optional[MDMCAverageMethod] = None,
-    num_classes: Optional[int] = None,
-    top_k: Optional[int] = None,
+    mdmc_average_method: MDMCAverageMethod | None = None,
+    num_classes: int | None = None,
+    top_k: int | None = None,
     threshold: float = 0.5,
-    multiclass: Optional[bool] = None,
+    multiclass: bool | None = None,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
     """Updates and returns the number of true positives, false positives, true negatives, false
     negatives.
@@ -102,7 +100,7 @@ def stat_scores_update(
 
     :param mdmc_average_method:
         Defaults to None.
-    :type mdmc_average_method: Optional[MDMCAverageMethod], optional
+    :type mdmc_average_method: MDMCAverageMethod | None, optional
     :param average_method: Defaults to AverageMethod.MICRO.
     :type average_method: AverageMethod, optional
     :param intended_mode:
@@ -115,17 +113,17 @@ def stat_scores_update(
     :param mdmc_average: Defines how the multidimensional multi-class inputs are handeled.
     :param num_classes: Number of classes. Necessary for (multidimensional) multi-class or
         multi-label data, defaults to None.
-    :type num_classes: Optional[int], optional
+    :type num_classes: int | None, optional
     :param top_k: Number of highest probability or logit score predictions considered to find the
         correct label, relevant only for (multidimensional) multi-class inputs, defaults to None.
-    :type top_k: Optional[int], optional
+    :type top_k: int | None, optional
     :param threshold: Threshold for transforming probability or logit predictions to binary (0,1)
         predictions, in the case of binary or multi-label inputs. Default value of 0.5 corresponds
         to input being probabilities, defaults to 0.5.
     :type threshold: float, optional
     :param multiclass: Used only in certain special cases, where you want to treat inputs as a
         different type than what they appear to be, defaults to None.
-    :type multiclass: Optional[bool], optional
+    :type multiclass: bool | None, optional
     :param ignore_index: Specify a class (label) to ignore. If given, this class index does not
         contribute to the returned score, regardless of reduction method. If an index is ignored,
         and ``reduce='macro'``, the class statistics for the ignored class will all be returned
@@ -170,7 +168,7 @@ def stat_scores_update(
 def _stat_scores(
     preds: jax.Array,
     target: jax.Array,
-    reduce: Optional[AverageMethod] = AverageMethod.MICRO,
+    reduce: AverageMethod | None = AverageMethod.MICRO,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
     """Calculate the number of true positive, false positive, true negative, false negative.
 
@@ -179,7 +177,7 @@ def _stat_scores(
     :param target: An ``(N, C)`` or ``(N, C, X)`` tensor of true target (0 or 1).
     :type target: jax.Array
     :param reduce: One of ``'MICRO'``, ``'macro'``, ``'samples'``, defaults to AverageMethod.MICRO.
-    :type reduce: Optional[AverageMethod], optional
+    :type reduce: AverageMethod | None, optional
     :rtype: Returns a list of 4 tensors; tp, fp, tn, fn.
     :rtype: The shape of the returned tensors depnds on the shape of the inputs
     :rtype: and the ``reduce`` parameter
@@ -200,7 +198,7 @@ def _stat_scores(
     :rtype - If ``reduce='samples'``, the returned tensors are ``: N,X
     """
 
-    dim: typing.Union[int, list[int]] = 1  # for "samples"
+    dim: int | list[int] = 1  # for "samples"
     if reduce == AverageMethod.MICRO:
         dim = [0, 1] if preds.ndim == 2 else [1, 2]
     elif reduce == AverageMethod.MACRO:
@@ -228,9 +226,9 @@ def _input_format_classification(
     target: jax.Array,
     mode: DataType,
     threshold: float = 0.5,
-    top_k: Optional[int] = None,
-    num_classes: Optional[int] = None,
-    multiclass: Optional[bool] = None,
+    top_k: int | None = None,
+    num_classes: int | None = None,
+    multiclass: bool | None = None,
 ) -> tuple[jax.Array, jax.Array, DataType]:
     """Convert preds and target tensors into common format.
 
@@ -288,18 +286,18 @@ def _input_format_classification(
     :param num_classes: Number of classes. If not explicitly set, the number of classes will be
         inferred either from the shape of inputs, or the maximum label in the ``target`` and
         ``preds`` array, where applicable, defaults to None.
-    :type num_classes: Optional[int], optional
+    :type num_classes: int | None, optional
     :param top_k: Number of highest probability entries for each sample to convert to 1s - relevant
         only for (multidimensional) multi-class inputs with probability predictions. The
         default value (``None``) will be interepreted as 1 for these inputs.
 
         Should be left unset (``None``) for all other types of inputs, defaults to None.
-    :type top_k: Optional[int], optional
+    :type top_k: int | None, optional
     :param multiclass: Used only in certain special cases, where you want to treat inputs as a
         different type than what they appear to be. See the parameter's
     :ref:`documentation section <pages/overview:using the multiclass parameter>`
         for a more detailed explanation and examples, defaults to None.
-    :type multiclass: Optional[bool], optional
+    :type multiclass: bool | None, optional
     :return: Binary tensor of shape ``(N, C)`` or ``(N, C, X)``.
     :rtype: preds
     :return: Binary tensor of shape ``(N, C)`` or ``(N, C, X)``.
@@ -374,9 +372,9 @@ def _check_classification_inputs(
     preds: jax.Array,
     target: jax.Array,
     threshold: float,
-    num_classes: Optional[int],
-    multiclass: Optional[bool],
-    top_k: Optional[int],
+    num_classes: int | None,
+    multiclass: bool | None,
+    top_k: int | None,
     mode: DataType,
 ) -> DataType:
     """Performs error checking on inputs for classification.
@@ -414,19 +412,19 @@ def _check_classification_inputs(
     :param num_classes: Number of classes. If not explicitly set, the number of classes will be
         inferred either from the shape of inputs, or the maximum label in the ``target`` and
         ``preds`` array, where applicable.
-    :type num_classes: Optional[int]
+    :type num_classes: int | None
     :param top_k: Number of highest probability entries for each sample to convert to 1s - relevant
         only for inputs with probability predictions. The default value (``None``) will be
         interpreted as 1 for these inputs. If this parameter is set for multi-label inputs,
         it will take precedence over threshold.
 
         Should be left unset (``None``) for inputs with label predictions.
-    :type top_k: Optional[int]
+    :type top_k: int | None
     :param multiclass: Used only in certain special cases, where you want to treat inputs as a
         different type than what they appear to be. See the parameter's
     :ref:`documentation section <pages/overview:using the multiclass parameter>`
         for a more detailed explanation and examples.
-    :type multiclass: Optional[bool]
+    :type multiclass: bool | None
     :return: The case the inputs fall in, one of 'binary', 'multi-class', 'multi-label' or
         'multi-dim multi-class'.
     :rtype: case
@@ -475,7 +473,7 @@ def _basic_input_validation(
     preds: jax.Array,
     target: jax.Array,
     _threshold: float,
-    multiclass: Optional[bool],
+    multiclass: bool | None,
 ) -> None:
     """Perform basic validation of inputs that does not require deducing any information of the type
     of inputs."""
@@ -551,7 +549,7 @@ def _check_shape_and_type_consistency(preds: jax.Array, target: jax.Array, mode:
 
 
 def _check_num_classes_binary(
-    num_classes: int, multiclass: Optional[bool], implied_classes: Optional[int]
+    num_classes: int, multiclass: bool | None, implied_classes: int | None
 ) -> None:
     """This checks that the consistency of `num_classes` with the data and `multiclass` param for
     binary data."""
@@ -612,8 +610,8 @@ def _check_num_classes_mc(
     preds: jax.Array,
     target: jax.Array,
     num_classes: int,
-    multiclass: Optional[bool],
-    implied_classes: Optional[int],
+    multiclass: bool | None,
+    implied_classes: int | None,
 ) -> None:
     """This checks that the consistency of `num_classes` with the data and `multiclass` param for
     (multidimensional) multi-class data."""
@@ -641,9 +639,7 @@ def _check_num_classes_mc(
             raise ValueError("The size of C dimension of `preds` does not match `num_classes`.")
 
 
-def _check_num_classes_ml(
-    num_classes: int, multiclass: Optional[bool], implied_classes: int
-) -> None:
+def _check_num_classes_ml(num_classes: int, multiclass: bool | None, implied_classes: int) -> None:
     """This checks that the consistency of `num_classes` with the data and `multiclass` param for
     multi-label data."""
 
@@ -663,7 +659,7 @@ def _check_top_k(
     top_k: int,
     case: DataType,
     implied_classes: int,
-    multiclass: Optional[bool],
+    multiclass: bool | None,
     preds_float: bool,
 ) -> None:
     """Check top k."""
@@ -691,8 +687,8 @@ def accuracy_compute(
     false_pos: jax.Array,
     true_neg: jax.Array,
     false_neg: jax.Array,
-    average: Optional[AverageMethod],
-    mdmc_average: Optional[MDMCAverageMethod],
+    average: AverageMethod | None,
+    mdmc_average: MDMCAverageMethod | None,
     mode: DataType,
 ) -> jax.Array:
     """Computes accuracy from stat scores: true positives, false positives, true negatives, false
@@ -707,10 +703,10 @@ def accuracy_compute(
     :param false_neg: False negatives.
     :type false_neg: jax.Array
     :param average: Defines the reduction that is applied.
-    :type average: Optional[AverageMethod]
+    :type average: AverageMethod | None
     :param mdmc_average: Defines how averaging is done for multidimensional multi-class inputs
         (on top of the``average`` parameter).
-    :type mdmc_average: Optional[MDMCAverageMethod]
+    :type mdmc_average: MDMCAverageMethod | None
     :param mode: Mode of the input tensors.
     :type mode: DataType
 
@@ -788,9 +784,9 @@ def accuracy_compute(
 def _reduce_stat_scores(
     numerator: jax.Array,
     denominator: jax.Array,
-    weights: Optional[jax.Array],
-    average: Optional[AverageMethod],
-    mdmc_average: Optional[MDMCAverageMethod],
+    weights: jax.Array | None,
+    average: AverageMethod | None,
+    mdmc_average: MDMCAverageMethod | None,
     zero_division: int = 0,
 ) -> jax.Array:
     """Reduces scores of type ``numerator/denominator`` or ``weights * (numerator/denominator)``, if
@@ -805,12 +801,12 @@ def _reduce_stat_scores(
         used for those elements.
     :type denominator: jax.Array
     :param weights: A tensor of weights to be used if ``average='weighted'``.
-    :type weights: Optional[jax.Array]
+    :type weights: jax.Array | None
     :param average: The method to average the scores.
-    :type average: Optional[AverageMethod]
+    :type average: AverageMethod | None
     :param mdmc_average: The method to average the scores if inputs were multidimensional
         multi-class (MDMC).
-    :type mdmc_average: Optional[MDMCAverageMethod]
+    :type mdmc_average: MDMCAverageMethod | None
     :param zero_division: The value to use for the score if denominator equals zero, defaults to 0.
     :type zero_division: int, optional
     """

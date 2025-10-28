@@ -103,7 +103,7 @@ class ResultCollection(dict[str, ResultEntry]):
         logger: bool = False,
         on_step: bool = False,
         on_epoch: bool = True,
-        batch_size: Optional[int] = None,
+        batch_size: int | None = None,
     ):
         """Log function."""
         key = f"{fx}.{name}"

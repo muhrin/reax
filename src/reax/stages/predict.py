@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 import weakref
 
 import beartype
@@ -22,8 +22,8 @@ class Predict(stages.EpochStage):
         datamanager: "reax.data.DataSourceManager",
         engine: "reax.Engine",
         *,
-        fast_dev_run: Union[bool, int] = False,
-        limit_batches: Optional[int] = None,
+        fast_dev_run: bool | int = False,
+        limit_batches: int | None = None,
         keep_predictions=True,
     ):
         """Init function."""
@@ -36,10 +36,10 @@ class Predict(stages.EpochStage):
             limit_batches=limit_batches,
         )
         self._keep_predictions = keep_predictions
-        self._all_outputs: Optional[Union[list[Any], list[list[Any]]]] = []
+        self._all_outputs: list[Any] | list[list[Any]] | None = []
 
     @property
-    def predictions(self) -> Optional[Union[list[Any], list[list[Any]]]]:
+    def predictions(self) -> list[Any] | list[list[Any]] | None:
         return self._all_outputs
 
     @override

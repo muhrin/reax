@@ -24,7 +24,7 @@ __all__ = "save_hparams_to_yaml", "load_hparams_from_yaml"
 
 
 def save_hparams_to_yaml(
-    config_yaml: typing.Path, hparams: Union[dict, argparse.Namespace], use_omegaconf: bool = True
+    config_yaml: typing.Path, hparams: dict | argparse.Namespace, use_omegaconf: bool = True
 ) -> None:
     """Save the hparams to a yaml file.
 

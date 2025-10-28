@@ -43,7 +43,7 @@ from collections.abc import Mapping
 import csv
 import logging
 import os
-from typing import Any, Optional, Union
+from typing import Any
 
 import fsspec
 import jax
@@ -86,8 +86,8 @@ class CsvLogger(logger.Logger):
     def __init__(
         self,
         save_dir: typing.Path,
-        name: Optional[str] = "reax_logs",
-        version: Optional[Union[int, str]] = None,
+        name: str | None = "reax_logs",
+        version: int | str | None = None,
         prefix: str = "",
         flush_logs_every_n_steps: int = 100,
     ):
@@ -98,7 +98,7 @@ class CsvLogger(logger.Logger):
         self._version = version
         self._prefix = prefix
         self._fs: fsspec.AbstractFileSystem = fsspec.url_to_fs(save_dir)[0]
-        self._experiment: Optional[ExperimentWriter] = None
+        self._experiment: ExperimentWriter | None = None
         self._flush_logs_every_n_steps = flush_logs_every_n_steps
 
     @property
@@ -114,7 +114,7 @@ class CsvLogger(logger.Logger):
 
     @property
     @override
-    def version(self) -> Union[int, str]:
+    def version(self) -> int | str:
         """Gets the version of the experiment.
 
         Returns:
@@ -175,14 +175,14 @@ class CsvLogger(logger.Logger):
 
     @override
     @rank_zero.rank_zero_only
-    def log_hyperparams(self, params: Union[dict[str, Any], Namespace], *_, **__) -> None:
+    def log_hyperparams(self, params: dict[str, Any] | Namespace, *_, **__) -> None:
         params = _utils.convert_params(params)
         self.experiment.log_hparams(params)
 
     @override
     @rank_zero.rank_zero_only
     def log_metrics(
-        self, metrics: Mapping[str, jax.typing.ArrayLike], step: Optional[int] = None
+        self, metrics: Mapping[str, jax.typing.ArrayLike], step: int | None = None
     ) -> None:
         metrics = _utils.add_prefix(metrics, self._prefix, self.LOGGER_JOIN_CHAR)
         if step is None:
@@ -256,10 +256,10 @@ class ExperimentWriter:
         self.metrics_keys: list[str] = []
         self.hparams: dict[str, Any] = {}
 
-    def log_metrics(self, metrics_dict: dict[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(self, metrics_dict: dict[str, float], step: int | None = None) -> None:
         """Record metrics."""
 
-        def _handle_value(value: Union[jax.Array, Any]) -> Any:
+        def _handle_value(value: jax.Array | Any) -> Any:
             if isinstance(value, jax.Array):
                 return value.item()
             return value

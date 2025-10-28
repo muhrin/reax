@@ -36,7 +36,7 @@ TrainOutput = Union[LossAndGrad, LossAndGradDict]
 class Module(
     Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, _datasources.DataSource[BatchT]
 ):
-    example_input_array: Optional[BatchT]
+    example_input_array: BatchT | None
 
     def __init__(self):
         """Init function."""
@@ -84,7 +84,7 @@ class Module(
         """Get the current fitting epoch."""
         return self._trainer.current_epoch
 
-    def parameters(self) -> Optional[jt.PyTree]:
+    def parameters(self) -> jt.PyTree | None:
         """Parameters function."""
         return self._parameters
 
@@ -119,7 +119,7 @@ class Module(
         should do nothing.
         """
 
-    def training_step(self, batch: BatchT, batch_idx: int, /) -> Optional[TrainOutput]:
+    def training_step(self, batch: BatchT, batch_idx: int, /) -> TrainOutput | None:
         """Train step."""
 
     def validation_step(self, batch: BatchT, batch_idx: int, /):
@@ -157,7 +157,7 @@ class Module(
     @jt.jaxtyped(typechecker=beartype.beartype)
     def configure_optimizers(
         self,
-    ) -> Optional[Union[OptimizerData, Sequence[OptimizerData]]]:
+    ) -> OptimizerData | Sequence[OptimizerData] | None:
         """Create the optimizer(s) to use during training."""
         return None
 
@@ -167,8 +167,8 @@ class Module(
         value: MetricType,
         *,
         prog_bar: bool = False,
-        batch_size: Optional[int] = None,
-        logger: Optional[bool] = None,
+        batch_size: int | None = None,
+        logger: bool | None = None,
         on_step=True,
         on_epoch=True,
     ) -> None:
@@ -212,10 +212,10 @@ class Module(
         self,
         dictionary: "Union[Mapping[str, MetricType], reax.metrics.MetricCollection]",
         prog_bar: bool = False,
-        logger: Optional[bool] = None,
-        on_step: Optional[bool] = None,
-        on_epoch: Optional[bool] = None,
-        batch_size: Optional[int] = None,
+        logger: bool | None = None,
+        on_step: bool | None = None,
+        on_epoch: bool | None = None,
+        batch_size: int | None = None,
     ) -> None:
         """Log a dictionary of values at once.
         :param dictionary: Key value pairs.

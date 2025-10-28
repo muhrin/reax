@@ -31,7 +31,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional
 
 from lightning_utilities.core import rank_zero
 from typing_extensions import override
@@ -74,7 +74,7 @@ class ProgressBar(hooks.TrainerListener):
 
     def __init__(self) -> None:
         self._trainer: "Optional[reax.Trainer]" = None
-        self._current_eval_dataloader_idx: Optional[int] = None
+        self._current_eval_dataloader_idx: int | None = None
 
     @property
     def sanity_check_description(self) -> str:
@@ -123,7 +123,7 @@ class ProgressBar(hooks.TrainerListener):
 
     def get_metrics(
         self, trainer: "reax.Trainer", *_
-    ) -> dict[str, Union[int, str, float, dict[str, float]]]:
+    ) -> dict[str, int | str | float | dict[str, float]]:
         r"""Combines progress bar metrics collected from the trainer with standard metrics from
         get_standard_metrics. Implement this to override the items displayed in the progress bar.
 
@@ -155,7 +155,7 @@ class ProgressBar(hooks.TrainerListener):
         return {**standard_metrics, **pbar_metrics}
 
 
-def get_standard_metrics(trainer: "reax.Trainer") -> dict[str, Union[int, str]]:
+def get_standard_metrics(trainer: "reax.Trainer") -> dict[str, int | str]:
     r"""Returns the standard metrics displayed in the progress bar. Currently, it only includes the
     version of the experiment when using a logger.
 
@@ -167,7 +167,7 @@ def get_standard_metrics(trainer: "reax.Trainer") -> dict[str, Union[int, str]]:
         Dictionary with the standard metrics to be displayed in the progress bar.
 
     """
-    items_dict: dict[str, Union[int, str]] = {}
+    items_dict: dict[str, int | str] = {}
     if trainer.loggers:
 
         if (version := _version(trainer.loggers)) not in ("", None):
@@ -179,7 +179,7 @@ def get_standard_metrics(trainer: "reax.Trainer") -> dict[str, Union[int, str]]:
     return items_dict
 
 
-def _version(loggers: list[Any], separator: str = "_") -> Union[int, str]:
+def _version(loggers: list[Any], separator: str = "_") -> int | str:
     if len(loggers) == 1:
         return loggers[0].version
     # Concatenate versions together, removing duplicates and preserving order

@@ -1,13 +1,12 @@
 import os
 import random
-from typing import Optional
 
 import numpy
 
 __all__ = ("seed_everything",)
 
 
-def seed_everything(seed: Optional[int], workers: bool = False):
+def seed_everything(seed: int | None, workers: bool = False):
     """Seed everything."""
     numpy.random.seed(seed)
     random.seed(seed)

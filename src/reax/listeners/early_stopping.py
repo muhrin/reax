@@ -39,7 +39,7 @@ Monitor a metric and stop training when it stops improving.
 """
 from collections.abc import Callable
 import logging
-from typing import TYPE_CHECKING, Final, Literal, Optional
+from typing import TYPE_CHECKING, Final, Literal
 
 import beartype
 import jax.numpy as jnp
@@ -130,8 +130,8 @@ class EarlyStopping(hooks.TrainerListener):
         mode: Literal["min", "max"] = "min",
         strict: bool = True,
         check_finite: bool = True,
-        stopping_threshold: Optional[float] = None,
-        divergence_threshold: Optional[float] = None,
+        stopping_threshold: float | None = None,
+        divergence_threshold: float | None = None,
         check_on_train_epoch_end: bool = None,
         log_rank_zero_only: bool = False,
     ):
@@ -238,9 +238,7 @@ class EarlyStopping(hooks.TrainerListener):
 
         return True
 
-    def _evaluate_stopping_criteria(
-        self, current: jax.typing.ArrayLike
-    ) -> tuple[bool, Optional[str]]:
+    def _evaluate_stopping_criteria(self, current: jax.typing.ArrayLike) -> tuple[bool, str | None]:
         """Evaluate stopping criteria."""
         should_stop = False
         reason = None

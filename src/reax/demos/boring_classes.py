@@ -1,6 +1,6 @@
 import collections.abc
 from collections.abc import Iterable, Iterator
-from typing import Any, Optional
+from typing import Any
 
 from flax import linen
 import jax
@@ -52,7 +52,7 @@ class BoringModel(modules.Module):
         return self.forward(*args, **kwargs)
 
     @staticmethod
-    def loss(preds: jax.Array, labels: Optional[jax.Array] = None) -> jax.Array:
+    def loss(preds: jax.Array, labels: jax.Array | None = None) -> jax.Array:
         """Loss function."""
         if labels is None:
             labels = jnp.ones_like(preds)

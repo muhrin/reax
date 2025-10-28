@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable, Mapping
 import dataclasses
 import logging
-from typing import Any, Optional, TypeVar, Union, cast
+from typing import Any, TypeVar, cast
 
 import jax
 import numpy as np
@@ -26,8 +26,8 @@ class BatchSizer:
 
     def register(
         self,
-        entry_type: Union[T, tuple[type, ...]],
-        extractor: Callable[[Union[T, tuple[type, ...]]], Iterable[int]],
+        entry_type: T | tuple[type, ...],
+        extractor: Callable[[T | tuple[type, ...]], Iterable[int]],
     ):
         """Register function."""
         self._registry.register(entry_type, extractor)
@@ -61,7 +61,7 @@ class BatchSizer:
 _registry = None  # pylint: disable=invalid-name
 
 
-def _array_batch_size(batch: Union[jax.Array, np.ndarray]):
+def _array_batch_size(batch: jax.Array | np.ndarray):
     """Array batch size."""
     if batch.ndim == 0:
         yield 1
@@ -125,7 +125,7 @@ def extract_batch_size(batch) -> int:
     return batch_size
 
 
-def sized_len(dataloader) -> Optional[int]:
+def sized_len(dataloader) -> int | None:
     """Sized len."""
     try:
         return len(dataloader)

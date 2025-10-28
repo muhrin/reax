@@ -1,13 +1,11 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     Generic,
     Optional,
     TypedDict,
     TypeVar,
-    Union,
     cast,
 )
 
@@ -94,8 +92,8 @@ class Stopper:
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def batches_limit(
-    batch_limit: Optional[Union[int, float]], dataloader: "reax.DataLoader"
-) -> Optional[Union[int, float]]:
+    batch_limit: int | float | None, dataloader: "reax.DataLoader"
+) -> int | float | None:
     """Return a maximum number of batches given a dataloader and an optional batches limit.
 
     If the dataloader has fewer entries than the batch limit, then this will be used, otherwise
@@ -104,7 +102,7 @@ def batches_limit(
     .. note:: Will return `None` if there is no limit.
 
     :param batch_limit: The batches limit.
-    :type batch_limit: Union[int, float]
+    :type batch_limit: int | float
     :param dataloader: The dataloader.
     :type dataloader: "reax.DataLoader"
     :return: The maximum number of batches.
@@ -141,7 +139,7 @@ class DataSourceManager(Generic[_T_co]):
         def __init__(self, manager: "DataSourceManager[_T_co]", method_name: str):
             self._manager = manager
             self._method_name = method_name
-            self._iterable: Optional[Iterable[_U]] = None
+            self._iterable: Iterable[_U] | None = None
 
         def __iter__(self):
             return iter(self.dataloader)
@@ -204,7 +202,7 @@ class DataSourceManager(Generic[_T_co]):
 def get_datasource(
     datamodule: "Optional[reax.DataModule[_T_co]]" = None,
     module: Optional["reax.Module"] = None,
-) -> Optional[DataSourceManager[_T_co]]:
+) -> DataSourceManager[_T_co] | None:
     if datamodule is not None:
         return DataSourceManager(datamodule)
 

@@ -1,5 +1,5 @@
 import abc
-from typing import Optional, TypeVar
+from typing import TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -24,7 +24,7 @@ class Aggregation(Metric[jax.Array], abc.ABC):
     def create(  # pylint: disable=arguments-differ
         self,
         values: jax.typing.ArrayLike,
-        mask: Optional[jax.typing.ArrayLike] = None,
+        mask: jax.typing.ArrayLike | None = None,
     ) -> Self:
         """Create the metric from data."""
 
@@ -32,7 +32,7 @@ class Aggregation(Metric[jax.Array], abc.ABC):
     def update(  # pylint: disable=arguments-differ
         self,
         values: jax.typing.ArrayLike,
-        mask: Optional[jax.typing.ArrayLike] = None,
+        mask: jax.typing.ArrayLike | None = None,
     ) -> Self:
         """Update this metric and return an updated instance."""
 
@@ -105,7 +105,7 @@ class Std(Aggregation):
     def create(
         self,
         values: jax.typing.ArrayLike,
-        mask: Optional[jax.typing.ArrayLike] = None,
+        mask: jax.typing.ArrayLike | None = None,
     ) -> "Std":
         """Create the metric from data."""
         if values.ndim == 0:
@@ -124,7 +124,7 @@ class Std(Aggregation):
         # pylint: disable=arguments-differ
         self,
         values: jax.Array,
-        mask: Optional[jax.Array] = None,
+        mask: jax.Array | None = None,
     ) -> "Std":
         """Update function."""
         if values.ndim == 0:

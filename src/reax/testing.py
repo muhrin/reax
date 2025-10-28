@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import functools
 import inspect
 import json
@@ -5,7 +6,7 @@ import logging
 import subprocess
 import tempfile
 import textwrap
-from typing import Callable, Final
+from typing import Final
 
 _LOGGER = logging.getLogger(__name__)
 

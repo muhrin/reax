@@ -4,7 +4,7 @@ import random
 import socket
 import subprocess  # nosec  # Suppresses Bandit's B404 subprocess warning
 import sys
-from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import jax
 from jax import distributed, tree
@@ -31,7 +31,7 @@ Children = list[subprocess.Popen]
 class JaxDdpStrategy(_parallel.ParallelStrategy):
     """This strategy uses multi-processing and the JAX library for communication."""
 
-    def __init__(self, platform: str = None, devices: Union[int, str] = "auto"):
+    def __init__(self, platform: str = None, devices: int | str = "auto"):
         _LOGGER.info("Starting JAX DDP strategy...")
         res = self._init(platform, devices)
         self._process_id = res[0]
@@ -75,7 +75,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
 
         raise OSError(f"Could not find an available port after {max_attempts} attempts.")
 
-    def _init(self, platform: Optional[str], devices: Union[int, str]) -> tuple[int, int, Children]:
+    def _init(self, platform: str | None, devices: int | str) -> tuple[int, int, Children]:
         if platform:
             jax.config.update("jax_platforms", platform)
 
@@ -120,7 +120,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
         return jax.process_index(), jax.process_count()
 
     def _launch_children(
-        self, platform: Optional[str], num: int, coordinator_address: str
+        self, platform: str | None, num: int, coordinator_address: str
     ) -> Children:
         children = []
         for process_id in range(1, num):
@@ -215,7 +215,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
         return getattr(jnp, reduce_op)(self.all_gather(obj))
 
     @override
-    def barrier(self, name: Optional[str] = None) -> None:
+    def barrier(self, name: str | None = None) -> None:
         """Synchronizes all processes which blocks processes until the whole group enters this
         function.
 

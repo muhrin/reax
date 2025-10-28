@@ -71,7 +71,7 @@ class TrainerDeprecatedMixin:
     @deprecated(
         "REAX uses the term 'listener' instead of 'callback, please use `.early_stopping_listener`"
     )
-    def early_stopping_callback(self) -> Optional[listeners_.EarlyStopping]:
+    def early_stopping_callback(self) -> listeners_.EarlyStopping | None:
         """The first :class:`~reax.listeners.early_stopping.EarlyStopping` listener in the
         Trainer.callbacks list, or ``None`` if it doesn't exist."""
         return self.early_stopping_listener

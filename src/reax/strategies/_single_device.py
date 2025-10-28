@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import jax
 import jaxtyping as jt
@@ -66,7 +66,7 @@ class SingleDevice(_strategies.Strategy):
         return obj
 
     @override
-    def barrier(self, name: Optional[str] = None) -> None:
+    def barrier(self, name: str | None = None) -> None:
         """Synchronizes all processes which blocks processes until the whole group enters this
         function.
 

@@ -21,7 +21,7 @@ _T_co = TypeVar("_T_co", covariant=True)
 ArrayOrArrayTuple = Union[jt.ArrayLike, tuple[jt.ArrayLike, ...]]
 
 
-def _single_or_value(value: tuple[T, ...], to_test=None) -> Union[T, tuple[T, ...]]:
+def _single_or_value(value: tuple[T, ...], to_test=None) -> T | tuple[T, ...]:
     """Single or value."""
     if to_test is None:
         to_test = value
@@ -37,7 +37,7 @@ class FetcherDataLoader(_types.DataLoader[_T_co, _U]):
     def __init__(
         self,
         dataset: "reax.data.Dataset[_T_co]",
-        sampler: Union[_types.Sampler, Iterable],
+        sampler: _types.Sampler | Iterable,
         fetcher: "fetchers._BaseFetcher[_T_co, _U]",
     ):
         self._dataset = dataset
@@ -76,7 +76,7 @@ class ReaxDataLoader(FetcherDataLoader[_T_co, _U]):
         batch_size: int = 1,
         shuffle: bool = False,
         sampler=None,
-        collate_fn: Optional[_types.CollateFn] = None,
+        collate_fn: _types.CollateFn | None = None,
     ):
         sampler = samplers.create_sampler(
             dataset, batch_size=batch_size, shuffle=shuffle, sampler=sampler

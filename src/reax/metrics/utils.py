@@ -1,4 +1,4 @@
-from typing import ClassVar, Optional, Protocol, TypeVar, Union
+from typing import ClassVar, Protocol, TypeVar
 
 import beartype
 import clu.internal.utils
@@ -46,14 +46,13 @@ def _prepare_mask(mask: typing.ArrayMask, array: jt.Float[jt.Array, "..."]) -> t
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def prepare_mask(
-    values: Union[jax.Array, np.ndarray],
-    mask: Optional[typing.ArrayMask] = None,
+    values: jax.Array | np.ndarray,
+    mask: typing.ArrayMask | None = None,
     *,
     return_count: bool = False,
-) -> Union[
-    Optional[typing.ArrayMask],
-    tuple[Optional[typing.ArrayMask], Union[int, jt.Int[jax.typing.ArrayLike, ""]]],
-]:
+) -> (
+    typing.ArrayMask | None | tuple[typing.ArrayMask | None, int | jt.Int[jax.typing.ArrayLike, ""]]
+):
     """
     Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure the
     mask is of the right shape to be compatible with such an operation.  The other alternative is
@@ -121,7 +120,7 @@ class WithAccumulator(equinox.Module):
     def create(
         cls,
         values: jax.typing.ArrayLike,
-        mask: Optional[jax.typing.ArrayLike] = None,
+        mask: jax.typing.ArrayLike | None = None,
     ) -> Self:
         """Create function."""
         mask = prepare_mask(values, mask)
@@ -140,7 +139,7 @@ class WithAccumulator(equinox.Module):
     def update(
         self,
         values: jax.typing.ArrayLike,
-        mask: Optional[jax.typing.ArrayLike] = None,
+        mask: jax.typing.ArrayLike | None = None,
     ) -> Self:
         """Update function."""
         cls = type(self)
@@ -169,7 +168,7 @@ class WithAccumulatorAndCount(WithAccumulator):
     def create(
         cls,
         values: jt.ArrayLike,
-        mask: Optional[typing.ArrayMask] = None,
+        mask: typing.ArrayMask | None = None,
     ) -> Self:
         """Create function."""
         values = jnp.atleast_1d(values)
@@ -192,7 +191,7 @@ class WithAccumulatorAndCount(WithAccumulator):
     def update(
         self,
         values: jax.typing.ArrayLike,
-        mask: Optional[jax.typing.ArrayLike] = None,
+        mask: jax.typing.ArrayLike | None = None,
     ) -> Self:
         """Update function."""
         cls = type(self)

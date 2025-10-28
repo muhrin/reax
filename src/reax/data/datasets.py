@@ -2,7 +2,7 @@ import bisect
 from collections.abc import Iterable, Sequence
 import itertools
 import math
-from typing import TYPE_CHECKING, TypeVar, Union, cast
+from typing import TYPE_CHECKING, TypeVar, cast
 import warnings
 
 import beartype
@@ -85,7 +85,7 @@ class ArrayDataset(Sequence[tuple[jt.Array, ...]]):
     arrays: tuple[jt.Array, ...]
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def __init__(self, *arrays: Union[jax.Array, np.ndarray]) -> None:
+    def __init__(self, *arrays: jax.Array | np.ndarray) -> None:
         if not all(arrays[0].shape[0] == array.shape[0] for array in arrays):
             raise ValueError("Size mismatch between tensors")
         self.arrays = arrays
@@ -114,7 +114,7 @@ class Subset(Sequence[_T_co]):
         self.dataset = dataset
         self.indices = indices
 
-    def __getitem__(self, idx: Union[int, list[int]]) -> Union[_T_co, list[_T_co]]:
+    def __getitem__(self, idx: int | list[int]) -> _T_co | list[_T_co]:
         if isinstance(idx, list):
             return self.dataset[[self.indices[i] for i in idx]]
 
@@ -133,7 +133,7 @@ class Subset(Sequence[_T_co]):
 def random_split(
     rngs: nnx.Rngs,
     dataset: Sequence[_T],
-    lengths: Sequence[Union[int, float]],
+    lengths: Sequence[int | float],
 ) -> list[Subset[_T]]:
     r"""
     Randomly split a dataset into non-overlapping new datasets of given lengths.

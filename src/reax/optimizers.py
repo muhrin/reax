@@ -1,5 +1,5 @@
 import functools
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any
 
 import equinox
 import jax
@@ -16,9 +16,9 @@ __all__ = ("Optimizer",)
 class Optimizer(equinox.Module):
     optimizer: optax.GradientTransformation
     state: optax.OptState
-    update_count: Union[
-        int, jt.Int[jax.Array, ""]
-    ]  # Total number of times this optimizer was used to parameters
+    update_count: (
+        int | jt.Int[jax.Array, ""]
+    )  # Total number of times this optimizer was used to parameters
 
     @classmethod
     def from_params(cls, opt: optax.GradientTransformation, params: optax.Params) -> "Optimizer":
@@ -29,7 +29,7 @@ class Optimizer(equinox.Module):
         self,
         opt: optax.GradientTransformation,
         state: optax.OptState,
-        count: Union[int, jt.Int[jax.Array, ""]] = 0,
+        count: int | jt.Int[jax.Array, ""] = 0,
     ):
         """Init function."""
         self.optimizer = opt
@@ -68,7 +68,7 @@ class DistributedOptimizer(Optimizer):
         opt: optax.GradientTransformation,
         state: optax.OptState,
         engine: "reax.Engine",
-        count: Union[int, jt.Int[jax.Array, ""]] = 0,
+        count: int | jt.Int[jax.Array, ""] = 0,
     ):
         super().__init__(opt, state, count)
         self._engine = engine

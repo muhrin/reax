@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from flax import nnx
 from typing_extensions import override
@@ -30,10 +30,10 @@ class DataModule(_datasources.DataSource):
     @classmethod
     def from_datasets(
         cls,
-        train_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
-        val_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
-        test_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
-        predict_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
+        train_dataset: Dataset | Iterable[Dataset] | None = None,
+        val_dataset: Dataset | Iterable[Dataset] | None = None,
+        test_dataset: Dataset | Iterable[Dataset] | None = None,
+        predict_dataset: Dataset | Iterable[Dataset] | None = None,
         *,
         batch_size: int = 1,
     ) -> "DataModule":
@@ -46,10 +46,10 @@ class DataModule(_datasources.DataSource):
 class FromDatasets(DataModule):
     def __init__(
         self,
-        train_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
-        val_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
-        test_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
-        predict_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None,
+        train_dataset: Dataset | Iterable[Dataset] | None = None,
+        val_dataset: Dataset | Iterable[Dataset] | None = None,
+        test_dataset: Dataset | Iterable[Dataset] | None = None,
+        predict_dataset: Dataset | Iterable[Dataset] | None = None,
         *,
         batch_size: int = 1,
     ):

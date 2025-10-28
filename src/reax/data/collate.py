@@ -1,7 +1,7 @@
 from collections.abc import Callable, Mapping, MutableMapping, MutableSequence, Sequence
 import contextlib
 import copy
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 import jax
 import numpy as np
@@ -114,7 +114,7 @@ def collate_numpy_array_fn(batch: Sequence[np.ndarray]):
     return np.stack(batch)
 
 
-_default_collator: Optional[Collator] = None
+_default_collator: Collator | None = None
 
 
 def get_default_collator() -> Collator:

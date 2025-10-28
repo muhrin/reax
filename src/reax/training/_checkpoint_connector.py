@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from lightning_utilities.core import rank_zero
 
@@ -11,7 +11,7 @@ class _CheckpointConnector:
         """Init function."""
         self._trainer = trainer
 
-    def _get_checkpoint_path(self) -> Optional[str]:
+    def _get_checkpoint_path(self) -> str | None:
         """Get checkpoint path."""
         checkpointers = self._trainer.checkpoint_listeners
         if not checkpointers:

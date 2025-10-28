@@ -1,5 +1,3 @@
-from typing import Optional
-
 from . import _types, collate, fetchers, samplers
 
 __all__ = ("GenericDataLoader",)
@@ -11,7 +9,7 @@ class GenericDataLoader(_types.DataLoader):
         dataset: _types.Dataset,
         batch_size: int = 1,
         shuffle: bool = False,
-        collate_fn: Optional[_types.CollateFn] = None,
+        collate_fn: _types.CollateFn | None = None,
     ):
         """Init function."""
         self._batch_size = batch_size

@@ -1,7 +1,7 @@
 """Test loop."""
 
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 import weakref
 
 import beartype
@@ -28,8 +28,8 @@ class Test(stages.EpochStage):
         engine: "reax.Engine",
         *,
         rngs: nnx.Rngs = None,
-        fast_dev_run: Union[bool, int] = False,
-        limit_batches: Optional[Union[int, float]] = None,
+        fast_dev_run: bool | int = False,
+        limit_batches: int | float | None = None,
     ):
         """Init function."""
         super().__init__(
