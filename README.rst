@@ -72,7 +72,6 @@ Define the training workflow. Here's a toy example:
 .. code-block:: python
 
     # main.py
-    # ! pip install torchvision
     from functools import partial
     import jax, optax, reax, flax.linen as linen
     import torch.utils.data as data, torchvision as tv

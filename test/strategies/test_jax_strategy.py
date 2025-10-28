@@ -4,7 +4,6 @@ from reax import strategies, testing
 
 
 def jax_strategy():
-
     strategy = strategies.JaxDdpStrategy(platform="cpu", devices=1)
     assert strategy.process_count == 1
     assert strategy.process_index == 0

@@ -103,6 +103,10 @@ class ArrayLoader(_types.DataLoader[ArrayOrArrayTuple, ArrayOrArrayTuple]):
         shuffle=False,
         sampler: "Optional[reax.data.Sampler]" = None,
     ):
+        # Params
+        self._batch_size: int = batch_size
+        self._shuffle: bool = shuffle
+
         if isinstance(arrays, tuple):
             if not all(arrays[0].shape[0] == array.shape[0] for array in arrays):
                 raise ValueError("Size mismatch between tensors")
@@ -132,6 +136,14 @@ class ArrayLoader(_types.DataLoader[ArrayOrArrayTuple, ArrayOrArrayTuple]):
         return len(self._sampler)
 
     @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @property
+    def shuffle(self) -> bool:
+        return self._shuffle
+
+    @property
     def dataset(self) -> ArrayOrArrayTuple:
         return self._arrays
 
@@ -144,7 +156,9 @@ class ArrayLoader(_types.DataLoader[ArrayOrArrayTuple, ArrayOrArrayTuple]):
         return next(iter(self))
 
     def with_new_sampler(self, sampler: "reax.data.Sampler") -> "ArrayLoader":
-        return ArrayLoader(arrays=self.dataset, sampler=sampler)
+        return ArrayLoader(
+            arrays=self.dataset, batch_size=self._batch_size, shuffle=self._shuffle, sampler=sampler
+        )
 
 
 class CachingLoader(_types.DataLoader[_T_co, _U]):

@@ -12,7 +12,7 @@ CollateFn = Callable[[Sequence[_T_co]], _U]
 
 
 class _BaseFetcher(Generic[_T_co, _U]):
-    def __init__(self, dataset: _types, collate_fn: CollateFn):
+    def __init__(self, dataset: _types.Dataset[_T_co], collate_fn: CollateFn):
         """Init function."""
         self._dataset = dataset
         self._collate_fn = collate_fn

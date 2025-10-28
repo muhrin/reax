@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 import socket
@@ -17,7 +18,11 @@ from . import _parallel
 if TYPE_CHECKING:
     import reax
 
+
 __all__ = ("JaxDdpStrategy",)
+
+_LOGGER = logging.getLogger(__name__)
+
 
 _OutT = TypeVar("_OutT")
 Children = list[subprocess.Popen]
@@ -27,6 +32,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
     """This strategy uses multi-processing and the JAX library for communication."""
 
     def __init__(self, platform: str = None, devices: Union[int, str] = "auto"):
+        _LOGGER.info("Starting JAX DDP strategy...")
         res = self._init(platform, devices)
         self._process_id = res[0]
         self._num_processes: int = res[1]
@@ -180,7 +186,8 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
         is_str = isinstance(obj, str)
         if is_str:
             # Encode
-            obj = jnp.array(list(obj.encode("utf-8")), dtype=jnp.uint8, device=self._device)
+            with jax.default_device(self._device):
+                obj = jnp.array(list(obj.encode("utf-8")), dtype=jnp.uint8)
 
         res = multihost_utils.broadcast_one_to_all(obj, src == self.process_index)
         if is_str:
@@ -223,7 +230,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
             return metric.compute()
 
         gathered = multihost_utils.process_allgather(metric)
-        unbatched: list["reax.Metric[_OutT]"] = unbatch_pytree(gathered)
+        unbatched: list["reax.Metric[_OutT]"] = unbatch_pytree(gathered, metric)
 
         metric = unbatched[0]
         for entry in unbatched[1:]:
@@ -232,26 +239,46 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
         return metric.compute()
 
 
-def unbatch_pytree(batched_tree: jt.PyTree) -> list[jt.PyTree]:
+def unbatch_pytree(batched: jt.PyTree, original: jt.PyTree) -> list[jt.PyTree]:
     """
-    Splits a single batched Pytree (where all leaves have a leading batch
-    dimension) into a list of unbatched Pytrees.
+    Splits a single batched Pytree into a list of unbatched Pytrees,
+    using the 'original_tree' structure to ensure correct unbatched leaf shapes.
 
     Args:
-        batched_tree: A Pytree where every leaf array has shape (B, ...).
+        batched: A Pytree where every leaf array has shape (B, ...).
+        original: A Pytree with the *expected* leaf shapes after unbatching.
 
     Returns:
         A list of Pytrees, each corresponding to one element from the batch (B).
     """
     # 1. Separate the structure (aux_data) from the data (batched_leaves)
-    batched_leaves, tree_structure = tree.flatten(batched_tree)
+    batched_leaves, tree_structure = tree.flatten(batched)
 
     if not batched_leaves:
         # Handle empty or purely structural trees
-        return [batched_tree]
+        return [batched]
+
+    # Get the target unbatched leaf shapes from the original tree
+    original_leaves, original_structure = tree.flatten(original)
+
+    # Input validation: Ensure the batched and original tree structures match
+    if tree_structure != original_structure:
+        raise ValueError("Structure of batched_tree must match original_tree.")
+
+    # Extract target shapes
+    target_shapes = [
+        leaf.shape if isinstance(leaf, jnp.ndarray) else None for leaf in original_leaves
+    ]
 
     # 2. Determine the batch size (B) from the leading dimension of the first leaf
-    batch_size = batched_leaves[0].shape[0]
+    try:
+        batch_size = batched_leaves[0].shape[0]
+        if batch_size == 0:
+            return []
+
+    except IndexError:
+        # Handle case where the leaf is a scalar JAX array (shape ())
+        return [batched]
 
     # Input validation: Ensure all leaves have the same batch size
     for leaf in batched_leaves:
@@ -262,22 +289,35 @@ def unbatch_pytree(batched_tree: jt.PyTree) -> list[jt.PyTree]:
             )
 
     # 3. Transpose/Split the leaves list by the batch dimension (B)
-    # We use jnp.split to divide each leaf array into 'B' pieces along axis 0.
-
-    # We need to reshape the data from:
-    # [ (B, ...), (B, ...), ... ]  (1 list of B-sized leaves)
-    # TO:
-    # [ [leaf_1_k0, leaf_2_k0, ...],   (Leaves for batch element 0)
-    #   [leaf_1_k1, leaf_2_k1, ...],   (Leaves for batch element 1)
-    #   ... ] (B lists of 1-sized leaves)
-
-    # The inner function splits one array (leaf) into 'B' components.
+    # The inner function splits one array (leaf) into 'B' components (each of shape (1, ...)).
     split_leaves = [jnp.split(leaf, batch_size, axis=0) for leaf in batched_leaves]
 
     # 'zip' now groups the k-th elements from all split lists together
     unbatched_leaves_list = zip(*split_leaves)
 
     # 4. Reconstruct the Pytree for each set of unbatched leaves
-    unbatched_trees = [tree.unflatten(tree_structure, leaves) for leaves in unbatched_leaves_list]
+    unbatched_trees = []
+    for leaves_for_batch_k in unbatched_leaves_list:
+
+        reshaped_leaves = []
+        for leaf_idx, split_leaf in enumerate(leaves_for_batch_k):
+
+            # The split_leaf is guaranteed to have shape (1, D, W, H) or (1,)
+            target_shape = target_shapes[leaf_idx]
+
+            # Use jnp.reshape to force the leaf back to its original shape.
+            # This correctly handles the transformation:
+            # From (1, D, W, H) -> to (D, W, H)
+            # From (1,) -> to ()
+            # From (1, 1) -> to (1,)
+            # If target_shape is None then we have a scalar (not an array)
+            reshaped_leaf = (
+                jnp.reshape(split_leaf, target_shape) if target_shape is not None else split_leaf[0]
+            )
+            reshaped_leaves.append(reshaped_leaf)
+
+        # Recreate the Pytree structure
+        unbatched_tree = tree.unflatten(tree_structure, reshaped_leaves)
+        unbatched_trees.append(unbatched_tree)
 
     return unbatched_trees

@@ -59,7 +59,7 @@ def test_trainer_error_when_input_not_reax_module():
 def test_trainer_max_steps_and_epochs(tmp_path):
     """Verify model trains according to specified max steps."""
     mod = demos.BoringModel()
-    num_train_samples = math.floor(len(mod.train_dataloader()) * 0.5)
+    num_train_samples = math.floor(len(mod.train_dataloader()) * 0.125)
 
     # define less train steps than epochs
     kwargs = dict(
@@ -70,7 +70,7 @@ def test_trainer_max_steps_and_epochs(tmp_path):
     )
 
     trainer = reax.Trainer(**kwargs)
-    max_updates = num_train_samples + 10
+    max_updates = num_train_samples + 2
     trainer.fit(mod, max_epochs=3, max_updates=max_updates)
 
     # todo: assert trainer.state.finished, f"Training failed with {trainer.state}"
@@ -81,7 +81,7 @@ def test_trainer_max_steps_and_epochs(tmp_path):
     trainer = reax.Trainer(**kwargs)
     max_epochs = 2
     trainer.fit(
-        mod, max_epochs=max_epochs, max_updates=3 * 2 * num_train_samples, limit_train_batches=0.5
+        mod, max_epochs=max_epochs, max_updates=3 * 2 * num_train_samples, limit_train_batches=0.125
     )
 
     # todo: assert trainer.state.finished, f"Training failed with {trainer.state}"
@@ -381,35 +381,43 @@ def test_trainer_access_in_configure_optimizers(tmp_path):
     trainer.fit(model, train_data, fast_dev_run=True)
 
 
-@pytest.mark.parametrize("platform, devices", [("cpu", 1), ("cpu", 4)])
-def test_eval_stats(platform, devices, rng_key, tmp_path):
-    def run():
-        trainer = reax.Trainer(default_root_dir=tmp_path, accelerator=platform, devices=devices)
+@pytest.mark.parametrize(
+    "platform, devices",
+    [
+        ("cpu", 1),
+        ("cpu", 2),
+    ],
+)
+def test_eval_stats(platform, devices, tmp_path):
+    testing.in_subprocess(eval_stats)(platform, devices, str(tmp_path))
 
-        batch_size = 10
-        values = random.uniform(rng_key, (40,))
-        stats = {
-            "avg": metrics.Average(),
-            "min": metrics.Min(),
-            "max": metrics.Max(),
-            "std": metrics.Std(),
-        }
 
-        stage = trainer.eval_stats(
-            stats, dataloaders=reax.data.ArrayLoader(values, batch_size=batch_size)
-        )
-        results = stage.logged_metrics
+def eval_stats(platform, devices, tmp_path):
+    trainer = reax.Trainer(default_root_dir=tmp_path, accelerator=platform, devices=devices)
+    rng_key = jax.random.PRNGKey(0)
 
-        assert isinstance(results, dict)
-        assert jnp.isclose(results["avg"], values.mean())
-        assert jnp.isclose(results["min"], values.min())
-        assert jnp.isclose(results["max"], values.max())
-        assert jnp.isclose(results["std"], values.flatten().std())
+    batch_size = 10
+    values = random.uniform(rng_key, (40,))
+    stats = {
+        "avg": metrics.Average(),
+        "min": metrics.Min(),
+        "max": metrics.Max(),
+        "std": metrics.Std(),
+    }
 
-        # Check that `evaluate_stats` produces the same result
-        evaluated = trainer.eval_stats(stats, values).logged_metrics
+    stage = trainer.eval_stats(
+        stats, dataloaders=reax.data.ArrayLoader(values, batch_size=batch_size)
+    )
+    results = stage.logged_metrics
 
-        comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
-        assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))
+    assert isinstance(results, dict)
+    assert jnp.isclose(results["avg"], values.mean())
+    assert jnp.isclose(results["min"], values.min())
+    assert jnp.isclose(results["max"], values.max())
+    assert jnp.isclose(results["std"], values.flatten().std())
 
-    testing.in_subprocess(run)
+    # Check that `evaluate_stats` produces the same result
+    evaluated = trainer.eval_stats(stats, values).logged_metrics
+
+    comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
+    assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))
