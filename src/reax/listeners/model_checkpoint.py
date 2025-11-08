@@ -145,113 +145,120 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             # saves a file like: my/path/epoch=0-step=10.ckpt
             >>> checkpoint_listener = ModelCheckpoint(dirpath='my/path/')
 
-
             specified by :class:`~reax.Trainer`'s
 
+        Args:
+            dirpath (Optional[Union[str, pathlib.Path]], optional):
+                Directory to save the model file.
+            filename (Optional[str], optional): Checkpoint filename. Can
+                contain named formatting options to be autofilled.
 
-        :param dirpath: Directory to save the model file.
+                Example::
+
+                # save any arbitrary metrics like `val_loss`, etc. in name
+                # saves a file like: my/path/epoch=2-val_loss=0.02-other_metric=0.03.ckpt
+                >>> checkpoint_listener = ModelCheckpoint(
+                ...     dirpath='my/path',
+                ...     filename='{epoch}-{val_loss:.2f}-{other_metric:.2f}'
+                ... )
+
+                the number of finished epoch and optimizer steps respectively, defaults to None.
+            monitor (Optional[str], optional): Quantity to monitor,
+                defaults to None.
+            verbose: Verbosity mode, defaults to ``False``.
+            save_last (Optional[bool], optional): When ``True``, saves a
+                `last.ckpt` copy whenever a checkpoint file gets saved.
+                Can be set to ``'link'`` on a local filesystem to create
+                a symbolic link. This allows accessing the latest
+                checkpoint in a deterministic manner, defaults to None.
+            save_top_k (int, optional): If ``save_top_k == k``, the best
+                k models according to the quantity monitored will be
+                saved. If ``save_top_k == 0``, no models are saved. If
+                ``save_top_k == -1``, all models are saved. Please note
+                that the monitors are checked every ``every_n_epochs``
+                epochs. If ``save_top_k >= 2`` and the listener is
+                called multiple times inside an epoch, and the filename
+                remains unchanged, the name of the saved file will be
+                appended with a version count starting with ``v1`` to
+                avoid collisions unless ``enable_version_counter`` is
+                set to False. The version counter is unrelated to the
+                top-k ranking of the checkpoint, and we recommend
+                formatting the filename to include the monitored metric
+                to avoid collisions, defaults to 1.
+            save_weights_only: If ``True``, then only the model's
+                weights will be saved. Otherwise, the optimizer states,
+                lr-scheduler states, etc. are added in the checkpoint
+                too.
+            mode (Literal["min", "max"], optional): One of {min, max}.
+                If ``save_top_k != 0``, the decision to overwrite the
+                current save file is made based on either the
+                maximization or the minimization of the monitored
+                quantity. For ``'val_acc'``, this should be ``'max'``,
+                for ``'val_loss'`` this should be ``'min'``, etc.,
+                defaults to "min".
+            auto_insert_metric_name (bool, optional): When ``True``, the
+                checkpoints filenames will contain the metric name. For
+                example,
+                ``filename='checkpoint_{epoch:02d}-{acc:02.0f}`` with
+                epoch ``1`` and acc ``1.12`` will resolve to
+                ``checkpoint_epoch=01-acc=01.ckpt``. Is useful to set it
+                to ``False`` when metric names contain ``/`` as this
+                will result in extra folders. For example, ``filename='e
+                poch={epoch}-step={step}-val_acc={val/acc:.2f}',
+                auto_insert_metric_name=False``, defaults to True.
+            every_n_train_steps (Optional[int], optional): Number of
+                training steps between checkpoints. If
+                ``every_n_train_steps == None or every_n_train_steps ==
+                0``, we skip saving during training. To disable, set
+                ``every_n_train_steps = 0``. This value must be ``None``
+                or non-negative. This must be mutually exclusive with
+                ``train_time_interval`` and ``every_n_epochs``, defaults
+                to None.
+            train_time_interval: Checkpoints are monitored at the
+                specified time interval. For all practical purposes,
+                this cannot be smaller than the amount of time it takes
+                to process a single training batch. This is not
+                guaranteed to execute at the exact time specified, but
+                should be close. This must be mutually exclusive with
+                ``every_n_train_steps`` and ``every_n_epochs``.
+            every_n_epochs (Optional[int], optional): Number of epochs
+                between checkpoints. This value must be ``None`` or non-
+                negative. To disable saving top-k checkpoints, set
+                ``every_n_epochs = 0``. This argument does not impact
+                the saving of ``save_last=True`` checkpoints. If all of
+                ``every_n_epochs``, ``every_n_train_steps`` and
+                ``train_time_interval`` are ``None``, we save a
+                checkpoint at the end of every epoch (equivalent to
+                ``every_n_epochs = 1``). If ``every_n_epochs == None``
+                and either ``every_n_train_steps != None`` or
+                ``train_time_interval != None``, saving at the end of
+                each epoch is disabled (equivalent to ``every_n_epochs =
+                0``). This must be mutually exclusive with
+                ``every_n_train_steps`` and ``train_time_interval``.
+                Setting both ``ModelCheckpoint(..., every_n_epochs=V,
+                save_on_train_epoch_end=False)`` and
+                ``Trainer(max_epochs=N, check_val_every_n_epoch=M)``
+                will only save checkpoints at epochs 0 < E <= N where
+                both values for ``every_n_epochs`` and
+                ``check_val_every_n_epoch`` evenly divide E, defaults to
+                None.
+            save_on_train_epoch_end (Optional[bool], optional): Whether
+                to run checkpointing at the end of the training epoch.
+                If this is ``False``, then the check runs at the end of
+                the validation, defaults to None.
+            enable_version_counter (bool, optional): Whether to append a
+                version to the existing file name. If this is ``False``,
+                then the checkpoint files will be overwritten, defaults
+                to True.
         :paramref:`~reax.Trainer.default_root_dir` argument, and if the Trainer uses a logger, the
             path will also contain logger name and version, defaults to None.
-        :type dirpath: Optional[Union[str, pathlib.Path]], optional
-        :param filename: Checkpoint filename. Can contain named formatting options to be autofilled.
 
-            Example::
-
-            # save any arbitrary metrics like `val_loss`, etc. in name
-            # saves a file like: my/path/epoch=2-val_loss=0.02-other_metric=0.03.ckpt
-            >>> checkpoint_listener = ModelCheckpoint(
-            ...     dirpath='my/path',
-            ...     filename='{epoch}-{val_loss:.2f}-{other_metric:.2f}'
-            ... )
-
-
-            the number of finished epoch and optimizer steps respectively, defaults to None.
-        :type filename: Optional[str], optional
-        :param monitor: Quantity to monitor, defaults to None.
-        :type monitor: Optional[str], optional
-        :param verbose: verbosity mode. Default: ``False``.
-        :param verbose: Verbosity mode, defaults to ``False``.
-        :param save_last: When ``True``, saves a `last.ckpt` copy whenever a checkpoint file gets
-            saved. Can be set to ``'link'`` on a local filesystem to create a symbolic link. This
-            allows accessing the latest checkpoint in a deterministic manner, defaults to None.
-        :type save_last: Optional[bool], optional
-        :param save_top_k: If ``save_top_k == k``,
-            the best k models according to the quantity monitored will be saved.
-            If ``save_top_k == 0``, no models are saved.
-            If ``save_top_k == -1``, all models are saved.
-            Please note that the monitors are checked every ``every_n_epochs`` epochs.
-            If ``save_top_k >= 2`` and the listener is called multiple times inside an epoch, and
-            the filename remains unchanged, the name of the saved file will be appended with a
-            version count starting with ``v1`` to avoid collisions unless
-            ``enable_version_counter`` is set to False. The version counter is unrelated to the
-            top-k ranking of the checkpoint, and we recommend formatting the filename to include
-            the monitored metric to avoid collisions, defaults to 1.
-        :type save_top_k: int, optional
-        :param save_weights_only: if ``True``, then only the model's weights will be saved.
-            Otherwise, the optimizer states, lr-scheduler states, etc are added in the checkpoint
-            too.
-        :param mode: One of {min, max}.
-            If ``save_top_k != 0``, the decision to overwrite the current save file is made
-            based on either the maximization or the minimization of the monitored quantity.
-            For ``'val_acc'``, this should be ``'max'``, for ``'val_loss'`` this should be
-            ``'min'``, etc., defaults to "min".
-        :type mode: Literal["min", "max"], optional
-        :param auto_insert_metric_name: When ``True``, the checkpoints filenames will contain the
-            metric name. For example, ``filename='checkpoint_{epoch:02d}-{acc:02.0f}`` with epoch
-            ``1`` and acc ``1.12`` will resolve to ``checkpoint_epoch=01-acc=01.ckpt``.
-            Is useful to set it to ``False`` when metric names contain ``/`` as this will result in
-            extra folders. For example,
-            ``filename='epoch={epoch}-step={step}-val_acc={val/acc:.2f}',
-            auto_insert_metric_name=False``, defaults to True.
-        :type auto_insert_metric_name: bool, optional
-        :param save_weights_only: If ``True``, then only the model's weights will be saved.
-            Otherwise, the optimizer states, lr-scheduler states, etc. are added in the
-            checkpoint too.
-        :param every_n_train_steps: Number of training steps between checkpoints.
-            If ``every_n_train_steps == None or every_n_train_steps == 0``, we skip saving during
-            training.
-            To disable, set ``every_n_train_steps = 0``. This value must be ``None`` or
-            non-negative.
-            This must be mutually exclusive with ``train_time_interval`` and ``every_n_epochs``,
-            defaults to None.
-        :type every_n_train_steps: Optional[int], optional
-        :param train_time_interval: Checkpoints are monitored at the specified time interval.
-            For all practical purposes, this cannot be smaller than the amount
-            of time it takes to process a single training batch. This is not
-            guaranteed to execute at the exact time specified, but should be close.
-            This must be mutually exclusive with ``every_n_train_steps`` and ``every_n_epochs``.
-        :param every_n_epochs: Number of epochs between checkpoints.
-            This value must be ``None`` or non-negative.
-            To disable saving top-k checkpoints, set ``every_n_epochs = 0``.
-            This argument does not impact the saving of ``save_last=True`` checkpoints.
-            If all of ``every_n_epochs``, ``every_n_train_steps`` and
-            ``train_time_interval`` are ``None``, we save a checkpoint at the end of every epoch
-            (equivalent to ``every_n_epochs = 1``).
-            If ``every_n_epochs == None`` and either ``every_n_train_steps != None`` or
-            ``train_time_interval != None``,
-            saving at the end of each epoch is disabled
-            (equivalent to ``every_n_epochs = 0``).
-            This must be mutually exclusive with ``every_n_train_steps`` and
-            ``train_time_interval``.
-            Setting both ``ModelCheckpoint(..., every_n_epochs=V, save_on_train_epoch_end=False)``
-            and ``Trainer(max_epochs=N, check_val_every_n_epoch=M)``
-            will only save checkpoints at epochs 0 < E <= N where both values for
-            ``every_n_epochs`` and ``check_val_every_n_epoch`` evenly divide E, defaults to None.
-        :type every_n_epochs: Optional[int], optional
-        :param save_on_train_epoch_end: Whether to run checkpointing at the end of the training
-            epoch.
-            If this is ``False``, then the check runs at the end of the validation, defaults to
-            None.
-        :type save_on_train_epoch_end: Optional[bool], optional
-        :param enable_version_counter: Whether to append a version to the existing file name.
-            If this is ``False``, then the checkpoint files will be overwritten, defaults to True.
-        :type enable_version_counter: bool, optional
-        :raises MisconfigurationException:
-            If ``save_top_k`` is smaller than ``-1``,
-            if ``monitor`` is ``None`` and ``save_top_k`` is none of ``None``, ``-1``, and ``0``, or
-            if ``mode`` is none of ``"min"`` or ``"max"``.
-        :raises ValueError:
-            If ``trainer.save_checkpoint`` is ``None``.
+        Raises:
+            MisconfigurationException: If ``save_top_k`` is smaller than
+                ``-1``, if ``monitor`` is ``None`` and ``save_top_k`` is
+                none of ``None``, ``-1``, and ``0``, or if ``mode`` is
+                none of ``"min"`` or ``"max"``.
+            ValueError: If ``trainer.save_checkpoint`` is ``None``.
 
         Note:
             For extra customization, ModelCheckpoint includes the following attributes:

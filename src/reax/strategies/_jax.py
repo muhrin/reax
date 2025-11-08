@@ -58,9 +58,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
 
     @staticmethod
     def get_available_port(min_port=49152, max_port=65535, max_attempts=100) -> int:
-        """
-        Generates a random port and checks if it's available.  Retries if necessary.
-        """
+        """Generates a random port and checks if it's available.  Retries if necessary."""
         for _ in range(max_attempts):
             port = random.randint(min_port, max_port)  # nosec
             try:
@@ -179,9 +177,9 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
     def broadcast(self, obj: jt.PyTreeDef, src: int = 0) -> Any:
         """Broadcasts an object to all processes.
 
-        :param obj: The pytree to broadcast.
-        :param src: Source rank, defaults to 0.
-        :type src: int, optional
+        Args:
+            obj: The pytree to broadcast.
+            src (int, optional): Source rank, defaults to 0.
         """
         is_str = isinstance(obj, str)
         if is_str:
@@ -240,8 +238,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
 
 
 def unbatch_pytree(batched: jt.PyTree, original: jt.PyTree) -> list[jt.PyTree]:
-    """
-    Splits a single batched Pytree into a list of unbatched Pytrees,
+    """Splits a single batched Pytree into a list of unbatched Pytrees,
     using the 'original_tree' structure to ensure correct unbatched leaf shapes.
 
     Args:

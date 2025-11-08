@@ -64,9 +64,9 @@ class Strategy(abc.ABC):
     def broadcast(self, obj: jt.PyTreeDef, src: int = 0) -> BroadcastT:
         """Broadcasts an object to all processes.
 
-        :param obj: The pytree to broadcast.
-        :param src: Source rank, defaults to 0.
-        :type src: int, optional
+        Args:
+            obj: The pytree to broadcast.
+            src (int, optional): Source rank, defaults to 0.
         """
 
     @abc.abstractmethod
@@ -103,7 +103,8 @@ class Strategy(abc.ABC):
     @abc.abstractmethod
     def is_global_zero(self) -> bool:
         """Whether the current process is the rank zero process not only on the local node, but for
-        all nodes."""
+        all nodes.
+        """
 
     @property
     @abc.abstractmethod
@@ -124,4 +125,5 @@ class Strategy(abc.ABC):
     @abc.abstractmethod
     def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
         """Compute the value of a metric, unlike metric.compute(), in a parallel setting this method
-        will compute the value across all processes."""
+        will compute the value across all processes.
+        """

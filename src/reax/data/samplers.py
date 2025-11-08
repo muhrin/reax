@@ -131,8 +131,7 @@ class IterableSampler(_types.Sampler[list[None]]):
 
 
 class DistributedSampler(_types.Sampler[_IdxT]):
-    """
-    A sampler that distributes data across multiple processes, ensuring each process
+    """A sampler that distributes data across multiple processes, ensuring each process
     receives a unique and non-overlapping subset of the dataset.
 
     This sampler is designed for use with JAX's distributed training capabilities.
@@ -149,8 +148,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         seed: int = 0,
         drop_last: bool = False,
     ) -> None:
-        """
-        Initializes the DistributedSampler.
+        """Initializes the DistributedSampler.
 
         Args:
             dataset: The dataset to sample from.
@@ -186,8 +184,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
 
     @staticmethod
     def _init_num_samples(dataset: "reax.data.Dataset", drop_last: bool, num_replicas: int):
-        """
-        Calculates the number of samples each process should receive.
+        """Calculates the number of samples each process should receive.
 
         If the dataset length is evenly divisible by the number of replicas,
         no data is dropped. Otherwise, the dataset is split to the nearest
@@ -212,8 +209,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         return math.ceil(len(dataset) / num_replicas)
 
     def __iter__(self) -> Iterator[_IdxT]:
-        """
-        Returns an iterator over the sampled indices.
+        """Returns an iterator over the sampled indices.
 
         The indices are shuffled (if specified) and partitioned across processes.
         If `drop_last` is True, the last incomplete batch is removed.  Otherwise,
@@ -249,8 +245,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         return iter(indices)
 
     def __len__(self) -> int:
-        """
-        Returns the number of samples in the sampler.
+        """Returns the number of samples in the sampler.
 
         Returns:
             The number of samples.
@@ -262,8 +257,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         return self._total_size
 
     def set_epoch(self, epoch: int) -> None:
-        """
-        Sets the epoch for shuffling.
+        """Sets the epoch for shuffling.
 
         This allows for different shuffles in each epoch.
 

@@ -16,8 +16,7 @@ ERROR_END_MARKER: Final[str] = "---SUBPROCESS_ERROR_END---"
 
 
 class SubprocessFunctionError(Exception):
-    """
-    Custom exception raised in the parent process when a failure
+    """Custom exception raised in the parent process when a failure
     occurs in the target function executed by the subprocess.
     """
 
@@ -36,8 +35,7 @@ class SubprocessFunctionError(Exception):
 
 
 def run_function_in_subprocess(target_func: Callable, *func_args, **func_kwargs):
-    """
-    Writes the source code of the file containing `target_func` to a
+    """Writes the source code of the file containing `target_func` to a
     temporary file, appends an execution block that handles exceptions
     by serializing them, and executes it in a new Python subprocess.
 

@@ -30,8 +30,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-CSV logger
+"""CSV logger
 ----------
 
 CSV logger for basic experiment logging that does not require opening ports

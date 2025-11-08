@@ -13,8 +13,7 @@ __all__ = ("Average", "Std", "Min", "Max", "Unique", "NumUnique", "Sum")
 
 
 class Aggregation(Metric[jax.Array], abc.ABC):
-    """
-    Interface that defines an aggregation metric, i.e. one that take raw array-like data and an
+    """Interface that defines an aggregation metric, i.e. one that take raw array-like data and an
     optional mask.
     """
 
@@ -65,8 +64,8 @@ class Unique(utils.WithAccumulator, Aggregation):
 class NumUnique(utils.WithAccumulator, Aggregation):
     """Count the number of unique values.
 
-    .. warning::
-       this cannot be used with JAX jit because it relies on dynamically-sized arrays.....
+    Warning:
+        this cannot be used with JAX jit because it relies on dynamically-sized arrays.....
     """
 
     @staticmethod

@@ -5,7 +5,8 @@ import sys
 def probe_local_device_count(platform: str) -> int:
     """Use a subprocess to import JAX and ask it the number of local devices.  This is necessary
     if we want to avoid calling any jax functions in this process which would already set in stone
-    the device setup"""
+    the device setup
+    """
     if platform == "auto":
         platform = "None"
     else:

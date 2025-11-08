@@ -30,8 +30,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-MLflow Logger
+"""MLflow Logger
 -------------
 """
 
@@ -120,43 +119,49 @@ class MlflowLogger(logger.Logger):
     ):
         """Init function.
 
-        :param experiment_name: The name of the experiment, defaults to "reax_logs".
-        :type experiment_name: str, optional
-        :param run_name: Name of the new run. The `run_name` is internally stored as a
-            ``mlflow.runName`` tag. If the ``mlflow.runName`` tag has already been set in `tags`,
-            the value is overridden by the `run_name`, defaults to ``None``.
-        :type run_name: str | None, optional
-        :param tracking_uri: Address of local or remote tracking server.
-            If not provided
-            back to `file:<save_dir>`, defaults to os.getenv("MLFLOW_TRACKING_URI").
-        :type tracking_uri: str | None, optional
-        :param tags: A dictionary tags for the experiment, defaults to None.
-        :type tags: dict[str, Any] | None, optional
-        :param save_dir: A path to a local directory where the MLflow runs get saved.
+        Args:
+            experiment_name (str, optional): The name of the experiment,
+                defaults to "reax_logs".
+            run_name (str | None, optional): Name of the new run. The
+                `run_name` is internally stored as a ``mlflow.runName``
+                tag. If the ``mlflow.runName`` tag has already been set
+                in `tags`, the value is overridden by the `run_name`,
+                defaults to ``None``.
+            tracking_uri (str | None, optional): Address of local or
+                remote tracking server. If not provided back to
+                `file:<save_dir>`, defaults to
+                os.getenv("MLFLOW_TRACKING_URI").
+            tags (dict[str, Any] | None, optional): A dictionary tags
+                for the experiment, defaults to None.
+            save_dir (str | None, optional): A path to a local directory
+                where the MLflow runs get saved.
 
-            Has no effect if `tracking_uri` is provided, defaults to "./mlruns".
-        :type save_dir: str | None, optional
-        :param log_model: Log checkpoints created by
-            :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` as MLFlow artifacts.
+                Has no effect if `tracking_uri` is provided, defaults to "./mlruns".
+            log_model (Literal[True, False, "all"], optional): Log
+                checkpoints created by :class:`~reax.listeners.model_che
+                ckpoint.ModelCheckpoint` as MLFlow artifacts.
 
-            * if ``log_model == 'all'``, checkpoints are logged during training.
-            * if ``log_model == True``, checkpoints are logged at the end of training, except when
-                :paramref:`~reax.listeners.Checkpointer.save_top_k` ``== -1``
-                which also logs every checkpoint during training.
-            * if ``log_model == False`` (default), no checkpoint is logged, defaults to False.
-        :type log_model: Literal[True, False, "all"], optional
-        :param prefix: A string to put at the beginning of metric keys, defaults to "".
-        :type prefix: str, optional
-        :param artifact_location: The location to store run artifacts. If not provided, the server
-            picks an appropriate default, defaults to None.
-        :type artifact_location: str | None, optional
-        :param run_id: The run identifier of the experiment. If not provided, a new run is started,
-            defaults to None.
-        :type run_id: str | None, optional
-        :param synchronous: Hints mlflow whether to block the execution for every logging call until
-            complete where applicable. Requires mlflow >= 2.8.0, defaults to None.
-        :type synchronous: Optional[bool], optional
-        :raises ModuleNotFoundError: If required MLFlow package is not installed on the device.
+                * if ``log_model == 'all'``, checkpoints are logged during training.
+                * if ``log_model == True``, checkpoints are logged at the end of training, except
+                  when :paramref:`~reax.listeners.Checkpointer.save_top_k` ``== -1``
+                  which also logs every checkpoint during training.
+                * if ``log_model == False`` (default), no checkpoint is logged, defaults to False.
+            prefix (str, optional): A string to put at the beginning of
+                metric keys, defaults to "".
+            artifact_location (str | None, optional): The location to
+                store run artifacts. If not provided, the server picks
+                an appropriate default, defaults to None.
+            run_id (str | None, optional): The run identifier of the
+                experiment. If not provided, a new run is started,
+                defaults to None.
+            synchronous (Optional[bool], optional): Hints mlflow whether
+                to block the execution for every logging call until
+                complete where applicable. Requires mlflow >= 2.8.0,
+                defaults to None.
+
+        Raises:
+            ModuleNotFoundError: If required MLFlow package is not
+                installed on the device.
         """
         if not _MLFLOW_AVAILABLE:
             raise ModuleNotFoundError(str(_MLFLOW_AVAILABLE))
@@ -250,8 +255,8 @@ class MlflowLogger(logger.Logger):
     def run_id(self) -> str | None:
         """Create the experiment if it does not exist to get the run id.
 
-        :returns: The run id.
-        :rtype: str | None
+        Returns:
+            str | None: The run id.
         """
         _ = self.experiment
         return self._run_id

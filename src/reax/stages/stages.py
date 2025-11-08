@@ -1,5 +1,6 @@
 """Stages that perform the actions expected over the lifetime of a model e.g. training, testing,
-predicting etc."""
+predicting etc.
+"""
 
 import abc
 import logging
@@ -54,7 +55,8 @@ class StageState(enums.StrEnum):
 
 class Stage(abc.ABC):
     """Abstract class for loops.  This could be a loop over batches (i.e. an epoch) or a loop over
-    epochs, which itself contains a loop over batches.  Or something else."""
+    epochs, which itself contains a loop over batches.  Or something else.
+    """
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
@@ -572,7 +574,8 @@ class EpochStage(Stage, abc.ABC):
     @override
     def _on_stopping(self) -> None:
         """Look through the logged metrics and extract those where a user logged a results during
-        this step and used the `on_epoch=True` option."""
+        this step and used the `on_epoch=True` option.
+        """
         super()._on_stopping()
         self._on_epoch_end()
 

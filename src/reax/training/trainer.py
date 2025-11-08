@@ -209,7 +209,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     @property
     def default_root_dir(self) -> str:
         """Get the fallback directory used for loggers and other components when not explicitly
-        specified."""
+        specified.
+        """
         if _is_local_file_protocol(self._default_root_dir):
             return os.path.normpath(os.path.expanduser(self._default_root_dir))
 
@@ -224,39 +225,45 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     @property
     def early_stopping_listener(self) -> listeners_.EarlyStopping | None:
         """The first :class:`~reax.listeners.early_stopping.EarlyStopping` listener in the
-        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        Trainer.listeners list, or ``None`` if it doesn't exist.
+        """
         listeners = self.early_stopping_listeners
         return listeners[0] if len(listeners) > 0 else None
 
     @property
     def early_stopping_listeners(self) -> list[listeners_.EarlyStopping]:
         """A list of all instances of :class:`~reax.listeners.early_stopping.EarlyStopping` found in
-        the Trainer.listeners list."""
+        the Trainer.listeners list.
+        """
         return self._events.find(type=listeners_.EarlyStopping)
 
     @property
     def checkpoint_listeners(self) -> list["reax.listeners.Checkpointer"]:
         """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` listener in the
-        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        Trainer.listeners list, or ``None`` if it doesn't exist.
+        """
         return self._events.find(type=listeners_.Checkpointer)
 
     @property
     def checkpoint_listener(self) -> Optional["reax.listeners.Checkpointer"]:
         """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` listener in the
-        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        Trainer.listeners list, or ``None`` if it doesn't exist.
+        """
         listeners = self.checkpoint_listeners
         return listeners[0] if len(listeners) > 0 else None
 
     @property
     def progress_bar_listeners(self) -> list["reax.listeners.ProgressBar"]:
         """The first :class:`~reax.listeners.ProgressBar` listener in the
-        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        Trainer.listeners list, or ``None`` if it doesn't exist.
+        """
         return self._events.find(type=listeners_.ProgressBar)
 
     @property
     def progress_bar_listener(self) -> Optional["reax.listeners.ProgressBar"]:
         """The first :class:`~reax.listeners.ProgressBar` listener in the
-        Trainer.listeners list, or ``None`` if it doesn't exist."""
+        Trainer.listeners list, or ``None`` if it doesn't exist.
+        """
         listeners = self.progress_bar_listeners
         return listeners[0] if len(listeners) > 0 else None
 
@@ -281,7 +288,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     def log_dir(self) -> str | None:
         """The directory for the current experiment. Use this to save images to, etc...
 
-        .. note:: You must call this on all processes. Failing to do so will cause your program to
+        Note:
+            You must call this on all processes. Failing to do so will cause your program to
             stall forever.
 
         .. code-block:: python
@@ -420,10 +428,11 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     ) -> "reax.stages.Fit":
         """Fit function.
 
-
-        :param ckpt_path: Path/URL of the checkpoint from which training is resumed. Could also be
-            one of two special keywords ``"last"`` and ``"hpc"``. If there is no checkpoint file at
-            the path, an exception is raised.
+        Args:
+            ckpt_path: Path/URL of the checkpoint from which training is
+                resumed. Could also be one of two special keywords
+                ``"last"`` and ``"hpc"``. If there is no checkpoint file
+                at the path, an exception is raised.
         """
         if max_updates is not None and max_updates < 0:
             raise ValueError("`max_updates` must be a non-negative integer")

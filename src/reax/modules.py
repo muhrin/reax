@@ -218,28 +218,32 @@ class Module(
         batch_size: int | None = None,
     ) -> None:
         """Log a dictionary of values at once.
-        :param dictionary: Key value pairs.
-            Keys must be identical across all processes if using DDP or any other distributed
-            strategy.
-            The values can be a ``float``, ``Array``, ``Metric``, or ``MetricCollection``.
-        :type dictionary: "Union[Mapping[str, MetricType], reax.metrics.MetricCollection]"
-        :param prog_bar: If ``True`` logs to the progress base, defaults to False.
-        :type prog_bar: bool, optional
-        :param logger: If ``True`` logs to the logger, defaults to None.
-        :type logger: Optional[bool], optional
-        :param on_step: If ``True`` logs at this step.
-            ``None`` auto-logs for training_step but not validation/test_step.
-            The default value is determined by the hook.
-            See :ref:`extensions/logging:Automatic Logging` for details, defaults to None.
-        :type on_step: Optional[bool], optional
-        :param on_epoch: If ``True`` logs epoch accumulated metrics.
-            ``None`` auto-logs for val/test step but not ``training_step``.
-            The default value is determined by the hook.
-            See :ref:`extensions/logging:Automatic Logging` for details, defaults to None.
-        :type on_epoch: Optional[bool], optional
-        :param batch_size: Current batch size. This will be directly inferred from the loaded batch,
-            but some data structures might need to explicitly provide it, defaults to None.
-        :type batch_size: Optional[int], optional
+
+        Args:
+            dictionary ("Union[Mapping[str, MetricType], reax.metrics.MetricCollection]"):
+                Key value pairs. Keys must be identical across all
+                processes if using DDP or any other distributed
+                strategy. The values can be a ``float``, ``Array``,
+                ``Metric``, or ``MetricCollection``.
+            prog_bar (bool, optional): If ``True`` logs to the progress
+                base, defaults to False.
+            logger (Optional[bool], optional): If ``True`` logs to the
+                logger, defaults to None.
+            on_step (Optional[bool], optional): If ``True`` logs at this
+                step. ``None`` auto-logs for training_step but not
+                validation/test_step. The default value is determined by
+                the hook. See :ref:`extensions/logging:Automatic
+                Logging` for details, defaults to None.
+            on_epoch (Optional[bool], optional): If ``True`` logs epoch
+                accumulated metrics. ``None`` auto-logs for val/test
+                step but not ``training_step``. The default value is
+                determined by the hook. See
+                :ref:`extensions/logging:Automatic Logging` for details,
+                defaults to None.
+            batch_size (Optional[int], optional): Current batch size.
+                This will be directly inferred from the loaded batch,
+                but some data structures might need to explicitly
+                provide it, defaults to None.
 
         Example::
 

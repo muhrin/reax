@@ -146,7 +146,8 @@ class OldStatefulCallback(reax.TrainerListener):
 @pytest.mark.skip(reason="not yet supported")
 def test_resume_listener_state_saved_by_type_stateful(tmp_path):
     """Test that a legacy checkpoint that didn't use a state key before can still be loaded, using
-    state_dict/load_state_dict."""
+    state_dict/load_state_dict.
+    """
     model = demos.BoringModel()
     listener = OldStatefulCallback(state=111)
     trainer = reax.Trainer(default_root_dir=tmp_path, listeners=[listener])

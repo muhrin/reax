@@ -27,11 +27,12 @@ class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
         """Create a new metric from this one where a function is called before passing it on to this
         metric.
 
-        :param cls:
-        :param function: The function to call.
-        :type function: Callable
-        :return: The new metric type.
-        :rtype: type["FromFun[OutT]"]
+        Args:
+            cls
+            function (Callable): The function to call.
+
+        Returns:
+            type["FromFun[OutT]"]: The new metric type.
         """
 
         class FromFunction(FromFun):

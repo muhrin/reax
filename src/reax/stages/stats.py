@@ -22,9 +22,7 @@ OutT = TypeVar("OutT")
 
 
 class EvaluateStats(stages.EpochStage):
-    """
-    A stage that can be used to evaluate statistics (in the form of metrics) on a dataset
-    """
+    """A stage that can be used to evaluate statistics (in the form of metrics) on a dataset"""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(

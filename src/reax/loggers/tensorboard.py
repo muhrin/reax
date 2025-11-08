@@ -30,8 +30,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-TensorBoard Logger
+"""TensorBoard Logger
 ------------------
 """
 
@@ -99,37 +98,41 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     ):
         """Init function.
 
-        :param **kwargs:
-        :type **kwargs: Any
-        :param log_dir:
-        :type log_dir: typing.Path
-        :param save_dir: Save directory.
-        :param name: Experiment name.  If it is the empty string then no per-experiment
-            subdirectory is used, defaults to "reax_logs".
-        :type name: str | None, optional
-        :param version: Experiment version. If version is not specified the logger inspects the save
-            directory for existing versions, then automatically assigns the next available version.
-            If it is a string then it is used as the run-specific subdirectory name,
-            otherwise ``'version_${version}'`` is used, defaults to None.
-        :type version: int | str | None, optional
-        :param log_graph: Adds the computational graph to tensorboard. This requires that
-            the user has defined the `self.example_input_array` attribute in their
-            model, defaults to False.
-        :type log_graph: bool, optional
-        :param default_hp_metric: Enables a placeholder metric with key `hp_metric` when
-            `log_hyperparams` is called without a metric (otherwise calls to log_hyperparams
-            without a metric are ignored), defaults to True.
-        :type default_hp_metric: bool, optional
-        :param prefix: A string to put at the beginning of metric keys, defaults to "".
-        :type prefix: str, optional
-        :param sub_dir: Sub-directory to group TensorBoard logs. If a sub_dir argument is passed
-            then logs are saved in ``/save_dir/name/version/sub_dir/``.
-            logs are saved in ``/save_dir/name/version/``, defaults to None.
-        :type sub_dir: typing.Path | None, optional
-        :param kwargs: Additional arguments used by :class:`tensorboardX.SummaryWriter` can be
-            passed as keyword arguments in this logger. To automatically flush to disk, `max_queue`
-            sets the sizeof the queue for pending logs before flushing. `flush_secs` determines how
-            many seconds elapses before flushing.
+        Args:
+            **kwargs (Any): Additional arguments used by
+                :class:`tensorboardX.SummaryWriter` can be passed as
+                keyword arguments in this logger. To automatically flush
+                to disk, `max_queue` sets the sizeof the queue for
+                pending logs before flushing. `flush_secs` determines
+                how many seconds elapses before flushing.
+            log_dir (typing.Path)
+            save_dir: Save directory.
+            name (str | None, optional): Experiment name.  If it is the
+                empty string then no per-experiment subdirectory is
+                used, defaults to "reax_logs".
+            version (int | str | None, optional): Experiment version. If
+                version is not specified the logger inspects the save
+                directory for existing versions, then automatically
+                assigns the next available version. If it is a string
+                then it is used as the run-specific subdirectory name,
+                otherwise ``'version_${version}'`` is used, defaults to
+                None.
+            log_graph (bool, optional): Adds the computational graph to
+                tensorboard. This requires that the user has defined the
+                `self.example_input_array` attribute in their model,
+                defaults to False.
+            default_hp_metric (bool, optional): Enables a placeholder
+                metric with key `hp_metric` when `log_hyperparams` is
+                called without a metric (otherwise calls to
+                log_hyperparams without a metric are ignored), defaults
+                to True.
+            prefix (str, optional): A string to put at the beginning of
+                metric keys, defaults to "".
+            sub_dir (typing.Path | None, optional): Sub-directory to
+                group TensorBoard logs. If a sub_dir argument is passed
+                then logs are saved in
+                ``/save_dir/name/version/sub_dir/``. logs are saved in
+                ``/save_dir/name/version/``, defaults to None.
         """
         super().__init__()
         self._root_dir = os.fspath(log_dir)
@@ -198,7 +201,8 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
     def save_dir(self) -> str:
         """Gets the save directory where the TensorBoard experiments are saved.
 
-        :rtype: The local path to the save directory where the TensorBoard experiments are saved.
+        Returns:
+            The local path to the save directory where the TensorBoard experiments are saved.
         """
         return self._root_dir
 
@@ -251,12 +255,13 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         hyperparameters are then not displayed in the TensorBoard. Please delete or move the
         previously saved logs to display the new ones with hyperparameters.
 
-        :param params: A dictionary-like container with the hyperparameters.
-        :type params: dict[str, Any] | argparse.Namespace
-        :param metrics: Dictionary with metric names as keys and measured quantities as values,
-            defaults to None.
-        :type metrics: dict[str, Any] | None, optional
-        :param step: Optional global step number for the logged metrics.
+        Args:
+            params (dict[str, Any] | argparse.Namespace): A dictionary-
+                like container with the hyperparameters.
+            metrics (dict[str, Any] | None, optional): Dictionary with
+                metric names as keys and measured quantities as values,
+                defaults to None.
+            step: Optional global step number for the logged metrics.
         """
         params = _utils.convert_params(params)
 

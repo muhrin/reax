@@ -98,9 +98,7 @@ class ArrayDataset(Sequence[tuple[jt.Array, ...]]):
 
 
 class Subset(Sequence[_T_co]):
-    r"""
-    Subset of a dataset at specified indices.
-    """
+    r"""Subset of a dataset at specified indices."""
 
     dataset: Sequence[_T_co]
     indices: Sequence[int]
@@ -108,8 +106,9 @@ class Subset(Sequence[_T_co]):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(self, dataset: Sequence[_T_co], indices: Sequence[int]) -> None:
         """
-        :param dataset: The whole Dataset
-        :param indices: Indices in the whole set selected for subset
+        Args:
+            dataset: The whole Dataset
+            indices: Indices in the whole set selected for subset
         """
         self.dataset = dataset
         self.indices = indices
@@ -135,8 +134,7 @@ def random_split(
     dataset: Sequence[_T],
     lengths: Sequence[int | float],
 ) -> list[Subset[_T]]:
-    r"""
-    Randomly split a dataset into non-overlapping new datasets of given lengths.
+    r"""Randomly split a dataset into non-overlapping new datasets of given lengths.
 
     If a list of fractions that sum up to 1 is given,
     the lengths will be computed automatically as

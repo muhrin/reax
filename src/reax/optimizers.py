@@ -40,9 +40,10 @@ class Optimizer(equinox.Module):
     def update(self, params: optax.Params, grad: jt.PyTree) -> tuple[Any, "Optimizer"]:
         """Return an updated version of the passed parameters using the passed gradients.
 
-        :return: A tuple of the updated parameters and an instance of this optimizer updated with
-            the new state.
-        :rtype: tuple[Any, "Optimizer"]
+        Returns:
+            tuple[Any, "Optimizer"]: A tuple of the updated parameters
+            and an instance of this optimizer updated with the new
+            state.
         """
         updates, new_state = self.optimizer.update(grad, self.state, params=params)
         params = optax.apply_updates(params, updates)
@@ -53,8 +54,9 @@ class Optimizer(equinox.Module):
     def update_module(self, module: "reax.Module", grad: jt.PyTree) -> "Optimizer":
         """Perform an inplace update of the module parameters given the passed gradients.
 
-        :return: An instance of this optimizer updated with the new state.
-        :rtype: "Optimizer"
+        Returns:
+            "Optimizer": An instance of this optimizer updated with the
+            new state.
         """
         new_params, new_state = _update(self.optimizer, self.state, grad, module.parameters())
         module.set_parameters(new_params)
@@ -77,9 +79,10 @@ class DistributedOptimizer(Optimizer):
     def update(self, params: optax.Params, grad: jt.PyTree) -> tuple[Any, "Optimizer"]:
         """Return an updated version of the passed parameters using the passed gradients.
 
-        :return: A tuple of the updated parameters and an instance of this optimizer updated with
-            the new state.
-        :rtype: tuple[Any, "Optimizer"]
+        Returns:
+            tuple[Any, "Optimizer"]: A tuple of the updated parameters
+            and an instance of this optimizer updated with the new
+            state.
         """
         # Average the gradients across processes
         grad = self._engine.all_reduce(grad, reduce_op="mean")
@@ -88,8 +91,9 @@ class DistributedOptimizer(Optimizer):
     def update_module(self, module: "reax.Module", grad: jt.PyTree) -> "Optimizer":
         """Perform an inplace update of the module parameters given the passed gradients.
 
-        :return: An instance of this optimizer updated with the new state.
-        :rtype: "Optimizer"
+        Returns:
+            "Optimizer": An instance of this optimizer updated with the
+            new state.
         """
         new_params, new_state = _update(self.optimizer, self.state, grad, module.parameters())
         module.set_parameters(new_params)
@@ -100,7 +104,8 @@ class DistributedOptimizer(Optimizer):
 @functools.partial(jax.jit, static_argnames=("optimizer",), donate_argnames="params")
 def _update(optimizer: optax.GradientTransformation, state, grad: dict, params):
     """Jax jitted function that performs an optimizer update based on the passed gradients and
-    parameters."""
+    parameters.
+    """
     updates, new_state = optimizer.update(grad, state, params=params)
     params = optax.apply_updates(params, updates)
 

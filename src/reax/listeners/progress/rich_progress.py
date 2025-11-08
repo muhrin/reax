@@ -59,7 +59,8 @@ if _RICH_AVAILABLE:  # noqa: C901
 
     class CustomBarColumn(rich.progress.BarColumn):
         """Overrides ``BarColumn`` to provide support for dataloaders that do not define a size
-        (infinite size) such as ``IterableDataset``."""
+        (infinite size) such as ``IterableDataset``.
+        """
 
         def render(self, task: rich.progress.Task) -> rich.progress_bar.ProgressBar:
             """Gets a progress bar widget for a task."""

@@ -1370,7 +1370,8 @@ def test_dataloaders_load_every_epoch_no_sanity_check(tmp_path):
 
 def test_dataloaders_reset_and_attach(tmp_path):
     """Test that repeated calls to Trainer.{fit,validate,test,predict} properly reset dataloaders
-    before attaching the new one."""
+    before attaching the new one.
+    """
     # the assertions compare the datasets and not dataloaders since we patch and replace the samplers
     dataloader_0 = reax.ReaxDataLoader(dataset=boring_classes.RandomDataset(32, 64))
     dataloader_1 = reax.ReaxDataLoader(dataset=boring_classes.RandomDataset(32, 64))

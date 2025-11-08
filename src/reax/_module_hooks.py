@@ -125,8 +125,9 @@ class ModuleHooks:
 
         If clipping gradients, the gradients will not have been clipped yet.
 
-        :param optimizer: Current optimizer being used.
-        :param grad: The gradients dictionary from JAX
+        Args:
+            optimizer: Current optimizer being used.
+            grad: The gradients dictionary from JAX
         """
 
     # region Generic stage messages

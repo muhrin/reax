@@ -99,13 +99,15 @@ def batches_limit(
     If the dataloader has fewer entries than the batch limit, then this will be used, otherwise
     the batches limit.
 
-    .. note:: Will return `None` if there is no limit.
+    Note:
+        Will return `None` if there is no limit.
 
-    :param batch_limit: The batches limit.
-    :type batch_limit: int | float
-    :param dataloader: The dataloader.
-    :type dataloader: "reax.DataLoader"
-    :return: The maximum number of batches.
+    Args:
+        batch_limit (int | float): The batches limit.
+        dataloader ("reax.DataLoader"): The dataloader.
+
+    Returns:
+        The maximum number of batches.
     """
     dataloader_size = data.sized_len(dataloader)
     if isinstance(batch_limit, int):

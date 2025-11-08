@@ -14,14 +14,13 @@ class DataSource(Generic[_T_co]):
     """Interface for classes that provide datasets."""
 
     def __init__(self) -> None:
-        """
-        Attributes:
-            prepare_data_per_node:
-                If True, each LOCAL_RANK=0 will call prepare data.
-                Otherwise, only NODE_RANK=0, LOCAL_RANK=0 will prepare data.
-            allow_zero_length_dataloader_with_multiple_devices:
-                If True, dataloader with zero length within local rank is allowed.
-                Default value is False.
+        """Attributes:
+        prepare_data_per_node:
+            If True, each LOCAL_RANK=0 will call prepare data.
+            Otherwise, only NODE_RANK=0, LOCAL_RANK=0 will prepare data.
+        allow_zero_length_dataloader_with_multiple_devices:
+            If True, dataloader with zero length within local rank is allowed.
+            Default value is False.
         """
         super().__init__()
         self.prepare_data_per_node: bool = True
@@ -35,7 +34,8 @@ class DataSource(Generic[_T_co]):
         method is called only within a single process, so you can safely add your downloading logic
         within.
 
-        .. warning:: DO NOT set state to the model (use ``setup`` instead)
+        Warning:
+            DO NOT set state to the model (use ``setup`` instead)
             since this is NOT called on every device
 
         Example::
@@ -64,7 +64,6 @@ class DataSource(Generic[_T_co]):
                 def __init__(self):
                     super().__init__()
                     self.prepare_data_per_node = True
-
 
             # call on GLOBAL_RANK=0 (great for shared file systems)
             class ReDataModule(ReaxDataModule):
@@ -133,7 +132,8 @@ class DataSource(Generic[_T_co]):
 
         However, the above are only necessary for distributed processing.
 
-        .. warning:: do not assign state in prepare_data
+        Warning:
+            do not assign state in prepare_data
 
         - :meth:`~reax.Trainer.fit`
         - :meth:`prepare_data`
@@ -186,8 +186,8 @@ class DataSource(Generic[_T_co]):
 
         However, the above are only necessary for distributed processing.
 
-        .. warning:: do not assign state in prepare_data
-
+        Warning:
+            do not assign state in prepare_data
 
         - :meth:`~lightning.pytorch.trainer.trainer.Trainer.test`
         - :meth:`prepare_data`

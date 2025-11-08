@@ -420,7 +420,8 @@ def test_lightning_module_configure_gradient_clipping(tmp_path):
 
 def test_lightning_module_configure_gradient_clipping_different_argument_values(tmp_path):
     """Test that setting gradient clipping arguments in `Trainer` and cusotmizing gradient clipping inside
-    `configure_gradient_clipping` with different values raises an exception."""
+    `configure_gradient_clipping` with different values raises an exception.
+    """
 
     class TestModel(boring_classes.BoringModel):
         custom_gradient_clip_val = 1e-2

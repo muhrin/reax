@@ -35,11 +35,14 @@ def _prepare_mask(mask: typing.ArrayMask, array: jt.Float[jt.Array, "..."]) -> t
     but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not
     sure why, but this approach seems to avoid the problem.
 
-    :param mask: The mask to prepare.
-    :type mask: jt.Bool[jax.Array, "n_elements"]
-    :param array: The array the mask will be applied to.
-    :type array: jt.Float[jax.Array, "..."]
-    :return: The prepared mask, typically this is just padded with extra dimensions (or reduced).
+    Args:
+        mask (jt.Bool[jax.Array, "n_elements"]): The mask to prepare.
+        array (jt.Float[jax.Array, "..."]): The array the mask will be
+            applied to.
+
+    Returns:
+        The prepared mask, typically this is just padded with extra
+        dimensions (or reduced).
     """
     return mask.reshape(-1, *(1,) * len(array.shape[1:]))
 
@@ -53,20 +56,24 @@ def prepare_mask(
 ) -> (
     typing.ArrayMask | None | tuple[typing.ArrayMask | None, int | jt.Int[jax.typing.ArrayLike, ""]]
 ):
-    """
-    Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure the
-    mask is of the right shape to be compatible with such an operation.  The other alternative is
-
-        ``jnp.where(mask, array.T, ...).T``
-
+    """Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure
+    the mask is of the right shape to be compatible with such an operation.  The other alternative
+    is
+        ``
+        jnp.where(mask, array.T, ...).T
+        ``
     but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not
     sure why, but this approach seems to avoid the problem.
 
-    :param values: the array the mask will be applied to
-    :param mask: the mask to prepare
-    :param return_count: is ``True``, returns a tuple where the second element is the number of
-        masked elements
-    :return: the prepared mask, typically this is just padded with extra dimensions (or reduced)
+    Args:
+        values: the array the mask will be applied to
+        mask: the mask to prepare
+        return_count: is ``True``, returns a tuple where the second
+            element is the number of masked elements
+
+    Returns:
+        the prepared mask, typically this is just padded with extra
+        dimensions (or reduced)
     """
     if mask is None:
         if return_count:
@@ -158,7 +165,8 @@ class WithAccumulator(equinox.Module):
 
 class WithAccumulatorAndCount(WithAccumulator):
     """Helper class to group common functionality for metrics that can keep track using a total and
-    count accumulators."""
+    count accumulators.
+    """
 
     Self = TypeVar("Self", bound="WithAccumulator")
 

@@ -84,7 +84,8 @@ class Engine:
     @property
     def default_root_dir(self) -> str:
         """Get the fallback directory used for loggers and other components when not explicitly
-        specified."""
+        specified.
+        """
         if _is_local_file_protocol(self._default_root_dir):
             return os.path.normpath(os.path.expanduser(self._default_root_dir))
 
@@ -149,7 +150,8 @@ class Engine:
     @contextlib.contextmanager
     def default_device(self):
         """Context manager that explicitly sets the strategy's device as the default for the
-        duration of the context"""
+        duration of the context
+        """
         with jax.default_device(self.device):
             yield
 
@@ -220,7 +222,8 @@ class Engine:
 
     def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
         """Compute the value of a metric, unlike metric.compute(), in a parallel setting this method
-        will compute the value across all processes."""
+        will compute the value across all processes.
+        """
         return self._strategy.compute(metric)
 
     def _wrap_loader(self, loader: "reax.DataLoader") -> "reax.data.DeviceDataLoader":

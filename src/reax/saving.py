@@ -28,13 +28,12 @@ def save_hparams_to_yaml(
 ) -> None:
     """Save the hparams to a yaml file.
 
-    :param config_yaml: The path to save the hparams to.
-    :type config_yaml: typing.Path
-    :param hparams: The hparams to save.
-    :type hparams: Union[dict, argparse.Namespace]
-    :param use_omegaconf: If `omegaconf` is available and `use_omegaconf=True`, the hparams will be
-        converted to `omegaconf.DictConfig` if possible, defaults to True.
-    :type use_omegaconf: bool, optional
+    Args:
+        config_yaml (typing.Path): The path to save the hparams to.
+        hparams (Union[dict, argparse.Namespace]): The hparams to save.
+        use_omegaconf (bool, optional): If `omegaconf` is available and
+            `use_omegaconf=True`, the hparams will be converted to
+            `omegaconf.DictConfig` if possible, defaults to True.
     """
     fs = fsspec.url_to_fs(config_yaml)[0]
     if not fs.isdir(os.path.dirname(config_yaml)):
@@ -85,11 +84,11 @@ def load_hparams_from_yaml(
 ) -> Union[dict[str, Any], "omegaconf.DictConfig"]:
     """Load hparams from a file.
 
-    :param config_yaml: Path to the yaml file to be loaded.
-    :type config_yaml: typing.Path
-    :param use_omegaconf: If `omegaconf` is available and `use_omegaconf=True`, the hparams will
-        be converted to a `omegaconf.DictConfig` if possible, defaults to True.
-    :type use_omegaconf: bool, optional
+    Args:
+        config_yaml (typing.Path): Path to the yaml file to be loaded.
+        use_omegaconf (bool, optional): If `omegaconf` is available and
+            `use_omegaconf=True`, the hparams will be converted to a
+            `omegaconf.DictConfig` if possible, defaults to True.
     """
     fs: fsspec.AbstractFileSystem = fsspec.url_to_fs(config_yaml)[0]
     if not fs.exists(config_yaml):

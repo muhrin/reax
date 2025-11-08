@@ -93,41 +93,43 @@ def stat_scores_update(
     """Updates and returns the number of true positives, false positives, true negatives, false
     negatives.
 
-    :raises ValueError: if
-        - The `ignore_index` is not valid
-        - When `ignore_index` is used with binary data
-        - When inputs are multidimensional multi-class, and the `mdmc_average` parameter is not set
+    Raises:
+        ValueError: if - The `ignore_index` is not valid - When
+            `ignore_index` is used with binary data - When inputs are
+            multidimensional multi-class, and the `mdmc_average`
+            parameter is not set
 
-    :param mdmc_average_method:
-        Defaults to None.
-    :type mdmc_average_method: MDMCAverageMethod | None, optional
-    :param average_method: Defaults to AverageMethod.MICRO.
-    :type average_method: AverageMethod, optional
-    :param intended_mode:
-    :type intended_mode: DataType
-    :param preds: Predicted tensor.
-    :type preds: jax.Array
-    :param target: Ground truth tensor.
-    :type target: jax.Array
-    :param reduce: Defines the reduction that is applied.
-    :param mdmc_average: Defines how the multidimensional multi-class inputs are handeled.
-    :param num_classes: Number of classes. Necessary for (multidimensional) multi-class or
-        multi-label data, defaults to None.
-    :type num_classes: int | None, optional
-    :param top_k: Number of highest probability or logit score predictions considered to find the
-        correct label, relevant only for (multidimensional) multi-class inputs, defaults to None.
-    :type top_k: int | None, optional
-    :param threshold: Threshold for transforming probability or logit predictions to binary (0,1)
-        predictions, in the case of binary or multi-label inputs. Default value of 0.5 corresponds
-        to input being probabilities, defaults to 0.5.
-    :type threshold: float, optional
-    :param multiclass: Used only in certain special cases, where you want to treat inputs as a
-        different type than what they appear to be, defaults to None.
-    :type multiclass: bool | None, optional
-    :param ignore_index: Specify a class (label) to ignore. If given, this class index does not
-        contribute to the returned score, regardless of reduction method. If an index is ignored,
-        and ``reduce='macro'``, the class statistics for the ignored class will all be returned
-        as ``-1``.
+    Args:
+        mdmc_average_method (MDMCAverageMethod | None, optional):
+            Defaults to None.
+        average_method (AverageMethod, optional): Defaults to
+            AverageMethod.MICRO.
+        intended_mode (DataType)
+        preds (jax.Array): Predicted tensor.
+        target (jax.Array): Ground truth tensor.
+        reduce: Defines the reduction that is applied.
+        mdmc_average: Defines how the multidimensional multi-class
+            inputs are handeled.
+        num_classes (int | None, optional): Number of classes. Necessary
+            for (multidimensional) multi-class or multi-label data,
+            defaults to None.
+        top_k (int | None, optional): Number of highest probability or
+            logit score predictions considered to find the correct
+            label, relevant only for (multidimensional) multi-class
+            inputs, defaults to None.
+        threshold (float, optional): Threshold for transforming
+            probability or logit predictions to binary (0,1)
+            predictions, in the case of binary or multi-label inputs.
+            Default value of 0.5 corresponds to input being
+            probabilities, defaults to 0.5.
+        multiclass (bool | None, optional): Used only in certain special
+            cases, where you want to treat inputs as a different type
+            than what they appear to be, defaults to None.
+        ignore_index: Specify a class (label) to ignore. If given, this
+            class index does not contribute to the returned score,
+            regardless of reduction method. If an index is ignored, and
+            ``reduce='macro'``, the class statistics for the ignored
+            class will all be returned as ``-1``.
     """
 
     preds, target, mode = _input_format_classification(
@@ -172,18 +174,18 @@ def _stat_scores(
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
     """Calculate the number of true positive, false positive, true negative, false negative.
 
-    :param preds: An ``(N, C)`` or ``(N, C, X)`` tensor of predictions (0 or 1).
-    :type preds: jax.Array
-    :param target: An ``(N, C)`` or ``(N, C, X)`` tensor of true target (0 or 1).
-    :type target: jax.Array
-    :param reduce: One of ``'MICRO'``, ``'macro'``, ``'samples'``, defaults to AverageMethod.MICRO.
-    :type reduce: AverageMethod | None, optional
-    :rtype: Returns a list of 4 tensors; tp, fp, tn, fn.
-    :rtype: The shape of the returned tensors depnds on the shape of the inputs
-    :rtype: and the ``reduce`` parameter
+    Args:
+        preds (jax.Array): An ``(N, C)`` or ``(N, C, X)`` tensor of
+            predictions (0 or 1).
+        target (jax.Array): An ``(N, C)`` or ``(N, C, X)`` tensor of
+            true target (0 or 1).
+        reduce (AverageMethod | None, optional): One of ``'MICRO'``,
+            ``'macro'``, ``'samples'``, defaults to AverageMethod.MICRO.
+
+    Returns:
+        - If `reduce='MICRO'`, the returned tensors are 1 element tensors
     :return If inputs are of the shape ``:
     :rtype If inputs are of the shape ``: N, C
-    :rtype: - If ``reduce='MICRO'``, the returned tensors are 1 element tensors
     :return - If ``reduce='macro'``, the returned tensors are ``:
     :rtype - If ``reduce='macro'``, the returned tensors are ``: C,
     :return - If ``reduce'samples'``, the returned tensors are ``:
@@ -274,39 +276,41 @@ def _input_format_classification(
     ``C``. The transformations performed here are equivalent to the multi-class case. However, if
     ``multiclass=False`` (and there are up to two classes), then the data is returned as
     ``(N, X)`` binary tensors (multi-label).
-    :param mode:
-    :type mode: DataType
-    :param preds: Jax.Array with predictions (target or probabilities).
-    :type preds: jax.Array
-    :param target: Jax.Array with ground truth target, always integers (target).
-    :type target: jax.Array
-    :param threshold: Threshold value for transforming probability/logit predictions to binary
-        (0 or 1) predictions, in the case of binary or multi-label inputs, defaults to 0.5.
-    :type threshold: float, optional
-    :param num_classes: Number of classes. If not explicitly set, the number of classes will be
-        inferred either from the shape of inputs, or the maximum label in the ``target`` and
-        ``preds`` array, where applicable, defaults to None.
-    :type num_classes: int | None, optional
-    :param top_k: Number of highest probability entries for each sample to convert to 1s - relevant
-        only for (multidimensional) multi-class inputs with probability predictions. The
-        default value (``None``) will be interepreted as 1 for these inputs.
 
-        Should be left unset (``None``) for all other types of inputs, defaults to None.
-    :type top_k: int | None, optional
-    :param multiclass: Used only in certain special cases, where you want to treat inputs as a
-        different type than what they appear to be. See the parameter's
+    Args:
+        mode (DataType)
+        preds (jax.Array): Jax.Array with predictions (target or
+            probabilities).
+        target (jax.Array): Jax.Array with ground truth target, always
+            integers (target).
+        threshold (float, optional): Threshold value for transforming
+            probability/logit predictions to binary (0 or 1)
+            predictions, in the case of binary or multi-label inputs,
+            defaults to 0.5.
+        num_classes (int | None, optional): Number of classes. If not
+            explicitly set, the number of classes will be inferred
+            either from the shape of inputs, or the maximum label in the
+            ``target`` and ``preds`` array, where applicable, defaults
+            to None.
+        top_k (int | None, optional): Number of highest probability
+            entries for each sample to convert to 1s - relevant only for
+            (multidimensional) multi-class inputs with probability
+            predictions. The default value (``None``) will be
+            interepreted as 1 for these inputs.
+
+            Should be left unset (``None``) for all other types of inputs, defaults to None.
+        multiclass (bool | None, optional): Used only in certain special
+            cases, where you want to treat inputs as a different type
+            than what they appear to be. See the parameter's
     :ref:`documentation section <pages/overview:using the multiclass parameter>`
         for a more detailed explanation and examples, defaults to None.
-    :type multiclass: bool | None, optional
-    :return: Binary tensor of shape ``(N, C)`` or ``(N, C, X)``.
-    :rtype: preds
-    :return: Binary tensor of shape ``(N, C)`` or ``(N, C, X)``.
-    :rtype: target
-    :return: The case the inputs fall in, one of ``'binary'``, ``'multi-class'``, ``'multi-label'``
-        or ``'multi-dim multi-class'``.
-    :rtype: case
 
-    .. note::
+    Returns:
+        case: The case the inputs fall in, one of ``'binary'``,
+        ``'multi-class'``, ``'multi-label'`` or ``'multi-dim multi-
+        class'``.
+
+    Note:
         Where a one-hot transformation needs to be performed and the number of classes
         is not implicitly given by a ``C`` dimension, the new ``C`` dimension will either be
         equal to ``num_classes``, if it is given, or the maximum label value in preds and
@@ -400,34 +404,37 @@ def _check_classification_inputs(
 
     Preds and target tensors are expected to be squeezed already - all dimensions should be
     greater than 1, except perhaps the first one (``N``).
-    :param mode:
-    :type mode: DataType
-    :param preds: Jax.Array with predictions (target or probabilities).
-    :type preds: jax.Array
-    :param target: Jax.Array with ground truth target, always integers (target).
-    :type target: jax.Array
-    :param threshold: Threshold value for transforming probability/logit predictions to binary
-        (0,1) predictions, in the case of binary or multi-label inputs.
-    :type threshold: float
-    :param num_classes: Number of classes. If not explicitly set, the number of classes will be
-        inferred either from the shape of inputs, or the maximum label in the ``target`` and
-        ``preds`` array, where applicable.
-    :type num_classes: int | None
-    :param top_k: Number of highest probability entries for each sample to convert to 1s - relevant
-        only for inputs with probability predictions. The default value (``None``) will be
-        interpreted as 1 for these inputs. If this parameter is set for multi-label inputs,
-        it will take precedence over threshold.
 
-        Should be left unset (``None``) for inputs with label predictions.
-    :type top_k: int | None
-    :param multiclass: Used only in certain special cases, where you want to treat inputs as a
-        different type than what they appear to be. See the parameter's
+    Args:
+        mode (DataType)
+        preds (jax.Array): Jax.Array with predictions (target or
+            probabilities).
+        target (jax.Array): Jax.Array with ground truth target, always
+            integers (target).
+        threshold (float): Threshold value for transforming
+            probability/logit predictions to binary (0,1) predictions,
+            in the case of binary or multi-label inputs.
+        num_classes (int | None): Number of classes. If not explicitly
+            set, the number of classes will be inferred either from the
+            shape of inputs, or the maximum label in the ``target`` and
+            ``preds`` array, where applicable.
+        top_k (int | None): Number of highest probability entries for
+            each sample to convert to 1s - relevant only for inputs with
+            probability predictions. The default value (``None``) will
+            be interpreted as 1 for these inputs. If this parameter is
+            set for multi-label inputs, it will take precedence over
+            threshold.
+
+            Should be left unset (``None``) for inputs with label predictions.
+        multiclass (bool | None): Used only in certain special cases,
+            where you want to treat inputs as a different type than what
+            they appear to be. See the parameter's
     :ref:`documentation section <pages/overview:using the multiclass parameter>`
         for a more detailed explanation and examples.
-    :type multiclass: bool | None
-    :return: The case the inputs fall in, one of 'binary', 'multi-class', 'multi-label' or
-        'multi-dim multi-class'.
-    :rtype: case
+
+    Returns:
+        case: The case the inputs fall in, one of 'binary', 'multi-
+        class', 'multi-label' or 'multi-dim multi-class'.
     """
 
     # Basic validation (that does not need case/type information)
@@ -476,7 +483,8 @@ def _basic_input_validation(
     multiclass: bool | None,
 ) -> None:
     """Perform basic validation of inputs that does not require deducing any information of the type
-    of inputs."""
+    of inputs.
+    """
 
     if _is_floating_point(target):
         raise ValueError("The `target` has to be an integer tensor.")
@@ -552,7 +560,8 @@ def _check_num_classes_binary(
     num_classes: int, multiclass: bool | None, implied_classes: int | None
 ) -> None:
     """This checks that the consistency of `num_classes` with the data and `multiclass` param for
-    binary data."""
+    binary data.
+    """
 
     if implied_classes is not None and implied_classes != 2:
         raise ValueError(
@@ -578,14 +587,16 @@ def _check_num_classes_binary(
 def select_topk(prob_tensor: jax.Array, topk: int = 1, _dim: int = 1) -> jax.Array:
     """Convert a probability tensor to binary by selecting top-k highest entries.
 
-    :param prob_tensor: Dense tensor of shape ``[..., C, ...]``, where ``C`` is in the position
-        defined by the ``dim`` argument.
-    :type prob_tensor: jax.Array :param topk: Number of highest entries to turn into 1s, defaults
-        to 1.
-    :type topk: int, optional
-    :param dim: Dimension on which to compare entries, defaults to 1.
-    :type dim: int, optional
-    :returns: A binary tensor of the same shape as the input tensor of type torch.int32.
+    Args:
+        prob_tensor (jax.Array):
+            Dense tensor of shape ``[..., C, ...]``, where ``C`` is in
+            the position defined by the ``dim`` argument.
+        topk (int, optional): Number of highest entries to turn into 1s, defaults to 1
+        dim (int, optional): Dimension on which to compare entries, defaults to 1.
+
+    Returns:
+        A binary tensor of the same shape as the input tensor of type
+        torch.int32.
 
     Example:
         >>> x = jnp.array([[1.1, 2.0, 3.0], [2.0, 1.0, 0.5]])
@@ -614,7 +625,8 @@ def _check_num_classes_mc(
     implied_classes: int | None,
 ) -> None:
     """This checks that the consistency of `num_classes` with the data and `multiclass` param for
-    (multidimensional) multi-class data."""
+    (multidimensional) multi-class data.
+    """
 
     if num_classes == 1 and multiclass is not False:
         raise ValueError(
@@ -641,7 +653,8 @@ def _check_num_classes_mc(
 
 def _check_num_classes_ml(num_classes: int, multiclass: bool | None, implied_classes: int) -> None:
     """This checks that the consistency of `num_classes` with the data and `multiclass` param for
-    multi-label data."""
+    multi-label data.
+    """
 
     if multiclass and num_classes != 2:
         raise ValueError(
@@ -694,21 +707,17 @@ def accuracy_compute(
     """Computes accuracy from stat scores: true positives, false positives, true negatives, false
     negatives.
 
-    :param true_pos: True positives.
-    :type true_pos: jax.Array
-    :param false_pos: False positives.
-    :type false_pos: jax.Array
-    :param true_neg: True negatives.
-    :type true_neg: jax.Array
-    :param false_neg: False negatives.
-    :type false_neg: jax.Array
-    :param average: Defines the reduction that is applied.
-    :type average: AverageMethod | None
-    :param mdmc_average: Defines how averaging is done for multidimensional multi-class inputs
-        (on top of the``average`` parameter).
-    :type mdmc_average: MDMCAverageMethod | None
-    :param mode: Mode of the input tensors.
-    :type mode: DataType
+    Args:
+        true_pos (jax.Array): True positives.
+        false_pos (jax.Array): False positives.
+        true_neg (jax.Array): True negatives.
+        false_neg (jax.Array): False negatives.
+        average (AverageMethod | None): Defines the reduction that is
+            applied.
+        mdmc_average (MDMCAverageMethod | None): Defines how averaging
+            is done for multidimensional multi-class inputs (on top of
+            the``average`` parameter).
+        mode (DataType): Mode of the input tensors.
 
     Example:
         >>> preds = jnp.array([0, 2, 1, 3])
@@ -792,23 +801,22 @@ def _reduce_stat_scores(
     """Reduces scores of type ``numerator/denominator`` or ``weights * (numerator/denominator)``, if
     ``average='weighted'``.
 
-    :param numerator: A tensor with numerator numbers.
-    :type numerator: jax.Array
-    :param denominator: A tensor with denominator numbers. If a denominator is
-        negative, the class will be ignored (if averaging), or its score
-        will be returned as ``nan`` (if ``average=None``).
-        If the denominator is zero, then ``zero_division`` score will be
-        used for those elements.
-    :type denominator: jax.Array
-    :param weights: A tensor of weights to be used if ``average='weighted'``.
-    :type weights: jax.Array | None
-    :param average: The method to average the scores.
-    :type average: AverageMethod | None
-    :param mdmc_average: The method to average the scores if inputs were multidimensional
-        multi-class (MDMC).
-    :type mdmc_average: MDMCAverageMethod | None
-    :param zero_division: The value to use for the score if denominator equals zero, defaults to 0.
-    :type zero_division: int, optional
+    Args:
+        numerator (jax.Array): A tensor with numerator numbers.
+        denominator (jax.Array): A tensor with denominator numbers. If a
+            denominator is negative, the class will be ignored (if
+            averaging), or its score will be returned as ``nan`` (if
+            ``average=None``). If the denominator is zero, then
+            ``zero_division`` score will be used for those elements.
+        weights (jax.Array | None): A tensor of weights to be used if
+            ``average='weighted'``.
+        average (AverageMethod | None): The method to average the
+            scores.
+        mdmc_average (MDMCAverageMethod | None): The method to average
+            the scores if inputs were multidimensional multi-class
+            (MDMC).
+        zero_division (int, optional): The value to use for the score if
+            denominator equals zero, defaults to 0.
     """
     numerator, denominator = numerator.astype(jnp.float32), denominator.astype(jnp.float32)
     zero_div_mask = denominator == 0

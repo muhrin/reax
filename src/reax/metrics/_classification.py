@@ -97,81 +97,91 @@ class Accuracy(_metric.Metric):
     ):
         """Init function.
 
-        :param subset_accuracy:
-            Defaults to False.
-        :type subset_accuracy: bool, optional
-        :param mode:, defaults to jm.DataType.MULTICLASS.
-        :type mode: Union[str, jm.DataType], optional
-        :param threshold: Threshold for transforming probability or logit predictions to binary
-            (0,1) predictions, defaults to 0.5.
-        :type threshold: float, optional
-        :param num_classes: Number of classes. Necessary for `'macro'`, `'weighted'` and `None`
-            average methods. in the case of binary or multi-label inputs. Default value of 0.5
-            corresponds to input being probabilities, defaults to None.
-        :type num_classes: Optional[int], optional
-        :param average: Defines the reduction that is applied. Should be one of the following:
+        Args:
+            subset_accuracy (bool, optional): Defaults to False.
+            mode (Union[str, jm.DataType], optional): , defaults to
+                jm.DataType.MULTICLASS.
+            threshold (float, optional): Threshold for transforming
+                probability or logit predictions to binary (0,1)
+                predictions, defaults to 0.5.
+            num_classes (Optional[int], optional): Number of classes.
+                Necessary for `'macro'`, `'weighted'` and `None` average
+                methods. in the case of binary or multi-label inputs.
+                Default value of 0.5 corresponds to input being
+                probabilities, defaults to None.
+            average (Union[str, jm.AverageMethod], optional): Defines
+                the reduction that is applied. Should be one of the
+                following:
 
-            - `'micro'` [default]: Calculate the metric globally, across all samples and classes.
-            - `'macro'`: Calculate the metric for each class separately, and average the
-            metrics across classes (with equal weights for each class).
-            - `'weighted'`: Calculate the metric for each class separately, and average the
-            metrics across classes, weighting each class by its support (`tp + fn`).
-            - `'none'` or `None`: Calculate the metric for each class separately, and return
-            the metric for every class.
-            - `'samples'`: Calculate the metric for each sample, and average the metrics
-            across samples (with equal weights for each sample).
+                - `'micro'` [default]: Calculate the metric globally, across all samples and
+                  classes.
+                - `'macro'`: Calculate the metric for each class separately, and average the
+                metrics across classes (with equal weights for each class).
+                - `'weighted'`: Calculate the metric for each class separately, and average the
+                metrics across classes, weighting each class by its support (`tp + fn`).
+                - `'none'` or `None`: Calculate the metric for each class separately, and return
+                the metric for every class.
+                - `'samples'`: Calculate the metric for each sample, and average the metrics
+                across samples (with equal weights for each sample).
 
-            .. note:: What is considered a sample in the multidimensional multi-class case
-            depends on the value of `mdmc_average`.
+                .. note:: What is considered a sample in the multidimensional multi-class case
+                depends on the value of `mdmc_average`.
 
-            .. note:: If `'none'` and a given class doesn't occur in the `preds` or `target`,
-            the value for the class will be `nan`, defaults to jm.AverageMethod.MICRO.
-        :type average: Union[str, jm.AverageMethod], optional
-        :param mdmc_average: Defines how averaging is done for multidimensional multi-class inputs
-            (on top of the `average` parameter). Should be one of the following:
+                .. note:: If `'none'` and a given class doesn't occur in the `preds` or `target`,
+                the value for the class will be `nan`, defaults to jm.AverageMethod.MICRO.
+            mdmc_average (Union[str, jm.MDMCAverageMethod], optional):
+                Defines how averaging is done for multidimensional
+                multi-class inputs (on top of the `average` parameter).
+                Should be one of the following:
 
-            - `None` [default]: Should be left unchanged if your data is not multidimensional
-            multi-class.
+                - `None` [default]: Should be left unchanged if your data is not multidimensional
+                multi-class.
 
-            - `'samplewise'`: In this case, the statistics are computed separately for each
-            sample on the `N` axis, and then averaged over samples.
-            The computation for each sample is done by treating the flattened extra axes `...`
-            (see :ref:`references/modules:input types`) as the `N` dimension within the sample,
-            and computing the metric for the sample based on that.
+                - `'samplewise'`: In this case, the statistics are computed separately for each
+                sample on the `N` axis, and then averaged over samples.
+                The computation for each sample is done by treating the flattened extra axes `...`
+                (see :ref:`references/modules:input types`) as the `N` dimension within the sample,
+                and computing the metric for the sample based on that.
 
-            - `'global'`: In this case the `N` and `...` dimensions of the inputs
-            (see :ref:`references/modules:input types`)
-            are flattened into a new `N_X` sample axis, i.e. the inputs are treated as if they
-            were `(N_X, C)`. From here on the `average` parameter applies as usual, defaults to
-            jm.MDMCAverageMethod.GLOBAL.
-        :type mdmc_average: Union[str, jm.MDMCAverageMethod], optional
-        :param ignore_index: Integer specifying a target class to ignore. If given, this class
-            index does not contribute to the returned score, regardless of reduction method. If an
-            index is ignored, and `average=None` or `'none'`, the score for the ignored class will
-            be returned as `nan`, defaults to None.
-        :type ignore_index: Optional[int], optional
-        :param top_k: Number of highest probability or logit score predictions considered to find
-            the correct label,  relevant only for (multidimensional) multi-class inputs. The
-            default value (`None`) will be interpreted as 1 for these inputs.
-            Should be left at default (`None`) for all other types of inputs, defaults to None.
-        :type top_k: Optional[int], optional
-        :param multiclass: Used only in certain special cases, where you want to treat inputs as a
-            different type than what they appear to be. See the parameter's, defaults to None.
-        :type multiclass: Optional[bool], optional
-        :param fn: Only used when merging, defaults to None.
-        :type fn: jax.Array, optional
-        :param tn:Only used when merging, defaults to None.
-        :type tn: jax.Array, optional
-        :param fp: Only used when merging, defaults to None.
-        :type fp: jax.Array, optional
-        :param tp: Only used when merging, defaults to None.
-        :type tp: jax.Array, optional
-        :raises ValueError: If `top_k` is not an `integer` larger than `0`.
-        :raises ValueError: If `average` is none of `"micro"`, `"macro"`, `"weighted"`,
-            `"samples"`, `"none"`, `None`.
-        :raises ValueError: If two different input modes are provided, e.g. using `multi-label`
-            with `multi-class`.
-        :raises ValueError: If `top_k` parameter is set for `multi-label` inputs.
+                - `'global'`: In this case the `N` and `...` dimensions of the inputs
+                (see :ref:`references/modules:input types`)
+                are flattened into a new `N_X` sample axis, i.e. the inputs are treated as if they
+                were `(N_X, C)`. From here on the `average` parameter applies as usual, defaults to
+                jm.MDMCAverageMethod.GLOBAL.
+            ignore_index (Optional[int], optional): Integer specifying a
+                target class to ignore. If given, this class index does
+                not contribute to the returned score, regardless of
+                reduction method. If an index is ignored, and
+                `average=None` or `'none'`, the score for the ignored
+                class will be returned as `nan`, defaults to None.
+            top_k (Optional[int], optional): Number of highest
+                probability or logit score predictions considered to
+                find the correct label,  relevant only for
+                (multidimensional) multi-class inputs. The default value
+                (`None`) will be interpreted as 1 for these inputs.
+                Should be left at default (`None`) for all other types
+                of inputs, defaults to None.
+            multiclass (Optional[bool], optional): Used only in certain
+                special cases, where you want to treat inputs as a
+                different type than what they appear to be. See the
+                parameter's, defaults to None.
+            fn (jax.Array, optional): Only used when merging, defaults
+                to None.
+            tn (jax.Array, optional): Only used when merging, defaults
+                to None.
+            fp (jax.Array, optional): Only used when merging, defaults
+                to None.
+            tp (jax.Array, optional): Only used when merging, defaults
+                to None.
+
+        Raises:
+            ValueError: If `top_k` is not an `integer` larger than `0`.
+            ValueError: If `average` is none of `"micro"`, `"macro"`,
+                `"weighted"`, `"samples"`, `"none"`, `None`.
+            ValueError: If two different input modes are provided, e.g.
+                using `multi-label` with `multi-class`.
+            ValueError: If `top_k` parameter is set for `multi-label`
+                inputs.
         """
         if isinstance(average, str):
             average = jm.AverageMethod[average.upper()]
@@ -276,10 +286,10 @@ class Accuracy(_metric.Metric):
     ) -> "Accuracy":
         """Updates Accuracy metric state.
 
-        :param preds: Predictions from model (logits, probabilities, or target).
-        :type preds: jax.Array
-        :param target: Ground truth target.
-        :type target: jax.Array
+        Args:
+            preds (jax.Array): Predictions from model (logits,
+                probabilities, or target).
+            target (jax.Array): Ground truth target.
 
         Example:
 

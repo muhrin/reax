@@ -22,7 +22,8 @@ class BoringModel(modules.Module):
     - subclass
     - modify the behavior for what you want
 
-    .. warning::  This is meant for testing/debugging and is experimental.
+    Warning:
+        This is meant for testing/debugging and is experimental.
 
     Example::
 
@@ -110,7 +111,10 @@ class BoringModel(modules.Module):
 
 
 class RandomDataset(collections.abc.Sequence):
-    """.. warning::  This is meant for testing/debugging and is experimental."""
+    """
+    Warning:
+        This is meant for testing/debugging and is experimental.
+    """
 
     def __init__(self, size: int, length: int):
         self.len = length
@@ -127,7 +131,8 @@ class RandomDataset(collections.abc.Sequence):
 
 class RandomIterableDataset(Iterable[np.ndarray]):
     """
-    .. warning::  This is meant for testing/debugging and is experimental.
+    Warning:
+        This is meant for testing/debugging and is experimental.
     """
 
     def __init__(self, size: int, count: int):
@@ -141,7 +146,8 @@ class RandomIterableDataset(Iterable[np.ndarray]):
 
 class BoringDataModule(reax.DataModule):
     """
-    .. warning::  This is meant for testing/debugging and is experimental.
+    Warning:
+        This is meant for testing/debugging and is experimental.
     """
 
     def __init__(self) -> None:

@@ -82,7 +82,8 @@ class Logger(abc.ABC):
     @property
     def log_dir(self) -> str | None:
         """Returns the directory used to store logs for the current experiment or `None` if logger
-        does not save locally."""
+        does not save locally.
+        """
         return None
 
     @property
@@ -94,10 +95,10 @@ class Logger(abc.ABC):
     def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
         """Log the passed metrics.
 
-        :param metrics: Dictionary of metrics to log.
-        :type metrics: dict[str, float]
-        :param step: The current step, defaults to None.
-        :type step: Optional[int], optional
+        Args:
+            metrics (dict[str, float]): Dictionary of metrics to log.
+            step (Optional[int], optional): The current step, defaults
+                to None.
         """
 
     @abc.abstractmethod
@@ -106,18 +107,21 @@ class Logger(abc.ABC):
     ) -> None:
         """Log the passed hyperparameters.
 
-        :param params: A `dict` or :class:`~argparse.Namespace` containing hyperparameters.
-        :type params: Union[dict[str, Any], argparse.Namespace]
-        :param *args: Additional optional args.
-        :param **kwargs: Additional optional kwargs.
+        Args:
+            params (Union[dict[str, Any], argparse.Namespace]): A `dict`
+                or :class:`~argparse.Namespace` containing
+                hyperparameters.
+            *args: Additional optional args.
+            **kwargs: Additional optional kwargs.
         """
 
     def log_graph(self, model: Callable, *args, **kwargs) -> None:
         """Log the model graph.
 
-        :param model: The model function.
-        :type model: Callable :param *args: The args to pass to the model. :param **kwargs: The
-            kwargs to pass to the model.
+        Args:
+            model (Callable): The model function.
+            *args: The args to pass to the model.
+            **kwargs: The kwargs to pass to the model
         """
 
     def save(self) -> None:
@@ -126,16 +130,18 @@ class Logger(abc.ABC):
     def finalize(self, status: str) -> None:  # pylint: disable=unused-argument
         """Do postprocessing to be done at the end of an experiment.
 
-        :param status: A status string indicating the outcome of the experiment.
-        :type status: str
+        Args:
+            status (str): A status string indicating the outcome of the
+                experiment.
         """
         self.save()
 
     def after_save_checkpoint(self, checkpoint_listener: "reax.listeners.ModelCheckpoint") -> None:
         """Called after model checkpoint listener saves a new checkpoint.
 
-        :param checkpoint_listener: The model checkpoint listener instance.
-        :type checkpoint_listener: "reax.listeners.ModelCheckpoint"
+        Args:
+            checkpoint_listener ("reax.listeners.ModelCheckpoint"): The
+                model checkpoint listener instance.
         """
 
 
