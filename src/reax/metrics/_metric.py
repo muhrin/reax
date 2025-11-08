@@ -37,7 +37,7 @@ class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
         class FromFunction(FromFun):
             metric = cls()  # pylint: disable=abstract-class-instantiated
 
-            def fun(self, *args, **kwargs) -> "Metric[OutT]":
+            def func(self, *args, **kwargs) -> "Metric[OutT]":
                 """Fun function."""
                 return function(*args, **kwargs)
 
@@ -74,11 +74,11 @@ ParentMetric = TypeVar("ParentMetric", bound=Metric)
 class FromFun(Metric[OutT]):
     """Helper class apply a function before passing the result to an existing metric."""
 
-    fun: ClassVar[Callable]
-    metric: ClassVar[Metric]
+    metric: ClassVar[type[Metric[OutT]] | Metric[OutT]]
+    func: ClassVar[Callable]
     _state: Metric[OutT]
 
-    def __init__(self, state: Metric[OutT] | None = None):
+    def __init__(self, state: Metric[OutT] = None):
         super().__init__()
         if self.metric is None:
             raise RuntimeError(
@@ -89,7 +89,6 @@ class FromFun(Metric[OutT]):
 
     @property
     def is_empty(self) -> bool:
-        """Is empty."""
         return self._state is None
 
     def empty(self) -> "FromFun[OutT]":
@@ -129,7 +128,7 @@ class FromFun(Metric[OutT]):
 
     def _call_fn(self, *args, **kwargs) -> tuple:
         """Call fn."""
-        val = self.fun(*args, **kwargs)
+        val = self.func(*args, **kwargs)
 
         # Automatically unroll a tuple of return values
         if not isinstance(val, tuple):

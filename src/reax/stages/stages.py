@@ -3,7 +3,7 @@ predicting etc."""
 
 import abc
 import logging
-from typing import TYPE_CHECKING, Any, Final, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Final, TypeVar
 import weakref
 
 import beartype
@@ -60,11 +60,11 @@ class Stage(abc.ABC):
     def __init__(
         self,
         name: str,
-        module: Optional["reax.Module"],
+        module: "reax.Module | None",
         engine: "reax.Engine",
         *,
         rngs: nnx.Rngs | None = None,
-        datamanager: "Optional[reax.data.DataSourceManager]" = None,
+        datamanager: "reax.data.DataSourceManager | None" = None,
         max_iters: int | None = None,
         min_iters: int = 0,
         enable_checkpointing: bool = False,
@@ -81,9 +81,9 @@ class Stage(abc.ABC):
 
         # State
         self._state: StageState = StageState.INITIALIZING
-        self._module: Optional["reax.Module"] = module
+        self._module: "reax.Module | None" = module
         self._datamanager = datamanager
-        self._rngs = rngs
+        self._rngs = rngs if rngs is not None else engine.rngs
         self._warning_cache = rank_zero.WarningCache()
         self._iter = -1
         self._stopper = common.Stopper()
@@ -91,8 +91,8 @@ class Stage(abc.ABC):
         self._stop_reason: str = ""
         self._run_count = 0
         self._events = common.StageEvents()
-        self._parent: Optional["reax.Stage"] = None
-        self._child: Optional["reax.Stage"] = None
+        self._parent: "reax.Stage | None" = None
+        self._child: "reax.Stage | None" = None
 
     def __str__(self) -> str:
         """Str function."""
@@ -113,7 +113,7 @@ class Stage(abc.ABC):
         return self.parent is None
 
     @property
-    def module(self) -> Optional["reax.Module"]:
+    def module(self) -> "reax.Module | None":
         """Module function."""
         return self._module
 
@@ -160,12 +160,12 @@ class Stage(abc.ABC):
         return self._stopper.get()
 
     @property
-    def parent(self) -> Optional["reax.Stage"]:
+    def parent(self) -> "reax.Stage | None":
         """Get the parent stage (if exists)."""
         return self._parent
 
     @parent.setter
-    def parent(self, parent: Optional["reax.Stage"]):
+    def parent(self, parent: "reax.Stage | None"):
         self._parent = parent
 
     def stop(self, reason: str):
@@ -350,7 +350,7 @@ class EpochStage(Stage, abc.ABC):
     def __init__(
         self,
         name: str,
-        module: Optional["reax.Module"],
+        module: "reax.Module | None",
         datamanager: "reax.data.DataSourceManager",
         engine: "reax.Engine",
         *,
@@ -386,17 +386,17 @@ class EpochStage(Stage, abc.ABC):
         self._iterator = None
         self._batch: Any | None = None
         self._total_batch_idx: int = 0
-        self._metrics: Optional["reax.results.ResultCollection"] = None
-        self._metrics_results: Optional["reax.stages.MetricResults"] = None
+        self._metrics: "reax.results.ResultCollection | None" = None
+        self._metrics_results: "reax.stages.MetricResults | None" = None
         self._outputs = None
 
     @property
-    def dataloader(self) -> "Optional[reax.DataLoader]":
+    def dataloader(self) -> "reax.DataLoader | None":
         """Dataloader function."""
         return self._datamanager.get_dataloader(self._dataloader_name)
 
     @property
-    def dataloaders(self) -> "Optional[reax.DataLoader]":
+    def dataloaders(self) -> "reax.DataLoader | None":
         """Dataloader function."""
         return self.dataloader
 
@@ -491,7 +491,7 @@ class EpochStage(Stage, abc.ABC):
     def log(
         self,
         name: str,
-        value: Union[jax.typing.ArrayLike, "reax.Metric"],
+        value: "jax.typing.ArrayLike | reax.Metric",
         batch_size: int | None = None,
         prog_bar: bool = False,
         logger: bool = False,

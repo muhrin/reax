@@ -16,6 +16,7 @@ from . import data as data_
 from . import hooks
 from . import loggers as loggers_
 from . import modules, optimizers, strategies, typing
+from .data import DeviceDataLoader
 from .training import _logger_connector
 from .utils import events
 
@@ -165,7 +166,7 @@ class Engine:
     ) -> "Union[reax.data.DeviceDataLoader, list[reax.data.DeviceDataLoader]]":
         loaders = list(map(self.strategy.setup_dataloader, args))
         # Wrap in DeviceLoader so all data is already on the selected device
-        loaders = [data_.DeviceDataLoader(loader, self.device) for loader in loaders]
+        loaders = list(map(self._wrap_loader, loaders))
         if len(args) == 1:
             return loaders[0]
 
@@ -221,6 +222,12 @@ class Engine:
         """Compute the value of a metric, unlike metric.compute(), in a parallel setting this method
         will compute the value across all processes."""
         return self._strategy.compute(metric)
+
+    def _wrap_loader(self, loader: "reax.DataLoader") -> "reax.data.DeviceDataLoader":
+        if isinstance(loader, DeviceDataLoader):
+            loader = loader.parent
+
+        return data_.DeviceDataLoader(loader, self.device)
 
 
 @functools.singledispatch

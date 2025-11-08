@@ -1,21 +1,26 @@
 import jax
 import jax.numpy as jnp
 
-from . import aggregation
-from ._metric import Metric
+from . import _metric, aggregation
 
 __all__ = "MeanSquaredError", "RootMeanSquareError", "MeanAbsoluteError", "LeastSquaresEstimate"
 
-MeanSquaredError = aggregation.Average.from_fun(
-    lambda values, targets, mask=None: (jnp.square(values - targets), mask)
-)
 
-MeanAbsoluteError = aggregation.Average.from_fun(
-    lambda values, targets, mask=None: (jnp.abs(values - targets), mask)
-)
+class MeanSquaredError(_metric.FromFun):
+    metric = aggregation.Average()
+
+    def func(self, values, targets, mask=None):
+        return jnp.square(values - targets), mask
 
 
-class RootMeanSquareError(Metric):
+class MeanAbsoluteError(_metric.FromFun):
+    metric = aggregation.Average()
+
+    def func(self, values, targets, mask=None):
+        return jnp.abs(values - targets), mask
+
+
+class RootMeanSquareError(_metric.Metric):
     mse: MeanSquaredError
 
     def __init__(self, mse: MeanSquaredError = None):
@@ -63,7 +68,7 @@ class RootMeanSquareError(Metric):
         return jnp.sqrt(self.mse.compute())
 
 
-class LeastSquaresEstimate(Metric):
+class LeastSquaresEstimate(_metric.Metric):
     values: jax.Array | None
     targets: jax.Array | None
 

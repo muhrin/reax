@@ -1,5 +1,5 @@
 import abc
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 from lightning_utilities.core import overrides
 
@@ -22,14 +22,14 @@ class DataSourceManager(abc.ABC):
         self._datasource: _datasources.DataSource | None = source
         self._engine = engine
         self._loaders: dict[str, "reax.data.DataLoader"] = {
-            name: self._engine.setup_dataloaders(loaders) for name, loaders in loaders.items()
+            name: self._setup_dataloader(loaders) for name, loaders in loaders.items()
         }
         self._from_datasource: dict[str, "reax.data.DataLoader"] = {}
 
     @property
     def _source_base_type(
         self,
-    ) -> "Union[type[reax.DataModule], type[reax.Module]]":
+    ) -> "type[reax.DataModule] | type[reax.Module]":
         if isinstance(self._datasource, datamodules.DataModule):
             return datamodules.DataModule
         if isinstance(self._datasource, modules.Module):
@@ -66,9 +66,8 @@ class DataSourceManager(abc.ABC):
         return loader
 
     @property
-    def source(self) -> Optional["reax.data.DataSource"]:
+    def source(self) -> "reax.data.DataSource | None":
         """The original source of the dataloader (if there is one)"""
-
         return self._datasource
 
     def prepare_data(self) -> None:
@@ -103,9 +102,14 @@ class DataSourceManager(abc.ABC):
         """Get the dataloader directly from the source"""
         loader_name = f"{name}_dataloader"
         loader = getattr(self._datasource, loader_name)()
-        if self._engine is not None:
-            loader = self._engine.setup_dataloaders(loader)
+        loader = self._setup_dataloader(loader)
         return loader
+
+    def _setup_dataloader(self, loader: "reax.DataLoader") -> "reax.DataLoader":
+        if self._engine is None:
+            return loader
+
+        return self._engine.setup_dataloaders(loader)
 
 
 def create_manager(

@@ -1,7 +1,6 @@
 """Stage for evaluating dataset statistics"""
 
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, TypeVar
 
 import beartype
 from flax import nnx
@@ -30,9 +29,9 @@ class EvaluateStats(stages.EpochStage):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
+        stats: "reax.Metric | Sequence[reax.Metric] | dict[str, reax.Metric]",
         datamanager: "reax.data.DataSourceManager",
-        engine: Optional["reax.Engine"],
+        engine: "reax.Engine | None",
         *,
         rngs: nnx.Rngs,
         dataset_name: str = "train",

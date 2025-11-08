@@ -17,7 +17,6 @@ def test_automatic_versioning(tmp_path):
     (tmp_path / "exp" / "version_1").mkdir()
     (tmp_path / "exp" / "version_nonumber").mkdir()
     (tmp_path / "exp" / "other").mkdir()
-    print(tmp_path)
 
     logger = loggers.pandas.PandasLogger(save_dir=tmp_path, name="exp")
 

@@ -22,9 +22,7 @@ class MetricCollection(equinox.Module):
     _metrics: flax.core.FrozenDict[str, "reax.Metric"]
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def __init__(
-        self, metrics: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]]
-    ):
+    def __init__(self, metrics: "reax.Metric | Sequence[reax.Metric] | dict[str, reax.Metric]"):
         super().__init__()
         self._metrics = flax.core.FrozenDict(_metrics_dict(metrics))
 
@@ -94,6 +92,9 @@ def _metrics_dict(
 
 def _ensure_metric(metric: "reax.Metric") -> metric_.Metric:
     """Ensure metric."""
+    if not isinstance(metric, metric_.Metric):
+        raise TypeError(f"Was expecting a reax.Matric, got: ({type(metric).__name__}) {metric}")
+
     return metric
 
 

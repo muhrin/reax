@@ -1,5 +1,5 @@
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Optional, TypeVar
 
 import beartype
 import jax
@@ -18,7 +18,7 @@ __all__ = "ArrayLoader", "CachingLoader", "ReaxDataLoader", "FetcherDataLoader",
 T = TypeVar("T")
 _U = TypeVar("_U")
 _T_co = TypeVar("_T_co", covariant=True)
-ArrayOrArrayTuple = Union[jt.ArrayLike, tuple[jt.ArrayLike, ...]]
+ArrayOrArrayTuple = jt.ArrayLike | tuple[jt.ArrayLike, ...]
 
 
 def _single_or_value(value: tuple[T, ...], to_test=None) -> T | tuple[T, ...]:
@@ -220,6 +220,7 @@ class DeviceDataLoader(_types.DataLoader[_T_co, _U]):
 
     @property
     def parent(self) -> "reax.data.DataLoader[_T_co, _U]":
+        """Access the original loader that this one wraps"""
         return self._loader
 
     @override
