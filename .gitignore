@@ -76,3 +76,5 @@ examples/*/
 .vscode/
 
 local/
+
+docs/build/
