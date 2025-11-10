@@ -3,6 +3,7 @@ from typing import TypeVar
 
 import jax
 import jax.numpy as jnp
+from typing_extensions import override
 
 from reax.utils import arrays
 
@@ -97,12 +98,15 @@ class Std(Aggregation):
         self, total: jax.Array = None, sum_of_squares: jax.Array = None, count: jax.Array = None
     ):
         super().__init__()
+        # State
         self.total = total or jnp.array(0, jnp.float32)
         self.sum_of_squares = sum_of_squares or jnp.array(0, jnp.float32)
         self.count = count or jnp.array(0, jnp.int32)
 
-    def create(
-        self,
+    @override
+    @classmethod
+    def create(  # pylint: disable=arguments-differ
+        cls,
         values: jax.typing.ArrayLike,
         mask: jax.typing.ArrayLike | None = None,
     ) -> "Std":
@@ -113,7 +117,7 @@ class Std(Aggregation):
             mask = jnp.ones(values.shape[0], dtype=jnp.bool)
 
         mask, num_elements = utils.prepare_mask(values, mask, return_count=True)
-        return type(self)(
+        return cls(
             total=values.sum(),
             sum_of_squares=jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
             count=num_elements,

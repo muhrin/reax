@@ -115,7 +115,7 @@ html_theme = "alabaster"
 # html_theme_options = {}
 html_theme_options = {
     "codecov_button": True,
-    "description": "Python object storage with versioning made simple",
+    "description": "Scalable, flexible training for JAX, inspired by the simplicity of PyTorch Lightning",
     "github_button": True,
     "github_repo": "reax",
     "github_type": "star",

@@ -335,9 +335,9 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         return every_n_train_steps, every_n_epochs, train_time_interval
 
     @staticmethod
-    def __init_monitor_mode(mode: str) -> jax.Array:
+    def __init_monitor_mode(mode: str) -> float:
         """Init monitor mode."""
-        jnp_info = jnp.array(float("inf" if mode == "min" else "-inf"))
+        jnp_info = float("inf" if mode == "min" else "-inf")
         mode_dict = {"min": jnp_info, "max": -jnp_info}
 
         if mode not in mode_dict:

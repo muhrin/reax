@@ -136,9 +136,14 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
             env.update(kwargs)
 
             # Relaunch the same script with the same Python executable
+            if "REAX_COMMAND" in os.environ:
+                cmd = os.environ["REAX_COMMAND"].split()
+            else:
+                cmd = [sys.executable] + sys.argv
+            _LOGGER.info("Launching subprocess with: %s", " ".join(cmd))
             children.append(
                 subprocess.Popen(  # pylint: disable=consider-using-with
-                    [sys.executable] + sys.argv, env=env
+                    cmd, env=env
                 )  # nosec # Disable bandit
             )
 

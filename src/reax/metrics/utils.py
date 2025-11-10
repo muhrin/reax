@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 import numpy as np
+from typing_extensions import override
 
 from .. import typing
 from .. import utils as reax_utils
@@ -172,6 +173,7 @@ class WithAccumulatorAndCount(WithAccumulator):
 
     count: jax.Array = 0
 
+    @override
     @classmethod
     def create(
         cls,
@@ -183,6 +185,7 @@ class WithAccumulatorAndCount(WithAccumulator):
         mask, num_elements = prepare_mask(values, mask, return_count=True)
         return cls(accumulator=cls.reduce_fn(values, where=mask), count=num_elements)
 
+    @override
     @jt.jaxtyped(typechecker=beartype.beartype)
     def merge(self, other: Self) -> Self:
         """Merge function."""
@@ -195,6 +198,7 @@ class WithAccumulatorAndCount(WithAccumulator):
             count=self.count + other.count,
         )
 
+    @override
     @jt.jaxtyped(typechecker=beartype.beartype)
     def update(
         self,
@@ -214,6 +218,7 @@ class WithAccumulatorAndCount(WithAccumulator):
             count=self.count + num_elements,
         )
 
+    @override
     @jt.jaxtyped(typechecker=beartype.beartype)
     def compute(self) -> jax.Array:
         """Compute function."""

@@ -2,8 +2,8 @@
 
 .. _reax: https://github.com/camml-lab/reax
 
-Welcome to REAX's documentation!
-================================
+Welcome to REAX
+===============
 
 .. image:: https://codecov.io/gh/muhrin/reax/branch/develop/graph/badge.svg
     :target: https://codecov.io/gh/camml-lab/reax
@@ -23,6 +23,22 @@ Welcome to REAX's documentation!
     :target: https://pypi.python.org/pypi/reax/
 
 
+REAX is a deep learning framework for AI researchers and machine learning engineers designed to
+remove much of the boilerplate from JAX projects while maximum flexibility and enabling
+performance at scale.
+
+Installation 🛠️
+---------------
+
+To install REAX, run the following command:
+
+.. code-block:: shell
+
+    pip install reax
+
+Get Started
+-----------
+
 
 Table Of Contents
 +++++++++++++++++
@@ -31,7 +47,7 @@ Table Of Contents
    :glob:
    :maxdepth: 3
 
-   apidoc
+   api_reference/modules
 
 
 Versioning

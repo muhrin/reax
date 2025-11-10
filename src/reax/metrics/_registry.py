@@ -1,5 +1,7 @@
 import logging
 
+from typing_extensions import override
+
 from . import _metric as metric_
 from . import collections
 from .. import plugins
@@ -12,6 +14,13 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class Registry(containers.Registry[metric_.Metric]):
+    def __getitem__(self, key: str) -> metric_.Metric:
+        try:
+            return self._registry[key]
+        except KeyError as exc:
+            raise KeyError(f"Metric not found: {key}") from exc
+
+    @override
     def register(self, key: str, obj: metric_.Metric | type[metric_.Metric]):
         """Register function."""
         try:

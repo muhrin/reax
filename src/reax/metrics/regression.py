@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+from typing_extensions import override
 
 from . import _metric, aggregation
 
@@ -7,16 +8,18 @@ __all__ = "MeanSquaredError", "RootMeanSquareError", "MeanAbsoluteError", "Least
 
 
 class MeanSquaredError(_metric.FromFun):
-    metric = aggregation.Average()
+    metric = aggregation.Average
 
-    def func(self, values, targets, mask=None):
+    @classmethod
+    def func(cls, values, targets, mask=None):
         return jnp.square(values - targets), mask
 
 
 class MeanAbsoluteError(_metric.FromFun):
-    metric = aggregation.Average()
+    metric = aggregation.Average
 
-    def func(self, values, targets, mask=None):
+    @classmethod
+    def func(cls, values, targets, mask=None):
         return jnp.abs(values - targets), mask
 
 
@@ -26,6 +29,7 @@ class RootMeanSquareError(_metric.Metric):
     def __init__(self, mse: MeanSquaredError = None):
         """Init function."""
         super().__init__()
+        # State
         self.mse = mse
 
     @property
@@ -33,14 +37,16 @@ class RootMeanSquareError(_metric.Metric):
         """Is empty."""
         return self.mse is None
 
+    @override
+    @classmethod
     def create(  # pylint: disable=arguments-differ
-        self,
+        cls,
         values: jax.Array,
         targets: jax.Array,
         mask: jax.Array | None = None,
     ) -> "RootMeanSquareError":
         """Create function."""
-        return type(self)(mse=MeanSquaredError().create(values, targets, mask))
+        return cls(mse=MeanSquaredError().create(values, targets, mask))
 
     def update(  # pylint: disable=arguments-differ
         self,

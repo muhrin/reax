@@ -38,7 +38,8 @@ class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
         class FromFunction(FromFun):
             metric = cls()  # pylint: disable=abstract-class-instantiated
 
-            def func(self, *args, **kwargs) -> "Metric[OutT]":
+            @classmethod
+            def func(cls, *args, **kwargs) -> "Metric[OutT]":
                 """Fun function."""
                 return function(*args, **kwargs)
 
@@ -99,10 +100,11 @@ class FromFun(Metric[OutT]):
 
         return type(self)()
 
-    def create(self, *args, **kwargs) -> "FromFun":
+    @classmethod
+    def create(cls, *args, **kwargs) -> "FromFun":
         """Create function."""
-        val = self._call_fn(*args, **kwargs)
-        return type(self)(state=self.metric.create(*val))
+        val = cls._call_fn(*args, **kwargs)
+        return cls(state=cls.metric.create(*val))
 
     def merge(self, other: "FromFun") -> "FromFun":
         """Merge function."""
@@ -127,9 +129,10 @@ class FromFun(Metric[OutT]):
             raise RuntimeError("Nothing to compute, metric is empty!")
         return self._state.compute()
 
-    def _call_fn(self, *args, **kwargs) -> tuple:
+    @classmethod
+    def _call_fn(cls, *args, **kwargs) -> tuple:
         """Call fn."""
-        val = self.func(*args, **kwargs)
+        val = cls.func(*args, **kwargs)
 
         # Automatically unroll a tuple of return values
         if not isinstance(val, tuple):
