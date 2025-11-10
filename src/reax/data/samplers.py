@@ -3,12 +3,14 @@ import contextlib
 import functools
 import itertools
 import math
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Final, TypeVar
 
+import beartype
 import jax
+import jaxtyping as jt
 import numpy as np
 
-from . import _types
+from . import _types, datasets
 
 if TYPE_CHECKING:
     import reax
@@ -36,7 +38,7 @@ class SequentialSampler(_types.Sampler[int]):
         if not isinstance(length, int):
             raise TypeError("Length must be an integer")
 
-        self._length = length
+        self._length: Final[int] = length
 
     def __iter__(self) -> Iterator[int]:
         """Iter function."""
@@ -52,10 +54,11 @@ class RandomSampler(_types.Sampler[int]):
 
     SAMPLE_SIZE = 32  # Used to control the number of samples we generate internally at once
 
-    def __init__(self, length: int, replacements: bool = False, num_samples: int = None):
-        self._length = length
-        self._replacements = replacements
-        self._num_samples = num_samples
+    def __init__(self, length: int, replacements: bool = False, num_samples: int | None = None):
+        # Params
+        self._length: Final[int] = length
+        self._replacements: Final[bool] = replacements
+        self._num_samples: Final[bool | None] = num_samples
 
     @property
     def num_samples(self) -> int:
@@ -89,9 +92,12 @@ class BatchSampler(_types.Sampler[list[_IdxT]]):
     r"""Sample batches of indexes from a given sample."""
 
     def __init__(self, sampler: _types.Sampler[_IdxT], batch_size: int, drop_last: bool) -> None:
+        # Params
+        self._batch_size: Final[int] = batch_size
+        self._drop_last: Final[bool] = drop_last
+
+        # State
         self._sampler = sampler
-        self._batch_size = batch_size
-        self._drop_last = drop_last
 
     def __iter__(self) -> Iterator[list[_IdxT]]:
         """Iter function."""
@@ -139,6 +145,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
     and partitioning the dataset based on the process rank and number of replicas.
     """
 
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         dataset: "reax.data.Dataset",
@@ -163,27 +170,28 @@ class DistributedSampler(_types.Sampler[_IdxT]):
             raise ValueError("Number of replicas cannot be 0.")
 
         # Params
-        self._num_replicas = num_replicas if num_replicas is not None else jax.process_count()
-        self._process_index = process_index if process_index is not None else jax.process_index()
+        self._num_replicas: Final[int] = self._init_num_replicas(num_replicas)
+        self._process_index: Final[int] = self._init_process_index(process_index)
         if self._process_index >= self._num_replicas:
             raise ValueError(
                 f"Process index ({self._process_index}) must be less than the number of replicas "
                 f"({self._num_replicas})."
             )
 
-        self._shuffle = shuffle
-        self._drop_last = drop_last
-        self._num_samples = self._init_num_samples(dataset, drop_last, self._num_replicas)
-        self._total_size = self._num_samples * self._num_replicas
-        self._shuffle = shuffle
-        self._seed = seed
+        self._shuffle: Final[bool] = shuffle
+        self._drop_last: Final[bool] = drop_last
+        self._len_dataset = datasets.len_dataset(dataset)
+        self._num_samples: Final[float] = self._init_num_samples(
+            self._len_dataset, drop_last, self._num_replicas
+        )
+        self._total_size: Final[int] = self._num_samples * self._num_replicas
+        self._seed: Final[int] = seed
 
         # State
-        self._dataset = dataset
-        self._epoch = 0
+        self._epoch: int = 0
 
     @staticmethod
-    def _init_num_samples(dataset: "reax.data.Dataset", drop_last: bool, num_replicas: int):
+    def _init_num_samples(len_dataset: int | float, drop_last: bool, num_replicas: int) -> float:
         """Calculates the number of samples each process should receive.
 
         If the dataset length is evenly divisible by the number of replicas,
@@ -191,7 +199,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         available length that is evenly divisible.
 
         Args:
-            dataset: The dataset.
+            len_dataset: The total size of the dataset.
             drop_last: Whether to drop the last incomplete batch.
             num_replicas: The number of replicas.
 
@@ -200,13 +208,21 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         """
         # If the dataset length is evenly divisible by # of replicas, then there
         # is no need to drop any data, since the dataset will be split equally.
-        if drop_last and len(dataset) % num_replicas != 0:
+        if drop_last and len_dataset % num_replicas != 0:
             # Split to nearest available length that is evenly divisible.
             # This is to ensure each rank receives the same amount of data when
             # using this Sampler.
-            return math.ceil((len(dataset) - num_replicas) / num_replicas)
+            return math.ceil((len_dataset - num_replicas) / num_replicas)
 
-        return math.ceil(len(dataset) / num_replicas)
+        return math.ceil(len_dataset / num_replicas)
+
+    @staticmethod
+    def _init_num_replicas(num_replicas: int | None) -> int:
+        return num_replicas if num_replicas is not None else jax.process_count()
+
+    @staticmethod
+    def _init_process_index(process_index: int | None) -> int:
+        return process_index if process_index is not None else jax.process_index()
 
     def __iter__(self) -> Iterator[_IdxT]:
         """Returns an iterator over the sampled indices.
@@ -221,9 +237,9 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         if self._shuffle:
             # deterministically shuffle based on epoch and seed
             key = jax.random.key(self._seed + self._epoch)
-            indices = jax.random.permutation(key, len(self._dataset)).tolist()
+            indices = jax.random.permutation(key, self._len_dataset).tolist()
         else:
-            indices = list(range(len(self._dataset)))
+            indices = list(range(self._len_dataset))
 
         if self._drop_last:
             # remove the last set of indices
@@ -273,6 +289,7 @@ def create_sampler(
     replacements: bool = False,
     shuffle: bool = False,
     sampler: "reax.data.Sampler[_T_co]" = None,
+    drop_last: bool = False,
 ) -> "reax.data.Sampler[_T_co]":
     """Create sampler."""
     if sampler is None:
@@ -284,7 +301,7 @@ def create_sampler(
             sampler = _create_sampler(dataset, replacements=replacements, shuffle=shuffle)
 
     if batch_size is not None:
-        sampler = BatchSampler(sampler, batch_size, False)
+        sampler = BatchSampler(sampler, batch_size, drop_last)
 
     return sampler
 

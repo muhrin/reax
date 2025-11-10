@@ -11,6 +11,8 @@ import jax.random
 import jaxtyping as jt
 import numpy as np
 
+from . import _types
+
 if TYPE_CHECKING:
     import reax
 
@@ -187,3 +189,17 @@ def random_split(
         Subset(dataset, indices[offset - length : offset])
         for offset, length in zip(itertools.accumulate(lengths), lengths)
     ]
+
+
+def len_dataset(dataset: _types.Dataset) -> int | float:
+    """Return the number of entries in the dataset, or float("inf") if it is not sized."""
+    if isinstance(dataset, tuple):
+        entry = next(filter(lambda dat: dat is not None, dataset))
+    else:
+        entry = dataset
+
+    try:
+        return len(entry)
+    except TypeError:
+        # We can't tell how long the dataset is
+        return float("inf")

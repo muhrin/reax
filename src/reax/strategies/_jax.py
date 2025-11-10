@@ -6,6 +6,7 @@ import subprocess  # nosec  # Suppresses Bandit's B404 subprocess warning
 import sys
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import equinox as eqx
 import jax
 from jax import distributed, tree
 from jax.experimental import multihost_utils
@@ -109,6 +110,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
                 coordinator_address=coordinator_address,
                 num_processes=num_processes,
                 process_id=0,
+                local_device_ids=0,
             )
 
         return *res, children
@@ -232,8 +234,11 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
         if self.process_count == 1:
             return metric.compute()
 
-        gathered = multihost_utils.process_allgather(metric)
-        unbatched: list["reax.Metric[_OutT]"] = unbatch_pytree(gathered, metric)
+        dynamic, static = eqx.partition(metric, eqx.is_array)
+        gathered = multihost_utils.process_allgather(dynamic)
+        unbatched: list["reax.Metric[_OutT]"] = unbatch_pytree(gathered, dynamic)
+        # Rejoin with the static data
+        unbatched = [eqx.combine(entry, static) for entry in unbatched]
 
         metric = unbatched[0]
         for entry in unbatched[1:]:

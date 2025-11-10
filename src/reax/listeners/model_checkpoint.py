@@ -38,7 +38,7 @@ import os
 import pathlib
 import re
 import time
-from typing import TYPE_CHECKING, Final, Literal, Union
+from typing import TYPE_CHECKING, Final, Literal
 import weakref
 
 import jax
@@ -58,7 +58,7 @@ _LOGGER = logging.getLogger(__name__)
 __all__ = ("ModelCheckpoint",)
 
 CHECKPOINTS_DIR = "checkpoints"
-PathType = Union[str, pathlib.Path]
+PathType = str | pathlib.Path
 
 
 class ModelCheckpoint(checkpointer.Checkpointer):

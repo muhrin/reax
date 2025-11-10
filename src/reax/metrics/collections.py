@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any
 
 import beartype
 import equinox
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 __all__ = ("MetricCollection", "combine")
 
-MetricType = Union[type[metric_.Metric], metric_.Metric]
+MetricType = type[metric_.Metric] | metric_.Metric
 
 
 class MetricCollection(equinox.Module):
@@ -76,7 +76,7 @@ class MetricCollection(equinox.Module):
 
 
 def _metrics_dict(
-    metrics: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
+    metrics: "reax.Metric | Sequence[reax.Metric] | dict[str, reax.Metric]",
 ) -> dict[str, metric_.Metric]:
     """Metrics dict."""
     if isinstance(metrics, dict):

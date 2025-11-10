@@ -269,7 +269,6 @@ def test_rich_progress_bar_with_refresh_rate(
         assert not fit_val_bar.visible
 
 
-@pytest.mark.skip(reason="Trainer doesn't support sanity check yet")
 @pytest.mark.parametrize("limit_val_batches", [1, 5])
 def test_rich_progress_bar_num_sanity_val_steps(tmp_path, limit_val_batches):
     model = demos.BoringModel()
@@ -277,21 +276,19 @@ def test_rich_progress_bar_num_sanity_val_steps(tmp_path, limit_val_batches):
     progress_bar = progress.RichProgressBar()
     num_sanity_val_steps = 3
 
-    trainer = reax.Trainer(
-        default_root_dir=tmp_path,
+    trainer = reax.Trainer(default_root_dir=tmp_path, listeners=progress_bar)
+
+    trainer.fit(
+        model,
         num_sanity_val_steps=num_sanity_val_steps,
         limit_train_batches=1,
         limit_val_batches=limit_val_batches,
         max_epochs=1,
-        listeners=progress_bar,
     )
-
-    trainer.fit(model)
     assert progress_bar.progress.tasks[0].completed == min(num_sanity_val_steps, limit_val_batches)
     assert progress_bar.progress.tasks[0].total == min(num_sanity_val_steps, limit_val_batches)
 
 
-@pytest.mark.skip(reason="This test doesn't work yet")
 def test_rich_progress_bar_counter_with_val_check_interval(tmp_path):
     """Test the completed and total counter for rich progress bar when using val_check_interval."""
     progress_bar = progress.RichProgressBar()
@@ -313,7 +310,7 @@ def test_rich_progress_bar_counter_with_val_check_interval(tmp_path):
     assert fit_val_bar.completed == 4
     assert fit_val_bar.total == 4
 
-    trainer.validate(model)
+    trainer.validate(model, limit_batches=4)
     val_bar = progress_bar.progress.tasks[0]
     assert val_bar.completed == 4
     assert val_bar.total == 4
@@ -345,7 +342,7 @@ def test_rich_progress_bar_metric_display_task_id(tmp_path):
         assert key not in rendered[val_progress_bar_id][1]
 
 
-@pytest.mark.skip(reason="Need to do a bit more work to get DummyLogger durin fast_dev_run")
+@pytest.mark.skip(reason="Need to do a bit more work to get DummyLogger during fast_dev_run")
 def test_rich_progress_bar_metrics_fast_dev_run(tmp_path):
     """Test that `v_num` does not appear in the progress bar when a dummy logger is used (fast-dev-run)."""
     progress_bar = progress.RichProgressBar()

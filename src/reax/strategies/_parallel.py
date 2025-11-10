@@ -44,6 +44,7 @@ class ParallelStrategy(_strategies.Strategy, abc.ABC):
             # seed=jnp.array(0, device=self.),
             # drop_last: bool = False,
         )
+        # TODO: Maybe try to re-create the BatchSampler with the current sampler
         if isinstance(data.sampler, data_.BatchSampler):
             data.sampler.sampler = sampler
         else:

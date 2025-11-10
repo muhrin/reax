@@ -1,6 +1,6 @@
-from collections.abc import Callable, Generator, Mapping, Sequence
+from collections.abc import Callable, Generator, Sequence
 import contextlib
-from typing import TYPE_CHECKING, Any, Generic, Optional, TypedDict, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Generic, TypedDict, TypeVar
 
 import beartype
 from flax import nnx
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 __all__ = ("Module",)
 
-MetricType = Union["reax.Metric", jax.typing.ArrayLike]
+MetricType = "reax.Metric" | jax.typing.ArrayLike
 OutputT_co = TypeVar("OutputT_co", covariant=True)
 BatchT = TypeVar("BatchT")
 OptimizerData = tuple[optax.GradientTransformation, Any]
@@ -30,7 +30,7 @@ class LossAndGradDict(TypedDict, total=False):
 
 
 LossAndGrad = tuple[jax.Array, jax.Array]
-TrainOutput = Union[LossAndGrad, LossAndGradDict]
+TrainOutput = LossAndGrad | LossAndGradDict
 
 
 class Module(
@@ -41,7 +41,7 @@ class Module(
     def __init__(self):
         """Init function."""
         super().__init__()
-        self._trainer: Optional["reax.Trainer"] = None
+        self._trainer: "reax.Trainer | None" = None
         self._parameters = None
         self._automatic_optimization = True
 
@@ -97,7 +97,7 @@ class Module(
         """Random number generators."""
         return self._trainer.rngs
 
-    def optimizers(self) -> Union["reax.Optimizer", list["reax.Optimizer"]]:
+    def optimizers(self) -> "reax.Optimizer | list[reax.Optimizer]":
         """Optimizers function."""
         optimizers = self.trainer.optimizers
 
@@ -131,7 +131,7 @@ class Module(
     def test_step(self, batch: BatchT, batch_idx: int, /):
         """Test step."""
 
-    def configure_listeners(self) -> "Union[Sequence[reax.TrainerListener], reax.TrainerListener]":
+    def configure_listeners(self) -> "Sequence[reax.TrainerListener] | reax.TrainerListener":
         """Configure model-specific listeners. When the model gets attached, e.g., when ``.fit()``
         or ``.test()`` gets called, the list or a listener returned here will be merged with the
         list of listeners passed to the Trainer's ``listeners`` argument.
@@ -210,7 +210,7 @@ class Module(
 
     def log_dict(
         self,
-        dictionary: "Union[Mapping[str, MetricType], reax.metrics.MetricCollection]",
+        dictionary: "Mapping[str, MetricType] | reax.metrics.MetricCollection",
         prog_bar: bool = False,
         logger: bool | None = None,
         on_step: bool | None = None,
@@ -220,7 +220,7 @@ class Module(
         """Log a dictionary of values at once.
 
         Args:
-            dictionary ("Union[Mapping[str, MetricType], reax.metrics.MetricCollection]"):
+            dictionary ("Mapping[str, MetricType] | reax.metrics.MetricCollection"):
                 Key value pairs. Keys must be identical across all
                 processes if using DDP or any other distributed
                 strategy. The values can be a ``float``, ``Array``,

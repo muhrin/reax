@@ -3,7 +3,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
-    Optional,
     TypedDict,
     TypeVar,
     cast,
@@ -202,8 +201,8 @@ class DataSourceManager(Generic[_T_co]):
 
 
 def get_datasource(
-    datamodule: "Optional[reax.DataModule[_T_co]]" = None,
-    module: Optional["reax.Module"] = None,
+    datamodule: "reax.DataModule[_T_co] | None" = None,
+    module: "reax.Module | None" = None,
 ) -> DataSourceManager[_T_co] | None:
     if datamodule is not None:
         return DataSourceManager(datamodule)

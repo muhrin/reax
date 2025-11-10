@@ -3,7 +3,6 @@ import contextlib
 import copy
 import enum
 import os
-from typing import Any, Union
 import warnings
 
 import fsspec
@@ -30,7 +29,7 @@ def save_hparams_to_yaml(
 
     Args:
         config_yaml (typing.Path): The path to save the hparams to.
-        hparams (Union[dict, argparse.Namespace]): The hparams to save.
+        hparams (dict | argparse.Namespace): The hparams to save.
         use_omegaconf (bool, optional): If `omegaconf` is available and
             `use_omegaconf=True`, the hparams will be converted to
             `omegaconf.DictConfig` if possible, defaults to True.
@@ -81,7 +80,7 @@ def save_hparams_to_yaml(
 
 def load_hparams_from_yaml(
     config_yaml: typing.Path, use_omegaconf: bool = True
-) -> Union[dict[str, Any], "omegaconf.DictConfig"]:
+) -> "dict[str, Any] | omegaconf.DictConfig":
     """Load hparams from a file.
 
     Args:

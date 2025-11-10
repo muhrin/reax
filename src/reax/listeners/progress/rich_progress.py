@@ -34,7 +34,7 @@ from collections.abc import Generator
 import dataclasses
 import datetime
 import math
-from typing import TYPE_CHECKING, Any, Final, Union, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 from lightning_utilities.core.imports import RequirementCache
 from typing_extensions import override
@@ -172,7 +172,7 @@ if _RICH_AVAILABLE:  # noqa: C901
         def __init__(
             self,
             trainer: "reax.Trainer",
-            style: Union[str, "style_.Style"],
+            style: str | style_.Style,
             text_delimiter: str,
             metrics_format: str,
         ):
@@ -241,14 +241,14 @@ class RichProgressBarTheme:
 
     """
 
-    description: Union[str, "style_.Style"] = ""
-    progress_bar: Union[str, "style_.Style"] = "#6206E0"
-    progress_bar_finished: Union[str, "style_.Style"] = "#6206E0"
-    progress_bar_pulse: Union[str, "style_.Style"] = "#6206E0"
-    batch_progress: Union[str, "style_.Style"] = ""
-    time: Union[str, "style_.Style"] = "dim"
-    processing_speed: Union[str, "style_.Style"] = "dim underline"
-    metrics: Union[str, "style_.Style"] = "italic"
+    description: str | style_.Style = ""
+    progress_bar: str | style_.Style = "#6206E0"
+    progress_bar_finished: str | style_.Style = "#6206E0"
+    progress_bar_pulse: str | style_.Style = "#6206E0"
+    batch_progress: str | style_.Style = ""
+    time: str | style_.Style = "dim"
+    processing_speed: str | style_.Style = "dim underline"
+    metrics: str | style_.Style = "italic"
     metrics_text_delimiter: str = " "
     metrics_format: str = ".3f"
 

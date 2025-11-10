@@ -1,6 +1,6 @@
 import abc
 from collections.abc import Callable, Iterable, Sequence
-from typing import TYPE_CHECKING, Generic, TypeVar, Union
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 if TYPE_CHECKING:
     import reax
@@ -11,7 +11,7 @@ _T_co = TypeVar("_T_co", covariant=True)
 U = TypeVar("U")
 IdxT = TypeVar("IdxT")
 
-Dataset = Union[Iterable[_T_co], Sequence[_T_co]]
+Dataset = Iterable[_T_co] | Sequence[_T_co]
 Sampler = Iterable[IdxT]
 CollateFn = Callable[[Sequence[_T_co]], U]
 

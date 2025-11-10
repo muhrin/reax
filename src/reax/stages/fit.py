@@ -346,12 +346,19 @@ class Fit(stages.Stage):
         )
         self._sanity_check: validation.Validate | None = None
         if self._fit_epoch.validate and num_sanity_val_steps:
+            if num_sanity_val_steps is not None and limit_val_batches is not None:
+                batches_limit = min(num_sanity_val_steps, limit_val_batches)
+            elif num_sanity_val_steps is not None:
+                batches_limit = num_sanity_val_steps
+            else:
+                batches_limit = limit_val_batches
+
             self._sanity_check = validation.Validate(
                 module,
                 datamanager,
                 engine,
                 fast_dev_run=fast_dev_run,
-                limit_batches=num_sanity_val_steps,
+                limit_batches=batches_limit,
                 name="sanity_check",
                 enable_checkpointing=False,
             )

@@ -1,18 +1,11 @@
-from collections.abc import Callable, Generator, Iterable, Sequence
+from collections.abc import Callable, Generator, Sequence
 import contextlib
 import functools
 import logging
 import os
 import signal
 import sys
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Final,
-    Optional,
-    TypeVar,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Final, TypeVar
 import weakref
 
 import beartype
@@ -50,11 +43,11 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         self,
         *,
         accelerator: str = "auto",
-        strategy: "Union[str, reax.Strategy]" = "auto",
+        strategy: "str | reax.Strategy" = "auto",
         devices: list[int] | str | int = "auto",
         precision=None,
-        logger: Union["reax.Logger", Iterable["reax.Logger"], bool] | None = True,
-        listeners: "Optional[list[reax.TrainerListener], reax.TrainerListener]" = None,
+        logger: "reax.Logger | Iterable[reax.Logger] | bool | None" = True,
+        listeners: "list[reax.TrainerListener] | reax.TrainerListener | None" = None,
         log_every_n_steps: int = 50,
         enable_checkpointing: bool | None = True,
         enable_progress_bar: bool = True,
@@ -245,7 +238,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return self._events.find(type=listeners_.Checkpointer)
 
     @property
-    def checkpoint_listener(self) -> Optional["reax.listeners.Checkpointer"]:
+    def checkpoint_listener(self) -> "reax.listeners.Checkpointer | None":
         """The first :class:`~reax.listeners.model_checkpoint.ModelCheckpoint` listener in the
         Trainer.listeners list, or ``None`` if it doesn't exist.
         """
@@ -260,7 +253,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return self._events.find(type=listeners_.ProgressBar)
 
     @property
-    def progress_bar_listener(self) -> Optional["reax.listeners.ProgressBar"]:
+    def progress_bar_listener(self) -> "reax.listeners.ProgressBar | None":
         """The first :class:`~reax.listeners.ProgressBar` listener in the
         Trainer.listeners list, or ``None`` if it doesn't exist.
         """
@@ -270,7 +263,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     # end region
 
     @property
-    def logger(self) -> Optional["reax.Logger"]:
+    def logger(self) -> "reax.Logger | None":
         r"""Get the first (and main) logger."""
         return self._engine.logger
 
@@ -310,7 +303,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return dirpath
 
     @property
-    def stage(self) -> "Optional[reax.Stage]":
+    def stage(self) -> "reax.Stage | None":
         """Get the current stage if there is one running, otherwise None."""
         return self._stage
 
@@ -350,14 +343,14 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return self._engine.process_count
 
     @property
-    def train_dataloader(self) -> "Optional[reax.data.DataLoader]":
+    def train_dataloader(self) -> "reax.data.DataLoader | None":
         """Train dataloader."""
         if self._stage is not None:
             return getattr(self._stage, "train_dataloader", None)
         return None
 
     @property
-    def val_dataloaders(self) -> "Optional[reax.data.DataLoader]":
+    def val_dataloaders(self) -> "reax.data.DataLoader | None":
         """Train dataloader."""
         if self._stage is not None:
             return getattr(self._stage, "val_dataloader", None)
@@ -408,10 +401,10 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     def fit(
         self,
         module: modules.Module,
-        train_dataloaders: "Optional[reax.DataLoader]" = None,
-        val_dataloaders: "Optional[reax.DataLoader]" = None,
+        train_dataloaders: "reax.DataLoader | None" = None,
+        val_dataloaders: "reax.DataLoader | None" = None,
         *,
-        datamodule: "Optional[reax.DataModule]" = None,
+        datamodule: "reax.DataModule | None" = None,
         ckpt_path: typing.Path | None = None,
         fast_dev_run: bool | int = False,
         max_epochs: int | None = 1_000,
@@ -530,8 +523,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     def predict(
         self,
         module: modules.Module,
-        dataloaders: "Optional[reax.DataLoader]" = None,
-        datamodule: "Optional[reax.DataModule]" = None,
+        dataloaders: "reax.DataLoader | None" = None,
+        datamodule: "reax.DataModule | None" = None,
         ckpt_path: typing.Path | None = None,
         keep_predictions: bool | None = None,
         fast_dev_run: bool | int = False,
@@ -565,9 +558,9 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def eval_stats(
         self,
-        stats: Union["reax.Metric", Sequence["reax.Metric"], dict[str, "reax.Metric"]],
-        dataloaders: "Optional[reax.DataLoader]" = None,
-        datamodule: "Optional[reax.DataModule]" = None,
+        stats: "reax.Metric | Sequence[reax.Metric] | dict[str, reax.Metric]",
+        dataloaders: "reax.DataLoader | None" = None,
+        datamodule: "reax.DataModule | None" = None,
         dataset_name: str = "train",
         fast_dev_run: bool | int = False,
         limit_batches: int | float = keys.NO_LIMIT,
@@ -652,7 +645,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
     @contextlib.contextmanager
     def _attach_model_listeners(
-        self, listeners: Union["reax.TrainerListener", Sequence["reax.TrainerListener"]]
+        self, listeners: "reax.TrainerListener | Sequence[reax.TrainerListener]"
     ) -> Generator[None, Any, None]:
         """Attaches the listeners defined in the model.
 
@@ -830,8 +823,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def _init_loggers(
-    logger: Union["reax.Logger", Iterable["reax.Logger"], bool] | None,
-    default_root_dir: str,
+    logger: "reax.Logger | Iterable[reax.Logger] | bool | None", default_root_dir: str
 ) -> list["reax.Logger"]:
     """Init loggers."""
     if isinstance(logger, loggers_.Logger):
