@@ -38,7 +38,7 @@ def get_batch_sizers() -> list:
     return sizers
 
 
-def get_metrics() -> "dict[str, reax.Metric]":
+def get_metrics() -> "dict[str, reax.typing.MetricType]":
     """Get registered metrics from plugins"""
     mgr = stevedore.extension.ExtensionManager(
         namespace="reax.plugins.metrics",
@@ -46,7 +46,7 @@ def get_metrics() -> "dict[str, reax.Metric]":
         on_load_failure_callback=load_failed,
     )
 
-    metrics: "dict[str, reax.Metric]" = {}
+    metrics: "dict[str, reax.typing.MetricType]" = {}
 
     def get_type(extension: stevedore.extension.Extension):
         try:

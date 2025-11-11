@@ -50,10 +50,10 @@ try:
 except ImportError:
     omegaconf = None
 
-from reax import typing
 from reax.lightning import rank_zero
 
 from . import _utils, logger
+from .. import types
 
 __all__ = ("TensorBoardLogger",)
 
@@ -86,14 +86,14 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
     def __init__(
         self,
-        log_dir: typing.Path,
+        log_dir: types.Path,
         name: str | None = "reax_logs",
         *,
         version: int | str | None = None,
         log_graph: bool = False,
         default_hp_metric: bool = True,
         prefix: str = "",
-        sub_dir: typing.Path | None = None,
+        sub_dir: types.Path | None = None,
         **kwargs: Any,
     ):
         """Init function.

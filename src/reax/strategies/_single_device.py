@@ -76,5 +76,5 @@ class SingleDevice(_strategies.Strategy):
         return None  # Nothing to do in a single device
 
     @override
-    def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
+    def compute(self, metric: "reax.typing.MetricInstance[_OutT]") -> _OutT:
         return metric.compute()

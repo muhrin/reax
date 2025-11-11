@@ -16,14 +16,15 @@ try:
 except ImportError:
     _OMEGACONF_AVAILABLE = False
 
-from reax import typing
 from reax.lightning import rank_zero
+
+from . import types
 
 __all__ = "save_hparams_to_yaml", "load_hparams_from_yaml"
 
 
 def save_hparams_to_yaml(
-    config_yaml: typing.Path, hparams: dict | argparse.Namespace, use_omegaconf: bool = True
+    config_yaml: types.Path, hparams: dict | argparse.Namespace, use_omegaconf: bool = True
 ) -> None:
     """Save the hparams to a yaml file.
 
@@ -79,7 +80,7 @@ def save_hparams_to_yaml(
 
 
 def load_hparams_from_yaml(
-    config_yaml: typing.Path, use_omegaconf: bool = True
+    config_yaml: types.Path, use_omegaconf: bool = True
 ) -> "dict[str, Any] | omegaconf.DictConfig":
     """Load hparams from a file.
 

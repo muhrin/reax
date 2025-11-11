@@ -1,4 +1,4 @@
-from typing import ClassVar, Protocol, TypeVar
+from typing import TYPE_CHECKING, ClassVar, Optional, Protocol, TypeVar
 
 import beartype
 import clu.internal.utils
@@ -9,13 +9,17 @@ import jaxtyping as jt
 import numpy as np
 from typing_extensions import override
 
-from .. import typing
+from .. import types
 from .. import utils as reax_utils
 from ._metric import Metric
+
+if TYPE_CHECKING:
+    import reax
 
 __all__ = tuple()
 
 M = TypeVar("M", bound=Metric)
+OptionalMask = Optional["reax.types.ArrayMask"]
 
 
 class ReduceFn(Protocol):
@@ -23,7 +27,7 @@ class ReduceFn(Protocol):
         """Perform reduction on the passed values."""
 
 
-def _prepare_mask(mask: typing.ArrayMask, array: jt.Float[jt.Array, "..."]) -> typing.ArrayMask:
+def _prepare_mask(mask: types.ArrayMask, array: jt.Float[jt.Array, "..."]) -> types.ArrayMask:
     """Prepare a mask for use with jnp.where(mask, array, ...).
 
     This needs to be done to make sure the mask is of the right shape to be compatible with such an
@@ -51,12 +55,10 @@ def _prepare_mask(mask: typing.ArrayMask, array: jt.Float[jt.Array, "..."]) -> t
 @jt.jaxtyped(typechecker=beartype.beartype)
 def prepare_mask(
     values: jax.Array | np.ndarray,
-    mask: typing.ArrayMask | None = None,
+    mask: OptionalMask = None,
     *,
     return_count: bool = False,
-) -> (
-    typing.ArrayMask | None | tuple[typing.ArrayMask | None, int | jt.Int[jax.typing.ArrayLike, ""]]
-):
+) -> "OptionalMask | tuple[OptionalMask, int | jt.Int[jax.typing.ArrayLike, '']]":
     """Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure
     the mask is of the right shape to be compatible with such an operation.  The other alternative
     is
@@ -128,7 +130,7 @@ class WithAccumulator(equinox.Module):
     def create(
         cls,
         values: jax.typing.ArrayLike,
-        mask: jax.typing.ArrayLike | None = None,
+        mask: OptionalMask = None,
     ) -> Self:
         """Create function."""
         mask = prepare_mask(values, mask)
@@ -178,7 +180,7 @@ class WithAccumulatorAndCount(WithAccumulator):
     def create(
         cls,
         values: jt.ArrayLike,
-        mask: typing.ArrayMask | None = None,
+        mask: OptionalMask = None,
     ) -> Self:
         """Create function."""
         values = jnp.atleast_1d(values)

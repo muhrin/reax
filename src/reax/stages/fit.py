@@ -1,15 +1,13 @@
-from typing import TYPE_CHECKING, Any, Final, Optional, Union
+from typing import TYPE_CHECKING, Any, Final
 
 import beartype
 from flax import nnx
-import jax
 import jaxtyping as jt
 from lightning_utilities.core import overrides
 from typing_extensions import override
 
-from reax import data, exceptions, modules
-
 from . import common, stages, train, validation
+from .. import data, exceptions, modules
 
 if TYPE_CHECKING:
     import reax
@@ -92,7 +90,7 @@ class FitEpoch(train.Train):
         return self.dataloader
 
     @property
-    def val_dataloader(self) -> "Optional[reax.DataLoader]":
+    def val_dataloader(self) -> "reax.DataLoader | None":
         """Train dataloader."""
         if self._validate is None:
             return None
@@ -176,7 +174,7 @@ class FitEpoch(train.Train):
     def log(
         self,
         name: str,
-        value: Union[jax.typing.ArrayLike, "reax.Metric"],
+        value: "jt.ArrayLike | reax.typing.MetricInstance",
         batch_size: int | None = None,
         prog_bar: bool = False,
         logger: bool = False,

@@ -230,13 +230,13 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
         multihost_utils.sync_global_devices(name)
 
     @override
-    def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
+    def compute(self, metric: "reax.typing.MetricInstance[_OutT]") -> _OutT:
         if self.process_count == 1:
             return metric.compute()
 
         dynamic, static = eqx.partition(metric, eqx.is_array)
         gathered = multihost_utils.process_allgather(dynamic)
-        unbatched: list["reax.Metric[_OutT]"] = unbatch_pytree(gathered, dynamic)
+        unbatched: "list[reax.typing.MetricInstance[_OutT]]" = unbatch_pytree(gathered, dynamic)
         # Rejoin with the static data
         unbatched = [eqx.combine(entry, static) for entry in unbatched]
 

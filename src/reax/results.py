@@ -1,13 +1,19 @@
 import dataclasses
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 import jax
 import jax.numpy as jnp
+import jaxtyping as jt
+from typing_extensions import override
 
 from . import metrics as _metric
+from . import types
 
 if TYPE_CHECKING:
     import reax
+
+
+_OutT = TypeVar("_OutT")
 
 
 @dataclasses.dataclass
@@ -21,7 +27,6 @@ class Metadata:
     on_epoch: bool
 
 
-# @dataclasses.dataclass
 class ArrayResultMetric(_metric.Metric[jax.Array]):
     value: jax.Array = 0  # Redefine here so the typing hinting works
     cumulated_batch_size: int = 0
@@ -30,16 +35,17 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
     def create(
         # pylint: disable=arguments-differ
         cls,
-        value: jax.typing.ArrayLike,
+        value: jt.ArrayLike,
         batch_size: int,
     ) -> "ArrayResultMetric":
         """Create function."""
         return ArrayResultMetric(value=jnp.asarray(value), cumulated_batch_size=batch_size)
 
+    @override
     def update(
         # pylint: disable=arguments-differ
         self,
-        value: jax.typing.ArrayLike,
+        value: jt.ArrayLike,
         batch_size: int,
     ) -> "ArrayResultMetric":
         """Update function."""
@@ -48,6 +54,7 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
             cumulated_batch_size=self.cumulated_batch_size + batch_size,
         )
 
+    @override
     def merge(self, other: "ArrayResultMetric") -> "ArrayResultMetric":
         """Merge function."""
         return ArrayResultMetric(
@@ -55,19 +62,23 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
             cumulated_batch_size=self.cumulated_batch_size + other.cumulated_batch_size,
         )
 
+    @override
     def compute(self) -> jax.Array:
         """Compute function."""
         return self.value / self.cumulated_batch_size
 
 
-class ResultEntry:
+class ResultEntry(Generic[_OutT]):
     def __init__(
-        self, meta: Metadata, metric: "reax.Metric", last_value: Optional["reax.Metric"] = None
+        self,
+        meta: Metadata,
+        metric: "reax.typing.MetricInstance[_OutT]",
+        last_value: "reax.types.MetricInstance[_OutT] | None" = None,
     ):
         """Init function."""
         self._meta = meta  # Readonly
         self.metric = metric
-        self._last_value = last_value
+        self._last_value: "reax.types.MetricInstance[_OutT] | _OutT | None" = last_value
 
     @property
     def meta(self) -> Metadata:
@@ -75,9 +86,9 @@ class ResultEntry:
         return self._meta
 
     @property
-    def last_value(self) -> Any:
+    def last_value(self) -> _OutT | None:
         """Last value."""
-        if isinstance(self._last_value, _metric.Metric):
+        if isinstance(self._last_value, types.MetricInstance):
             # Lazily compute the metric as it has now been requested
             self._last_value = self._last_value.compute()
 
@@ -96,7 +107,7 @@ class ResultCollection(dict[str, ResultEntry]):
         self,
         fx: str,
         name: str,
-        value: Union[jax.typing.ArrayLike, "reax.Metric"],
+        value: "jt.ArrayLike | reax.typing.MetricInstance[_OutT]",
         batch_idx: int,
         *,
         prog_bar: bool = False,
@@ -108,7 +119,7 @@ class ResultCollection(dict[str, ResultEntry]):
         """Log function."""
         key = f"{fx}.{name}"
 
-        if isinstance(value, _metric.Metric):
+        if isinstance(value, types.MetricInstance):
             metric = value
         else:
             try:

@@ -123,7 +123,7 @@ class Strategy(abc.ABC):
         return data_.ReaxDataLoader(data)
 
     @abc.abstractmethod
-    def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
+    def compute(self, metric: "reax.typing.MetricInstance[_OutT]") -> _OutT:
         """Compute the value of a metric, unlike metric.compute(), in a parallel setting this method
         will compute the value across all processes.
         """

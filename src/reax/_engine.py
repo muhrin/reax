@@ -14,7 +14,7 @@ import jaxtyping as jt
 from . import data as data_
 from . import hooks
 from . import loggers as loggers_
-from . import modules, optimizers, strategies, typing
+from . import modules, optimizers, strategies
 from .data import DeviceDataLoader
 from .training import _logger_connector
 from .utils import events
@@ -56,7 +56,7 @@ class Engine:
         listeners: "list[reax.TrainerListener] | reax.TrainerListener | None" = None,
         deterministic: bool = False,
         rngs: nnx.Rngs = None,
-        default_root_dir: typing.Path | None = None,
+        default_root_dir: "reax.types.Path | None" = None,
     ):
         """
         Initializes the Engine with execution parameters and components.
@@ -384,7 +384,7 @@ class Engine:
         """
         self._events.fire_event(getattr(hooks.TrainerListener, name), *args, **kwargs)
 
-    def compute(self, metric: "reax.Metric[_OutT]") -> _OutT:
+    def compute(self, metric: "reax.typing.MetricInstance[_OutT]") -> _OutT:
         """
         Computes the final value of a metric across all distributed processes.
 
@@ -393,7 +393,7 @@ class Engine:
         before the final calculation.
 
         Args:
-            metric (reax.Metric): The metric object to compute the final value for.
+            metric (reax.types.MetricInstance): The metric object to compute the final value for.
 
         Returns:
             _OutT: The computed metric value.
@@ -450,6 +450,6 @@ def _init_loggers(
     return list(logger)
 
 
-def _is_local_file_protocol(path: typing.Path) -> bool:
+def _is_local_file_protocol(path: "reax.types.Path") -> bool:
     """Is local file protocol."""
     return fsspec.utils.get_protocol(str(path)) == "file"

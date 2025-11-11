@@ -48,11 +48,10 @@ import fsspec
 import jax
 from typing_extensions import override
 
-from reax import typing
 from reax.lightning import rank_zero
 
 from . import _utils, logger
-from .. import saving
+from .. import saving, types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,7 +83,7 @@ class CsvLogger(logger.Logger):
 
     def __init__(
         self,
-        save_dir: typing.Path,
+        save_dir: types.Path,
         name: str | None = "reax_logs",
         version: int | str | None = None,
         prefix: str = "",

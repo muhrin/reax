@@ -6,10 +6,10 @@ import equinox
 
 __all__ = ("Metric", "FromFun")
 
-OutT = TypeVar("OutT")
+_OutT = TypeVar("_OutT")
 
 
-class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
+class Metric(equinox.Module, Generic[_OutT], metaclass=abc.ABCMeta):
     """The base class for all metrics.
 
     To be compatible with JAX Metrics are designed to be immutable meaning that when we 'update'
@@ -23,7 +23,7 @@ class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
     """
 
     @classmethod
-    def from_fun(cls, function: Callable) -> type["FromFun[OutT]"]:
+    def from_fun(cls, function: Callable) -> type["FromFun[_OutT]"]:
         """Create a new metric from this one where a function is called before passing it on to this
         metric.
 
@@ -39,13 +39,13 @@ class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
             metric = cls()  # pylint: disable=abstract-class-instantiated
 
             @classmethod
-            def func(cls, *args, **kwargs) -> "Metric[OutT]":
+            def func(cls, *args, **kwargs) -> "Metric[_OutT]":
                 """Fun function."""
                 return function(*args, **kwargs)
 
         return FromFunction
 
-    def empty(self) -> "Metric":
+    def empty(self) -> "Metric[_OutT]":
         """Create a new empty instance.
 
         By default, this will call the constructor with no arguments, if needed, subclasses can
@@ -54,33 +54,30 @@ class Metric(equinox.Module, Generic[OutT], metaclass=abc.ABCMeta):
         return type(self)()
 
     @abc.abstractmethod
-    def create(self, *args, **kwargs) -> "Metric":
+    def create(self, *args, **kwargs) -> "Metric[_OutT]":
         """Create a new metric instance from data."""
 
-    def update(self, *args, **kwargs) -> "Metric":
+    def update(self, *args, **kwargs) -> "Metric[_OutT]":
         """Update the metric from new data and return a new instance."""
         return self.merge(self.create(*args, **kwargs))
 
     @abc.abstractmethod
-    def merge(self, other: "Metric") -> "Metric":
+    def merge(self, other: "Metric") -> "Metric[_OutT]":
         """Merge the metric with data from another metric instance of the same type."""
 
     @abc.abstractmethod
-    def compute(self) -> OutT:
+    def compute(self) -> _OutT:
         """Compute the metric."""
 
 
-ParentMetric = TypeVar("ParentMetric", bound=Metric)
-
-
-class FromFun(Metric[OutT]):
+class FromFun(Metric[_OutT]):
     """Helper class apply a function before passing the result to an existing metric."""
 
-    metric: ClassVar[type[Metric[OutT]] | Metric[OutT]]
+    metric: ClassVar[type[Metric[_OutT]] | Metric[_OutT]]
     func: ClassVar[Callable]
-    _state: Metric[OutT]
+    _state: Metric[_OutT]
 
-    def __init__(self, state: Metric[OutT] = None):
+    def __init__(self, state: Metric[_OutT] = None):
         super().__init__()
         if self.metric is None:
             raise RuntimeError(
@@ -93,7 +90,7 @@ class FromFun(Metric[OutT]):
     def is_empty(self) -> bool:
         return self._state is None
 
-    def empty(self) -> "FromFun[OutT]":
+    def empty(self) -> "FromFun[_OutT]":
         """Empty function."""
         if self.is_empty:
             return self
@@ -123,7 +120,7 @@ class FromFun(Metric[OutT]):
         val = self._call_fn(*args, **kwargs)  # pylint: disable=protected-access
         return type(self)(state=self._state.update(*val))
 
-    def compute(self) -> OutT:
+    def compute(self) -> _OutT:
         """Compute function."""
         if self._state is None:
             raise RuntimeError("Nothing to compute, metric is empty!")

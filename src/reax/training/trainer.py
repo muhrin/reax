@@ -20,7 +20,7 @@ from .. import _engine as engine_
 from .. import data, exceptions, hooks, keys
 from .. import listeners as listeners_
 from .. import loggers as loggers_
-from .. import modules, stages, strategies, typing
+from .. import modules, stages, strategies
 from ..utils import events
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         enable_model_summary: bool | None = None,
         deterministic: bool = False,
         rngs: nnx.Rngs = None,
-        default_root_dir: typing.Path | None = None,
+        default_root_dir: "reax.types.Path | None" = None,
         checkpointing: "reax.Checkpointing" = None,
     ):
         """Init function."""
@@ -405,7 +405,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         val_dataloaders: "reax.DataLoader | None" = None,
         *,
         datamodule: "reax.DataModule | None" = None,
-        ckpt_path: typing.Path | None = None,
+        ckpt_path: "reax.types.Path | None" = None,
         fast_dev_run: bool | int = False,
         max_epochs: int | None = 1_000,
         min_epochs: int = 0,
@@ -479,7 +479,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         module: modules.Module,
         dataloaders=None,
         datamodule=None,
-        ckpt_path: typing.Path | None = None,
+        ckpt_path: "reax.types.Path | None" = None,
         limit_batches: int | type(keys.NO_LIMIT) = keys.NO_LIMIT,
     ) -> "reax.stages.Validate":
         """Validate function."""
@@ -498,7 +498,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         module: modules.Module,
         dataloaders=None,
         datamodule=None,
-        ckpt_path: typing.Path | None = None,
+        ckpt_path: "reax.types.Path | None" = None,
         fast_dev_run: bool | int = False,
         limit_batches: int | float | None = 1.0,
     ) -> "reax.stages.Test":
@@ -525,7 +525,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         module: modules.Module,
         dataloaders: "reax.DataLoader | None" = None,
         datamodule: "reax.DataModule | None" = None,
-        ckpt_path: typing.Path | None = None,
+        ckpt_path: "reax.types.Path | None" = None,
         keep_predictions: bool | None = None,
         fast_dev_run: bool | int = False,
         limit_batches: int | float = keys.NO_LIMIT,
@@ -775,7 +775,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
     # region Checkpointing
 
-    def save_checkpoint(self, filepath: typing.Path, weights_only: bool = True):
+    def save_checkpoint(self, filepath: "reax.types.Path", weights_only: bool = True):
         """For now, we just save the model weights.
 
         The user has to store the model definition themselves.
@@ -869,7 +869,7 @@ def _init_progress_bar(
     return None
 
 
-def _is_local_file_protocol(path: typing.Path) -> bool:
+def _is_local_file_protocol(path: "reax.types.Path") -> bool:
     """Is local file protocol."""
     return fsspec.utils.get_protocol(str(path)) == "file"
 

@@ -15,7 +15,7 @@ from lightning_utilities.core import enums
 from typing_extensions import deprecated, override
 
 from . import common
-from .. import data, keys, modules, results, typing
+from .. import data, keys, modules, results
 from ..lightning import rank_zero
 from ..utils import arrays
 
@@ -452,7 +452,7 @@ class EpochStage(Stage, abc.ABC):
         return self._metrics_results
 
     @property
-    def listener_metrics(self) -> typing.MetricsDict:
+    def listener_metrics(self) -> "reax.types.MetricsDict":
         """Get the metrics available to listeners."""
         if not self._metrics_results:
             return dict()
@@ -460,7 +460,7 @@ class EpochStage(Stage, abc.ABC):
         return self._metrics_results[keys.LISTENER]
 
     @property
-    def logged_metrics(self) -> typing.MetricsDict:
+    def logged_metrics(self) -> "reax.types.MetricsDict":
         """Get the metrics available to loggers."""
         if not self._metrics_results:
             return dict()
@@ -468,7 +468,7 @@ class EpochStage(Stage, abc.ABC):
         return self._metrics_results[keys.LOG]
 
     @property
-    def progress_bar_metrics(self) -> typing.MetricsDict:
+    def progress_bar_metrics(self) -> "reax.types.MetricsDict":
         """Get the metrics available to progress indicators."""
         if not self._metrics_results:
             return dict()
@@ -493,7 +493,7 @@ class EpochStage(Stage, abc.ABC):
     def log(
         self,
         name: str,
-        value: "jax.typing.ArrayLike | reax.Metric",
+        value: "jt.ArrayLike | reax.types.MetricInstance",
         batch_size: int | None = None,
         prog_bar: bool = False,
         logger: bool = False,
@@ -610,7 +610,7 @@ class EpochStage(Stage, abc.ABC):
     @deprecated(
         "REAX uses the term 'listener' instead of 'callback, please use `.callback_metrics`"
     )
-    def callback_metrics(self) -> typing.MetricsDict:
+    def callback_metrics(self) -> "reax.types.MetricsDict":
         """Get the metrics available to listeners."""
         if not self._metrics_results:
             return dict()
