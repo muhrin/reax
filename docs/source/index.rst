@@ -45,8 +45,9 @@ Table Of Contents
 
 .. toctree::
    :glob:
-   :maxdepth: 3
+   :maxdepth: 1
 
+   starting/introduction.ipynb
    api_reference/modules
 
 

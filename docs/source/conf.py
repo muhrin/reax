@@ -70,7 +70,7 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = "reax"
+project = "REAX"
 copyright = "2025, Martin Uhrin"
 author = "Martin Uhrin"
 

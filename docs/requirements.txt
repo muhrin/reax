@@ -1,4 +1,5 @@
 # ONLY FOR ReadTheDocs
 .[dev]
 autodoc
+ipykernel
 nbsphinx

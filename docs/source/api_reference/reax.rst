@@ -1,5 +1,5 @@
-reax package
-============
+API Reference
+=============
 
 Subpackages
 -----------
@@ -101,10 +101,10 @@ reax.testing module
    :undoc-members:
    :show-inheritance:
 
-reax.typing module
-------------------
+reax.types module
+-----------------
 
-.. automodule:: reax.typing
+.. automodule:: reax.types
    :members:
    :undoc-members:
    :show-inheritance:

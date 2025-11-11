@@ -318,7 +318,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         every_n_train_steps: int | None,
         every_n_epochs: int | None,
         train_time_interval: datetime.timedelta | None,
-    ) -> [int, int, datetime.timedelta | None]:
+    ) -> tuple[int, int, datetime.timedelta | None]:
         """Init triggers."""
         # Default to running once after each validation epoch if neither
         # every_n_train_steps nor every_n_epochs is set

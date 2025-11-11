@@ -9,6 +9,10 @@ REAX
     :target: https://github.com/camml-lab/reax/actions/workflows/ci.yml
     :alt: Tests
 
+.. image:: https://readthedocs.org/projects/reax/badge/
+    :target: https://reax.readthedocs.io/
+    :alt: Documentation
+
 .. image:: https://img.shields.io/pypi/v/reax.svg
     :target: https://pypi.python.org/pypi/reax/
     :alt: Latest Version
@@ -21,6 +25,9 @@ REAX
 
 .. image:: https://img.shields.io/pypi/l/reax.svg
     :target: https://pypi.python.org/pypi/reax/
+
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+    :target: https://github.com/psf/black
 
 
 REAX — Scalable, flexible training for JAX, inspired by the simplicity of PyTorch Lightning.

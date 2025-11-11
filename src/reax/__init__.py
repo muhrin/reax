@@ -15,6 +15,7 @@ from . import (
     strategies,
     testing,
     training,
+    types,
 )
 from ._engine import *
 from .data import DataLoader, DataModule, ReaxDataLoader
@@ -48,6 +49,7 @@ __all__ = (
         "metrics",
         "strategies",
         "testing",
+        "types",
     )
     # Classes/functions/variables
     + (
