@@ -106,23 +106,24 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "alabaster"
+html_theme = "pydata_sphinx_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
-html_theme_options = {
-    "codecov_button": True,
-    "description": "Scalable, flexible training for JAX, inspired by the simplicity of PyTorch Lightning",
-    "github_button": True,
-    "github_repo": "reax",
-    "github_type": "star",
-    "github_user": "camml-lab",
-    "travis_button": False,
-    "logo_name": True,
-}
+html_theme_options = {}
+# For Alabster:
+# html_theme_options = {
+#     "codecov_button": True,
+#     "description": "Scalable, flexible training for JAX, inspired by the simplicity of PyTorch Lightning",
+#     "github_button": True,
+#     "github_repo": "reax",
+#     "github_type": "star",
+#     "github_user": "camml-lab",
+#     "travis_button": False,
+#     "logo_name": True,
+# }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -205,10 +206,12 @@ epub_exclude_files = ["search.html"]
 # html_logo = 'logo.svg'
 # html_favicon = 'icon.png'
 #
-html_sidebars = {
-    "**": [
-        "about.html",
-        "navigation.html",
-        "searchbox.html",
-    ]
-}
+# For Alabster
+# html_sidebars = {
+#     "**": [
+#         "about.html",
+#         "navigation.html",
+#         "searchbox.html",
+#     ]
+# }
+html_sidebars = {}

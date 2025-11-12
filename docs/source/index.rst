@@ -48,8 +48,7 @@ Table Of Contents
    :maxdepth: 1
 
    starting/introduction.ipynb
-   api_reference/modules
-
+   API <api_reference/modules>
 
 Versioning
 ++++++++++

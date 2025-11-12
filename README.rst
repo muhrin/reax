@@ -17,9 +17,6 @@ REAX
     :target: https://pypi.python.org/pypi/reax/
     :alt: Latest Version
 
-.. image:: https://img.shields.io/pypi/wheel/reax.svg
-    :target: https://pypi.python.org/pypi/reax/
-
 .. image:: https://img.shields.io/pypi/pyversions/reax.svg
     :target: https://pypi.python.org/pypi/reax/
 
@@ -81,7 +78,7 @@ Define the training workflow. Here's a toy example:
     # main.py
     from functools import partial
     import jax, optax, reax, flax.linen as linen
-    import torch.utils.data as data, torchvision as tv
+    from reax.demos import mnist
 
 
     class Autoencoder(linen.Module):
@@ -105,10 +102,10 @@ Define the training workflow. Here's a toy example:
             super().__init__()
             self.ae = Autoencoder()
 
-        def setup(self, stage: "reax.Stage", batch) -> None:
+        def configure_model(self, stage: reax.Stage, batch, /):
             if self.parameters() is None:
                 x = batch[0].reshape(len(batch[0]), -1)
-                params = self.ae.init(self.rng_key(), x)
+                params = self.ae.init(self.rngs(), x)
                 self.set_parameters(params)
 
         def __call__(self, *args, **kwargs):
@@ -139,15 +136,15 @@ Define the training workflow. Here's a toy example:
     # -------------------
     # Step 2: Define data
     # -------------------
-    dataset = tv.datasets.MNIST(".", download=True, transform=jax.numpy.asarray)
-    train, val = data.random_split(dataset, [55000, 5000])
+    dataset = mnist.MnistDataset(download=True)
+    trainer = reax.Trainer()
+    train, val = reax.data.random_split(trainer.rngs, dataset, [55000, 5000])
 
     # -------------------
     # Step 3: Train
     # -------------------
     autoencoder = ReaxAutoEncoder()
-    trainer = reax.Trainer(autoencoder)
-    trainer.fit(reax.ReaxDataLoader(train), reax.ReaxDataLoader(val))
+    trainer.fit(autoencoder, reax.ReaxDataLoader(train), reax.ReaxDataLoader(val))
 
 Here, we reproduce an example from PyTorch Lightning, so we use torch vision to fetch the data,
 but for real models there's no need to use this or pytorch at all.
