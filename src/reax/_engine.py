@@ -43,7 +43,7 @@ class Engine:
 
     Attributes:
         strategy (object): The execution strategy defining the environment and distributed
-        communication.
+            communication.
     """
 
     def __init__(

@@ -81,7 +81,8 @@ class ArrayDataset(Sequence[tuple[jt.Array, ...]]):
 
     Each sample will be retrieved by indexing arrays along the first dimension.
 
-    :params *arrays: arrays that have the same size of the first dimension.
+    Args:
+        arrays: arrays that have the same size of the first dimension.
     """
 
     arrays: tuple[jt.Array, ...]

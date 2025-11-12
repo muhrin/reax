@@ -25,6 +25,7 @@ from .metrics import Metric
 from .modules import *
 from .optimizers import *
 from .random import *
+from .random import seed_everything
 from .saving import *
 from .stages import Stage
 from .strategies import *
@@ -60,7 +61,7 @@ __all__ = (
         "Logger",
         "seed_everything",
         "Stage",
-    ),
+    )
 )
 
 __version__ = "0.6.0"

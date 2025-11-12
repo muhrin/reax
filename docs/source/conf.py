@@ -120,7 +120,7 @@ html_theme_options = {
     "github_repo": "reax",
     "github_type": "star",
     "github_user": "camml-lab",
-    "travis_button": True,
+    "travis_button": False,
     "logo_name": True,
 }
 
