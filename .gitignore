@@ -77,4 +77,6 @@ examples/*/
 
 local/
 
+# DOCS
 docs/build/
+docs/source/starting/data/

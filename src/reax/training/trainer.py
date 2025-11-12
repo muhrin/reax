@@ -209,6 +209,10 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
         return self._default_root_dir
 
+    @property
+    def checkpointing(self) -> "reax.Checkpointing":
+        return self._checkpointing
+
     # region Listeners
 
     @property

@@ -488,7 +488,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
         if (
             stage.parent is not None
-            and isinstance(stage.parent, stages.FitEpoch)
+            and isinstance(stage.parent, stages.Fit)
             and stage.parent.validate is None
         ):
             # There is no validation, so save on train end
