@@ -141,11 +141,12 @@ class Train(stages.EpochStage):
         if self._module.automatic_optimization:
             if isinstance(res, dict):
                 grad = res["grad"]
+                loss = None
             else:
-                _loss, grad = res
+                loss, grad = res
             opt = self._optimizers[0]
             self._module.on_before_optimizer_step(opt, grad)
-            opt = opt.update_module(self._module, grad)
+            opt = opt.update_module(self._module, grad, value=loss)
             self._optimizers = [opt]
 
         if (self._min_updates is None or self.updates >= self._min_updates) and (
