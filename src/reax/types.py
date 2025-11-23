@@ -31,12 +31,12 @@ class MetricType(Protocol[_OutT]):
 @runtime_checkable
 class MetricInstance(MetricType[_OutT], Protocol[_OutT]):
     """A protocol that defines a metric instance that can be updated with new data,
-    merged with another instance of the same type or be used to compute teh value of the metric."""
+    merged with another instance of the same type or be used to compute the value of the metric."""
 
-    def update(self, *args, **kwargs) -> "MetricType[_OutT]":
+    def update(self, *args, **kwargs) -> "MetricInstance[_OutT]":
         """Update the metric from new data and return a new instance."""
 
-    def merge(self, other: "MetricType[_OutT]") -> "MetricType[_OutT]":
+    def merge(self, other: "MetricInstance[_OutT]") -> "MetricInstance[_OutT]":
         """Merge the metric with data from another metric instance of the same type."""
 
     def compute(self) -> _OutT:

@@ -6,21 +6,16 @@ from . import _metric, aggregation
 
 __all__ = "MeanSquaredError", "RootMeanSquareError", "MeanAbsoluteError", "LeastSquaresEstimate"
 
-
-class MeanSquaredError(_metric.FromFun):
-    metric = aggregation.Average
-
-    @classmethod
-    def func(cls, values, targets, mask=None):
-        return jnp.square(values - targets), mask
+MeanSquaredError = aggregation.Average.from_fun(
+    lambda values, targets, mask=None: (jnp.square(values - targets), mask),
+    name="SquaredError",
+)
 
 
-class MeanAbsoluteError(_metric.FromFun):
-    metric = aggregation.Average
-
-    @classmethod
-    def func(cls, values, targets, mask=None):
-        return jnp.abs(values - targets), mask
+MeanAbsoluteError = aggregation.Average.from_fun(
+    lambda values, targets, mask=None: (jnp.abs(values - targets), mask),
+    name="AbsoluteError",
+)
 
 
 class RootMeanSquareError(_metric.Metric):
@@ -37,13 +32,10 @@ class RootMeanSquareError(_metric.Metric):
         """Is empty."""
         return self.mse is None
 
-    @override
     @classmethod
+    @override
     def create(  # pylint: disable=arguments-differ
-        cls,
-        values: jax.Array,
-        targets: jax.Array,
-        mask: jax.Array | None = None,
+        cls, values: jax.Array, targets: jax.Array, mask: jax.Array | None = None, /
     ) -> "RootMeanSquareError":
         """Create function."""
         return cls(mse=MeanSquaredError().create(values, targets, mask))
@@ -74,7 +66,7 @@ class RootMeanSquareError(_metric.Metric):
         return jnp.sqrt(self.mse.compute())
 
 
-class LeastSquaresEstimate(_metric.Metric):
+class LeastSquaresEstimate(_metric.Metric[jax.Array]):
     values: jax.Array | None
     targets: jax.Array | None
 
@@ -89,12 +81,20 @@ class LeastSquaresEstimate(_metric.Metric):
         """Is empty."""
         return self.values is None
 
+    @classmethod
+    @override
+    def empty(cls) -> "LeastSquaresEstimate":
+        return cls()
+
+    @classmethod
+    @override
     def create(  # pylint: disable=arguments-differ
-        self, inputs: jax.Array, outputs: jax.Array
+        cls, inputs: jax.Array, outputs: jax.Array
     ) -> "LeastSquaresEstimate":
         """Create function."""
-        return LeastSquaresEstimate(inputs, outputs)
+        return cls(inputs, outputs)
 
+    @override
     def update(  # pylint: disable=arguments-differ
         self, inputs: jax.Array, outputs: jax.Array
     ) -> "LeastSquaresEstimate":
@@ -102,8 +102,12 @@ class LeastSquaresEstimate(_metric.Metric):
         if self.is_empty:
             return self.create(inputs, outputs)
 
-        return type(self)(values=inputs, targets=outputs)
+        return type(self)(
+            values=jnp.concatenate((self.values, inputs)),
+            targets=jnp.concatenate((self.targets, outputs)),
+        )
 
+    @override
     def merge(self, other: "LeastSquaresEstimate") -> "LeastSquaresEstimate":
         """Merge function."""
         if self.is_empty:
@@ -116,6 +120,7 @@ class LeastSquaresEstimate(_metric.Metric):
             targets=jnp.concatenate((self.targets, other.targets)),
         )
 
+    @override
     def compute(self) -> jax.Array:
         """Compute function."""
         return jnp.linalg.lstsq(self.values, self.targets)[0]

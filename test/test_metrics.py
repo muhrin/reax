@@ -64,10 +64,18 @@ def test_from_fn(rng_key):
     values = random.uniform(rng_key, (n_batches, 10))
 
     # Let's create a fake function, where we calculate the mean of the squares
-    metric = metrics.Average.from_fun(lambda values: values**2)()
+    MeanSq = metrics.Average.from_fun(lambda values: values**2)
     mean = jnp.mean(values**2)
 
+    metric = MeanSq.empty()
     for batch in values:
+        metric = metric.update(batch)
+
+    assert jnp.isclose(metric.compute(), mean)
+
+    # Now try by creating the first one using the `create` classmethod
+    metric = MeanSq.create(values[0])
+    for batch in values[1:]:
         metric = metric.update(batch)
 
     assert jnp.isclose(metric.compute(), mean)

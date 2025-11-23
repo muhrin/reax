@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import TYPE_CHECKING, ClassVar, Optional, Protocol, TypeVar
 
 import beartype
@@ -123,8 +124,13 @@ class WithAccumulator(equinox.Module):
     Self = TypeVar("Self", bound="WithAccumulator")
 
     reduce_fn: ClassVar[ReduceFn]
-    merge_fn = concat
-    accumulator: jax.Array = None
+    merge_fn: ClassVar[Callable] = concat
+
+    accumulator: jax.Array | None = None
+
+    @classmethod
+    def empty(cls):
+        return cls(accumulator=None)
 
     @classmethod
     def create(

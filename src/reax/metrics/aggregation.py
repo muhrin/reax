@@ -105,6 +105,11 @@ class Std(Aggregation):
 
     @override
     @classmethod
+    def empty(cls) -> "Metric[jax.Array]":
+        return cls()
+
+    @override
+    @classmethod
     def create(  # pylint: disable=arguments-differ
         cls,
         values: jax.typing.ArrayLike,
