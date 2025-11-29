@@ -48,7 +48,7 @@ Source = 'https://github.com/camml-lab/reax'
 docs = [
     'docutils',
     'jupyter', # For running doc examples
-    'nbsphinx', # Jupyter notebooks in docs
+    'myst-nb', # Jupyter notebooks in docs
     'pandoc',
     "pydata_sphinx_theme",
     "scikit-learn",

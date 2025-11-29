@@ -2,5 +2,5 @@
 .[docs]
 autodoc
 ipykernel
-nbsphinx
+myst_nb
 pydata_sphinx_theme
