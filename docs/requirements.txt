@@ -3,3 +3,4 @@
 autodoc
 ipykernel
 nbsphinx
+pydata_sphinx_theme

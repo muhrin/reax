@@ -35,16 +35,22 @@ class RootMeanSquareError(_metric.Metric):
     @classmethod
     @override
     def create(  # pylint: disable=arguments-differ
-        cls, values: jax.Array, targets: jax.Array, mask: jax.Array | None = None, /
+        cls,
+        values: jax.Array,
+        targets: jax.Array,
+        mask: jax.Array | None = None,
     ) -> "RootMeanSquareError":
         """Create function."""
         return cls(mse=MeanSquaredError().create(values, targets, mask))
 
+    @classmethod
+    @override
+    def empty(cls) -> "RootMeanSquareError":  # pylint: disable=arguments-differ
+        """Create function."""
+        return cls(mse=MeanSquaredError.empty())
+
     def update(  # pylint: disable=arguments-differ
-        self,
-        values: jax.Array,
-        targets: jax.Array,
-        mask: jax.Array | None = None,
+        self, values: jax.Array, targets: jax.Array, mask: jax.Array | None = None
     ) -> "RootMeanSquareError":
         """Update function."""
         if self.is_empty:

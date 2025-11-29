@@ -1,6 +1,7 @@
 import jax
 from jax import random
 import jax.numpy as jnp
+import numpy as np
 import optax
 import pytest
 
@@ -35,11 +36,22 @@ def test_root_mean_square_error(shape, rng_key):
     predictions = random.uniform(keys[0], shape)
     targets = random.uniform(keys[1], shape)
 
-    rmse = metrics.RootMeanSquareError()
+    rmse = metrics.RootMeanSquareError.empty()
     for prediction, target in zip(predictions, targets):
         rmse = rmse.update(prediction, target)
 
     assert jnp.isclose(rmse.compute(), jnp.sqrt(optax.squared_error(predictions, targets).mean()))
+    # Check the convenience function gives us the right type
+    assert isinstance(metrics.get("rmse"), metrics.RootMeanSquareError)
+
+    # Test that masking works
+    masks = np.random.randint(0, 2, size=shape[:2], dtype=bool)
+    rmse = metrics.RootMeanSquareError.create(predictions[0], targets[0], mask=masks[0])
+    for prediction, target, mask in zip(predictions[1:], targets[1:], masks[1:]):
+        rmse = rmse.update(prediction, target, mask=mask)
+
+    expected = jnp.sqrt(optax.squared_error(predictions[masks], targets[masks]).mean())
+    assert jnp.isclose(rmse.compute(), expected)
     # Check the convenience function gives us the right type
     assert isinstance(metrics.get("rmse"), metrics.RootMeanSquareError)
 
