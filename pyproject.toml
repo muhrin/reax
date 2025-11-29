@@ -50,6 +50,7 @@ docs = [
     'jupyter', # For running doc examples
     'nbsphinx', # Jupyter notebooks in docs
     'pandoc',
+    "pydata_sphinx_theme",
     "scikit-learn",
     'sphinx',
     'sphinx-autobuild',
