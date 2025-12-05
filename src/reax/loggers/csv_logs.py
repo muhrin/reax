@@ -185,6 +185,10 @@ class CsvLogger(logger.Logger):
         metrics = _utils.add_prefix(metrics, self._prefix, self.LOGGER_JOIN_CHAR)
         if step is None:
             step = len(self.experiment.metrics)
+
+        metrics = jax.tree_util.tree_map(
+            lambda x: x.copy_to_host_async() if isinstance(x, jax.Array) else x, metrics
+        )
         self.experiment.log_metrics(metrics, step)
         if (step + 1) % self._flush_logs_every_n_steps == 0:
             self.save()

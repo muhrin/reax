@@ -39,7 +39,7 @@ class Registry(containers.Registry[metric_.Metric]):
 
 
 # Helpers to make it easy to choose a metric using a string
-_registry: Registry | None = None
+_registry: Registry | None = None  # pylint: disable=invalid-name
 
 
 def get_registry() -> Registry:

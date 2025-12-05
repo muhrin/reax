@@ -114,7 +114,7 @@ def collate_numpy_array_fn(batch: Sequence[np.ndarray]):
     return np.stack(batch)
 
 
-_default_collator: Collator | None = None
+_default_collator: Collator | None = None  # pylint: disable=invalid-name
 
 
 def get_default_collator() -> Collator:

@@ -9,7 +9,6 @@ import weakref
 
 import beartype
 from flax import nnx
-import jax
 import jaxtyping as jt
 from lightning_utilities.core import enums
 from typing_extensions import deprecated, override
@@ -17,7 +16,6 @@ from typing_extensions import deprecated, override
 from . import common
 from .. import data, keys, modules, results
 from ..lightning import rank_zero
-from ..utils import arrays
 
 # Note: We do not import the trainer here, the relationship is deliberately one way i.e. `Trainer`
 # knows about stages, but stages don't know about the trainer.  This helps to reduce coupling.
@@ -457,7 +455,7 @@ class EpochStage(Stage, abc.ABC):
         if not self._metrics_results:
             return dict()
 
-        return self._metrics_results[keys.LISTENER]
+        return self.results[keys.LISTENER]
 
     @property
     def logged_metrics(self) -> "reax.types.MetricsDict":
@@ -465,7 +463,7 @@ class EpochStage(Stage, abc.ABC):
         if not self._metrics_results:
             return dict()
 
-        return self._metrics_results[keys.LOG]
+        return self.results[keys.LOG]
 
     @property
     def progress_bar_metrics(self) -> "reax.types.MetricsDict":
@@ -473,7 +471,7 @@ class EpochStage(Stage, abc.ABC):
         if not self._metrics_results:
             return dict()
 
-        return self._metrics_results[keys.PBAR]
+        return self.results[keys.PBAR]
 
     @property
     def outputs(self) -> Any:
@@ -566,7 +564,7 @@ class EpochStage(Stage, abc.ABC):
                     metrics[keys.PBAR][entry.meta.name] = value
 
         # Convert tensors to python scalars
-        self._metrics_results = jax.tree.map(arrays.to_base, metrics)
+        self._metrics_results = metrics
 
         # Keep track of the total number of batches, even across multiple executions of this loop
         self._total_batch_idx += 1
@@ -592,7 +590,7 @@ class EpochStage(Stage, abc.ABC):
                     metrics[keys.PBAR][entry.meta.name] = value
 
         # Convert tensors to python scalars
-        self._metrics_results = jax.tree.map(arrays.to_base, metrics)
+        self._metrics_results = metrics
 
     def _on_epoch_end(self) -> None:
         """The epoch is ending."""
