@@ -122,13 +122,13 @@ class Module(
     def training_step(self, batch: BatchT, batch_idx: int, /) -> TrainOutput | None:
         """Train step."""
 
-    def validation_step(self, batch: BatchT, batch_idx: int, /):
+    def validation_step(self, batch: BatchT, batch_idx: int, /) -> jt.PyTree | None:
         """Validate step."""
 
-    def predict_step(self, batch: BatchT, batch_idx: int, /) -> OutputT_co:
+    def predict_step(self, batch: BatchT, batch_idx: int, /) -> jt.PyTree | None:
         """Make a model prediction and return the result."""
 
-    def test_step(self, batch: BatchT, batch_idx: int, /):
+    def test_step(self, batch: BatchT, batch_idx: int, /) -> jt.PyTree | None:
         """Test step."""
 
     def configure_listeners(self) -> "Sequence[reax.TrainerListener] | reax.TrainerListener":

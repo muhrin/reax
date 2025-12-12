@@ -62,7 +62,7 @@ class TrainerListener:
     def on_validation_batch_end(
         self,
         trainer: "reax.Trainer",
-        stage: "reax.stages.Train",
+        stage: "reax.stages.Validate",
         outputs: Any,
         batch: Any,
         batch_idx: int,
@@ -117,12 +117,12 @@ class TrainerListener:
     def on_predict_batch_start(
         self, trainer: "reax.Trainer", stage: "reax.stages.Predict", batch: Any, batch_idx: int, /
     ) -> None:
-        """The test stage if about to process a batch."""
+        """The predict stage if about to process a batch."""
 
     def on_predict_batch_end(
         self,
         trainer: "reax.Trainer",
-        stage: "reax.stages.Train",
+        stage: "reax.stages.Predict",
         outputs: Any,
         batch: Any,
         batch_idx: int,
