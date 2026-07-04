@@ -33,7 +33,7 @@
 from datetime import timedelta
 import logging
 import time
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -53,9 +53,10 @@ from reax.stages import _timer
 )
 def test_timer_parse_duration(duration, expected):
     timer = _timer.StageTimer(max_time=duration)
-    assert (timer.time_remaining() == expected is None) or (
-        timer.time_remaining() == expected.total_seconds()
-    )
+    if expected is None:
+        assert timer.time_remaining() is None
+    else:
+        assert timer.time_remaining() == expected.total_seconds()
 
 
 @pytest.mark.parametrize("duration", ["6:00:00", "60 minutes"])

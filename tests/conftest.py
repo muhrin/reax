@@ -26,6 +26,6 @@ def test_trainer(tmp_path):
 
 @pytest.fixture(autouse=True)
 def reax_config():
-    # Some numerical test rely on checking against numpy implementations and np will default to 64-bit,
-    # so do that too
+    # Some numerical test rely on checking against numpy implementations
+    # and np will default to 64-bit, so do that too
     jax.config.update("jax_enable_x64", True)

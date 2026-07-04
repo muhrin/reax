@@ -99,7 +99,7 @@ def test_tensorboard_no_name(tmp_path, name):
     assert os.listdir(tmp_path / "version_0")
 
 
-def test_tensorboard_log_sub_dir(tmp_path):
+def test_tensorboard_log_sub_dir(tmp_path, monkeypatch):
     class TestLogger(loggers.tensorboard.TensorBoardLogger):
         # for reproducibility
         @property
@@ -124,7 +124,10 @@ def test_tensorboard_log_sub_dir(tmp_path):
     assert trainer.logger.log_dir == os.path.join(save_dir, "name", "version", "sub_dir")
 
     # test home dir (`~`) handling
-    save_dir = "~/tmp"
+    monkeypatch.setattr(
+        os.path, "expanduser", lambda x: x.replace("~", str(tmp_path / "home_dir_mock"))
+    )
+    save_dir = "~/some_dir"
     explicit_save_dir = os.path.expanduser(save_dir)
     logger = TestLogger(save_dir, sub_dir="sub_dir")
     trainer = reax.Trainer(**trainer_args, logger=logger)
@@ -134,8 +137,8 @@ def test_tensorboard_log_sub_dir(tmp_path):
         # test env var (`$`) handling
         test_env_dir = "some_directory"
         os.environ["TEST_ENV_DIR"] = test_env_dir
-        save_dir = "$TEST_ENV_DIR/tmp"
-        explicit_save_dir = f"{test_env_dir}/tmp"
+        save_dir = "$TEST_ENV_DIR/some_dir"
+        explicit_save_dir = f"{test_env_dir}/some_dir"
         logger = TestLogger(save_dir, sub_dir="sub_dir")
         trainer = reax.Trainer(**trainer_args, logger=logger)
         assert trainer.logger.log_dir == os.path.join(

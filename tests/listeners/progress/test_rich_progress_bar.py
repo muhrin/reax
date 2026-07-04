@@ -31,7 +31,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import defaultdict
-import pickle
+import pickle  # nosec B403
 from unittest import mock
 from unittest.mock import Mock
 
@@ -344,7 +344,8 @@ def test_rich_progress_bar_metric_display_task_id(tmp_path):
 
 @pytest.mark.skip(reason="Need to do a bit more work to get DummyLogger during fast_dev_run")
 def test_rich_progress_bar_metrics_fast_dev_run(tmp_path):
-    """Test that `v_num` does not appear in the progress bar when a dummy logger is used (fast-dev-run)."""
+    """Test that `v_num` does not appear in the progress bar when a dummy
+    logger is used (fast-dev-run)."""
     progress_bar = progress.RichProgressBar()
     trainer = reax.Trainer(default_root_dir=tmp_path, listeners=progress_bar)
     model = demos.BoringModel()
@@ -359,7 +360,8 @@ def test_rich_progress_bar_metrics_fast_dev_run(tmp_path):
 
 @pytest.mark.skip(reason="Don't support reduce_fx in log() yet")
 def test_rich_progress_bar_correct_value_epoch_end(tmp_path):
-    """Rich counterpart to test_tqdm_progress_bar::test_tqdm_progress_bar_correct_value_epoch_end."""
+    """Rich counterpart to
+    test_tqdm_progress_bar::test_tqdm_progress_bar_correct_value_epoch_end."""
 
     class MockedProgressBar(progress.RichProgressBar):
         calls = defaultdict(list)

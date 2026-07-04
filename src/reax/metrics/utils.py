@@ -2,12 +2,11 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar
 
 import beartype
-import clu.internal.utils
 import equinox
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
-import numpy as np
+from jaxtyping import ArrayLike
 from typing_extensions import override
 
 from .. import utils as reax_utils
@@ -26,12 +25,13 @@ M = TypeVar("M", bound=Metric)
 
 
 class ReduceFn(Protocol):
-    def __call__(self, values: jax.Array, where: jax.Array = None) -> jax.Array:
+    def __call__(self, values: ArrayLike, where: ArrayLike | None = None) -> ArrayLike:
         """Perform reduction on the passed values."""
 
 
+@jt.jaxtyped(typechecker=beartype.beartype)
 def _prepare_mask(
-    mask: "reax.types.ArrayMask", array: jt.Float[jt.Array, "..."]
+    mask: "reax.types.ArrayMask", array: jt.Float[ArrayLike, "..."]
 ) -> "reax.types.ArrayMask":
     """Prepare a mask for use with jnp.where(mask, array, ...).
 
@@ -59,11 +59,8 @@ def _prepare_mask(
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def prepare_mask(
-    values: jax.Array | np.ndarray,
-    mask: OptionalMask = None,
-    *,
-    return_count: bool = False,
-) -> "OptionalMask | tuple[OptionalMask, int | jt.Int[jax.typing.ArrayLike, '']]":
+    values: ArrayLike, mask: OptionalMask = None, *, return_count: bool = False
+) -> "OptionalMask | tuple[OptionalMask, int | jt.Int[ArrayLike, '']]":
     """Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure
     the mask is of the right shape to be compatible with such an operation.  The other alternative
     is
@@ -107,7 +104,6 @@ def prepare_mask(
             )
 
     mask = mask.astype(bool)
-    clu.internal.utils.check_param(mask, dtype=bool, ndim=values.ndim)
     if return_count:
         np_ = reax_utils.arrays.infer_backend(mask)
         # Calculate the number of non-masked elements in total

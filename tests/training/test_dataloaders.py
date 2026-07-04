@@ -503,8 +503,8 @@ def test_dataloaders_with_limit_num_batches(
             num_sanity_val_steps=0,
         )
         assert fit.num_training_batches == limit_train_batches
-        assert fit.num_val_batches == [limit_val_batches] * len(fit.val_dataloaders)
-        assert mocked.call_count == limit_val_batches * len(fit.val_dataloaders)
+    assert fit.num_val_batches == [limit_val_batches] * len(fit.val_dataloaders)
+    assert mocked.call_count == limit_val_batches * len(fit.val_dataloaders)
 
     with patch.object(
         trainer.test_loop,
@@ -514,7 +514,8 @@ def test_dataloaders_with_limit_num_batches(
         test = trainer.test(model, limit_batches=limit_test_batches)
         test_dataloader_lengths = [len(x) for x in model.test_dataloader()]
         if limit_test_batches > 1e10:
-            # when the limit is greater than the number of test batches it should be the num in loaders
+            # when the limit is greater than the number of test batches
+            # it should be the num in loaders
             assert test.num_batches == test_dataloader_lengths
             assert mocked.call_count == sum(test_dataloader_lengths)
         else:
@@ -552,12 +553,14 @@ def test_dataloaders_with_fast_dev_run(tmp_path, fast_dev_run):
 
         assert fit.enable_validation
         assert fit.num_training_batches == fast_dev_run
-        # TODO: assert fit.num_val_batches == [fast_dev_run] * len(fit.val_dataloaders)
+        # TODO: assert fit.num_val_batches == [fast_dev_run] *
+        # len(fit.val_dataloaders)
         assert fit.num_val_batches == fast_dev_run
 
         test = trainer.test(model, fast_dev_run=fast_dev_run)
         assert test.limit_batches == fast_dev_run
-        # TODO: assert test.num_batches == [fast_dev_run] * len(test.dataloaders)
+        # TODO: assert test.num_batches == [fast_dev_run] *
+        # len(test.dataloaders)
         assert test.num_batches == fast_dev_run
 
 

@@ -26,7 +26,6 @@ dependencies = [
     'beartype',
     "einops",
     "equinox",
-    "clu",
     "flax",
     'fsspec',
     'jax',
@@ -83,7 +82,6 @@ exclude = [
     '.github/',
     'docs/',
     'examples/',
-    'test/',
 ]
 
 [project.entry-points."reax.plugins.metrics"]
@@ -139,7 +137,6 @@ max-positional-arguments = 10
 max-public-methods = 22
 
 [tool.bandit]
-exclude_dirs = ["test/"]
 skips = [
     "B101",
     "B404" # This warns on import of subprocess

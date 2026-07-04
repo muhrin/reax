@@ -55,7 +55,7 @@ repos:
         exclude:
           (?x)^(
           docs/.*|
-          test/.*
+          tests/.*
           )$
 
   - repo: https://github.com/commitizen-tools/commitizen

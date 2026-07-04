@@ -9,37 +9,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
+          enable-cache: true
           python-version: '3.12'
 
-      - name: Install Python dependencies
-        run: pip install -e .[dev]
+      # 1. Properly install your dev dependencies (including pre-commit)
+      - name: Install dependencies
+        run: uv sync --extra dev
 
+      # 2. Now uv run will find pre-commit in the .venv perfectly
       - name: Run pre-commit
-        run: pre-commit run --all-files || ( git status --short ; git diff ; exit 1 )
+        run: uv run pre-commit run --all-files || ( git status --short ; git diff ; exit 1 )
 
   # Run pylint separately
   pylint:
     name: pylint
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ env.DEFAULT_PYTHON }}
-        uses: actions/setup-python@v5.1.1
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
+          enable-cache: true
+          python-version: '3.12'
 
+      # Installs exactly what you locked + extra dependencies instantly
       - name: Install python dependencies
-        run: pip install -e .[dev,examples]
+        run: uv sync --extra dev --extra examples
 
       - name: Run pylint checks
         run: |
-          pre-commit run --hook-stage manual pylint-with-spelling --all-files
+          uv run pre-commit run --hook-stage manual pylint-with-spelling --all-files
 
   tests:
     runs-on: ubuntu-latest
@@ -52,23 +56,24 @@ jobs:
           - python-version: '3.12'
           - python-version: '3.12'
 
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
+          enable-cache: true
           python-version: ${{ matrix.python-version }}
 
+      # Automatically installs the local project in editable mode based on uv.lock
       - name: Install Python dependencies
-        run: pip install -e .[dev]
+        run: uv sync --extra dev
 
       - name: Run pytest
-        run: pytest --cov=reax --durations=0 -sv -p no:nb_regression test
+        run: uv run pytest --cov=reax --durations 0 -sv -p no:nb_regression tests
 
       - name: Create xml coverage
-        run: coverage xml
+        run: uv run coverage xml
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v5
@@ -80,18 +85,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
+          enable-cache: true
           python-version: '3.12'
 
+      # Syncs editable project with dev extras, and layers docs requirements safely inside the virtualenv
       - name: Install dependencies
         run: |
-          pip install -e .[dev]
-          pip install -r docs/requirements.txt
+          uv sync --extra dev
+          uv pip install -r docs/requirements.txt
 
+      # Executes the Makefile within the uv virtual environment context
       - name: Build docs and run notebooks
-        run: make -C docs html
+        run: uv run make -C docs html
 
   publish:
     name: Publish to PyPI

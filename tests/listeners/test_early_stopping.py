@@ -32,10 +32,7 @@
 # limitations under the License.
 import logging
 import math
-import os
-import pickle
-from test import helpers
-from typing import Optional
+import pickle  # nosec B403
 from unittest import mock
 from unittest.mock import Mock
 
@@ -45,8 +42,9 @@ import pytest
 from typing_extensions import override
 
 import reax
-from reax import exceptions, listeners
+from reax import listeners
 from reax.demos import boring_classes
+from tests import helpers
 
 _logger = logging.getLogger(__name__)
 
@@ -88,14 +86,17 @@ _logger = logging.getLogger(__name__)
 #     assert checkpoint["callbacks"][es_name] == early_stop_callback_state
 #
 #     # ensure state is reloaded properly (assertion in the callback)
-#     early_stop_callback = EarlyStoppingTestRestore(early_stop_callback_state, monitor="train_loss")
+#     early_stop_callback = EarlyStoppingTestRestore(
+#         early_stop_callback_state, monitor="train_loss"
+#     )
 #     new_trainer = reax.Trainer(
 #         default_root_dir=tmp_path,
 #         listeners=[early_stop_callback],
 #     )
 #
 #     with pytest.raises(
-#         exceptions.MisconfigurationException, match=r"You restored a checkpoint with current_epoch"
+#         exceptions.MisconfigurationException,
+#         match=r"You restored a checkpoint with current_epoch",
 #     ):
 #         new_trainer.fit(model, datamodule=dm, ckpt_path=checkpoint_filepath, max_epochs=1)
 
@@ -197,7 +198,7 @@ def test_pickling():
     early_stopping = listeners.EarlyStopping(monitor="foo")
 
     early_stopping_pickled = pickle.dumps(early_stopping)
-    early_stopping_loaded = pickle.loads(early_stopping_pickled)
+    early_stopping_loaded = pickle.loads(early_stopping_pickled)  # nosec B301
     assert vars(early_stopping) == vars(early_stopping_loaded)
 
     early_stopping_pickled = cloudpickle.dumps(early_stopping)
@@ -294,18 +295,19 @@ def test_early_stopping_on_non_finite_monitor(tmp_path, stop_value):
 @pytest.mark.parametrize(
     ("limit_train_batches", "min_epochs", "min_steps", "stop_step"),
     [
-        # IF `min_steps` was set to a higher value than the `trainer.global_step` when `early_stopping` is being
-        # triggered, THEN the trainer should continue until reaching `trainer.global_step == min_steps` and stop
+        # IF `min_steps` was set to a higher value than the `trainer.global_step` when
+        # `early_stopping` is being triggered, THEN the trainer should continue until reaching
+        # `trainer.global_step == min_steps` and stop
         (3, 0, 10, 10),
         (5, 0, 10, 10),
-        # IF `min_epochs` resulted in a higher number of steps than the `trainer.global_step` when `early_stopping` is
-        # being triggered, THEN the trainer should continue until reaching
+        # IF `min_epochs` resulted in a higher number of steps than the `trainer.global_step` when
+        # `early_stopping` is being triggered, THEN the trainer should continue until reaching
         # `trainer.global_step` == `min_epochs * len(train_dataloader)`
         (3, 2, 0, 6),
         (5, 2, 0, 10),
-        # IF both `min_epochs` and `min_steps` are provided and higher than the `trainer.global_step` when
-        # `early_stopping` is being triggered, THEN the highest between `min_epochs * len(train_dataloader)` and
-        # `min_steps` would be reached
+        # IF both `min_epochs` and `min_steps` are provided and higher than the
+        # `trainer.global_step` when `early_stopping` is being triggered, THEN the highest between
+        # `min_epochs * len(train_dataloader)` and `min_steps` would be reached
         (3, 1, 10, 10),
         (5, 1, 10, 10),
         (3, 3, 10, 10),

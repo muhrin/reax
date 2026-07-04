@@ -149,14 +149,15 @@ def test_toggle_untoggle_2_optimizers_no_shared_parameters(tmp_path):
                 [nn.relu, nn.Dense(32), nn.relu, nn.Dense(32), nn.relu, nn.Dense(2)]
             )
 
-            # set some weights to require no gradient to check that toggle/untoggle works as expected.
+            # set some weights to require no gradient to check that
+            # toggle/untoggle works as expected.
             self.layer_1[2].weight.requires_grad = False
             self.layer_1[4].weight.requires_grad = False
 
             self.layer_2[1].weight.requires_grad = False
             self.layer_2[3].weight.requires_grad = False
 
-        def training_step(self, batch, batch_idx):
+        def training_step(self, batch, batch_idx, /):
             opt1, opt2 = self.optimizers()
 
             # Use the first optimizer, toggle it
@@ -230,7 +231,8 @@ def test_toggle_untoggle_3_optimizers_shared_parameters(tmp_path):
                 nn.Linear(32, 2),
             )
 
-            # set some weights to require no gradient to check that toggle/untoggle works as expected.
+            # set some weights to require no gradient to check that
+            # toggle/untoggle works as expected.
             self.layer_1[2].weight.requires_grad = False
             self.layer_1[4].weight.requires_grad = False
 
@@ -419,8 +421,9 @@ def test_lightning_module_configure_gradient_clipping(tmp_path):
 
 
 def test_lightning_module_configure_gradient_clipping_different_argument_values(tmp_path):
-    """Test that setting gradient clipping arguments in `Trainer` and cusotmizing gradient clipping inside
-    `configure_gradient_clipping` with different values raises an exception.
+    """Test that setting gradient clipping arguments in `Trainer` and customizing
+    gradient clipping inside `configure_gradient_clipping` with different values
+    raises an exception.
     """
 
     class TestModel(boring_classes.BoringModel):
@@ -435,7 +438,8 @@ def test_lightning_module_configure_gradient_clipping_different_argument_values(
     trainer = reax.Trainer(default_root_dir=tmp_path, gradient_clip_val=1e-4)
     with pytest.raises(
         reax.exceptions.MisconfigurationException,
-        match=r"gradient_clip_val=0.0001\)` and have passed `clip_gradients\(gradient_clip_val=0.01",
+        match=r"gradient_clip_val=0.0001\)` and have passed "
+        r"`clip_gradients\(gradient_clip_val=0.01",
     ):
         trainer.fit(model, max_epochs=1, limit_train_batches=2, limit_val_batches=0)
 
@@ -459,7 +463,8 @@ def test_lightning_module_configure_gradient_clipping_different_argument_values(
     )
     with pytest.raises(
         reax.exceptions.MisconfigurationException,
-        match=r"gradient_clip_algorithm='norm'\)` and have passed `clip_gradients\(gradient_clip_algorithm='foo'",
+        match=r"gradient_clip_algorithm='norm'\)` and have passed "
+        r"`clip_gradients\(gradient_clip_algorithm='foo'",
     ):
         trainer.fit(model)
 

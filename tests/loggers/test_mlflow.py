@@ -299,7 +299,8 @@ def test_mlflow_logger_experiment_calls(mlflow_mock, tmp_path):
 @pytest.mark.parametrize("synchronous", [False, True])
 @mock.patch("reax.loggers.mlflow._get_resolve_tags", Mock())
 def test_mlflow_logger_experiment_calls_with_synchronous(mlflow_mock, tmp_path, synchronous):
-    """Test that the logger calls methods on the mlflow experiment with the specified synchronous flag."""
+    """Test that the logger calls methods on the mlflow experiment with the
+    specified synchronous flag."""
 
     time = mlflow_mock.entities.time
     metric = mlflow_mock.entities.Metric
@@ -378,7 +379,8 @@ def test_mlflow_logger_with_long_param_value(mlflow_mock, tmp_path):
 
 @mock.patch("reax.loggers.mlflow._get_resolve_tags", Mock())
 def test_mlflow_logger_with_many_params(mlflow_mock, tmp_path):
-    """Test that when logging more than 100 parameters, it will be split into batches of at most 100 parameters."""
+    """Test that when logging more than 100 parameters, it will be split into batches
+    of at most 100 parameters."""
     logger = mlflow.MlflowLogger("test", save_dir=str(tmp_path))
 
     params = {f"test_{idx}": f"test_param_{idx}" for idx in range(150)}

@@ -170,7 +170,7 @@ def test_trainer_min_steps_and_min_epochs_not_reached(tmp_path, caplog):
     class TestModel(demos.BoringModel):
         training_step_invoked = 0
 
-        def training_step(self, batch, batch_idx):
+        def training_step(self, batch, batch_idx, /):
             output = super().training_step(batch, batch_idx)
             output["loss"] = output["loss"] * 0.0  # force minimal loss to trigger early stopping
             self.log("loss", output["loss"])
