@@ -44,6 +44,23 @@ Fit
 
     trainer.fit(model, train_loader, val_loader)
 
+max_time
+~~~~~~~~
+
+Set the maximum amount of time for training. Training will get interrupted
+mid-epoch. For customizable options use the Timer callback.
+
+.. code-block:: python
+
+    # Default (disabled)
+    trainer.fit(model, train_dataloader, val_dataloader, max_time=None)
+
+    # Stop after 12 hours of training or when reaching 10 epochs (string)
+    trainer.fit(model, train_dataloader, val_dataloader, max_time="00:12:00:00", max_epochs=10)
+
+    # Stop after 1 day and 5 hours (dict)
+    trainer.fit(model, train_dataloader, val_dataloader, max_time={"days": 1, "hours": 5})
+
 Test
 ~~~~
 

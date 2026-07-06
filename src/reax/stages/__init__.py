@@ -1,4 +1,5 @@
-from . import common, fit, predict, stages, stats, test, train, validation
+from . import _timer, common, fit, predict, stages, stats, test, train, validation
+from ._timer import *
 from .common import *
 from .fit import *
 from .predict import *
@@ -9,7 +10,8 @@ from .train import *
 from .validation import *
 
 __all__ = (
-    common.__all__
+    _timer.__all__
+    + common.__all__
     + fit.__all__
     + predict.__all__
     + stages.__all__

@@ -1,3 +1,4 @@
+import datetime
 import enum
 from typing import TYPE_CHECKING, Any, Final
 
@@ -7,7 +8,7 @@ import jaxtyping as jt
 from lightning_utilities.core import overrides
 from typing_extensions import override
 
-from . import common, stages, train, validation
+from . import _timer, common, stages, train, validation
 from .. import data, exceptions, modules
 
 if TYPE_CHECKING:
@@ -363,6 +364,7 @@ class Fit(stages.Stage):
         min_epochs: int = 0,
         min_updates: int = 0,
         max_updates: int | float | None = None,
+        max_time: str | datetime.timedelta | dict[str, int] | None = None,
         limit_train_batches: int | float | None = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: int | float | None = 1.0,
@@ -400,6 +402,10 @@ class Fit(stages.Stage):
         self._reload_dataloaders_every_n_epochs: Final[int] = reload_dataloaders_every_n_epochs
 
         # State
+        self._timer = self._init_timer(max_time)
+        if self._timer is not None:
+            self.events.add_listener(self._timer)
+
         self._fit_epoch = FitEpoch(
             module,
             datamanager,
@@ -416,6 +422,7 @@ class Fit(stages.Stage):
             check_val_every_n_epoch=check_val_every_n_epoch,
             stopper=self._stopper,
         )
+
         self._sanity_check: validation.Validate | None = None
         if self._fit_epoch.validation_mode != ValidationMode.OFF and num_sanity_val_steps:
             if num_sanity_val_steps is not None and limit_val_batches is not None:
@@ -434,6 +441,16 @@ class Fit(stages.Stage):
                 name="sanity_check",
                 enable_checkpointing=False,
             )
+
+    @staticmethod
+    def _init_timer(
+        max_time: str | datetime.timedelta | dict[str, int] | None,
+    ) -> _timer.StageTimer | None:
+        if max_time is None:
+            return None
+
+        timer = _timer.StageTimer(max_time)
+        return timer
 
     @property
     def epoch(self) -> int:
@@ -523,6 +540,10 @@ class Fit(stages.Stage):
     @property
     def val_dataloaders(self) -> "reax.DataLoader | None":
         return self.val_dataloader
+
+    @property
+    def timer(self) -> "reax.stages.StageTimer | None":
+        return self._timer
 
     @override
     def log(

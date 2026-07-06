@@ -1,5 +1,6 @@
 from collections.abc import Callable, Generator, Sequence
 import contextlib
+import datetime
 import functools
 import logging
 import os
@@ -428,6 +429,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         min_epochs: int = 0,
         min_updates: int = 0,
         max_updates: int | float = None,
+        max_time: str | datetime.timedelta | dict[str, int] | None = None,
         limit_train_batches: int | float | None = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: int | float | None = 1.0,
@@ -476,6 +478,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             min_epochs=min_epochs,
             min_updates=min_updates,
             max_updates=max_updates,
+            max_time=max_time,
             limit_train_batches=limit_train_batches,
             accumulate_grad_batches=accumulate_grad_batches,
             limit_val_batches=limit_val_batches,
