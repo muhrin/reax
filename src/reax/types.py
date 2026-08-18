@@ -1,5 +1,5 @@
 import pathlib
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import Literal, Protocol, TypeVar, runtime_checkable
 
 import jax.typing
 import jaxtyping as jt
@@ -10,6 +10,12 @@ _OutT = TypeVar("_OutT")
 Path = str | bytes | pathlib.Path
 ArrayMask = jt.Int[jt.ArrayLike, "..."] | jt.Bool[jt.ArrayLike, "..."]
 MetricsDict = dict[str, jax.typing.ArrayLike]
+
+#: How a raw (i.e. non-metric) value has already been reduced over its batch by the caller.
+#: ``"sum"`` means the value is the total over the batch, ``"mean"`` that it is the average over the
+#: ``batch_size`` samples it was computed from.  In both cases the epoch value is the mean over all
+#: the samples seen, but we can only work that out if we are told which of the two we were given.
+ReduceFx = Literal["sum", "mean"]
 
 
 @runtime_checkable

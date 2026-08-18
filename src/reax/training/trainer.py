@@ -395,6 +395,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         logger: bool = None,
         on_step=True,
         on_epoch=True,
+        reduce_fx: "reax.types.ReduceFx" = "sum",
     ) -> None:
         """Log function."""
         if self._stage is None:
@@ -412,6 +413,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             batch_size=batch_size,
             on_step=on_step,
             on_epoch=on_epoch,
+            reduce_fx=reduce_fx,
         )
 
     # region Stages

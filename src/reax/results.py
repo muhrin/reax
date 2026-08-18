@@ -37,9 +37,12 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
         cls,
         value: jt.ArrayLike,
         batch_size: int,
+        reduce_fx: "reax.types.ReduceFx" = "sum",
     ) -> "ArrayResultMetric":
         """Create function."""
-        return ArrayResultMetric(value=jnp.asarray(value), cumulated_batch_size=batch_size)
+        return ArrayResultMetric(
+            value=_batch_total(value, batch_size, reduce_fx), cumulated_batch_size=batch_size
+        )
 
     @override
     def update(
@@ -47,10 +50,11 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
         self,
         value: jt.ArrayLike,
         batch_size: int,
+        reduce_fx: "reax.types.ReduceFx" = "sum",
     ) -> "ArrayResultMetric":
         """Update function."""
         return ArrayResultMetric(
-            value=self.value + jnp.asarray(value),
+            value=self.value + _batch_total(value, batch_size, reduce_fx),
             cumulated_batch_size=self.cumulated_batch_size + batch_size,
         )
 
@@ -66,6 +70,24 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
     def compute(self) -> jax.Array:
         """Compute function."""
         return self.value / self.cumulated_batch_size
+
+
+def _batch_total(
+    value: jt.ArrayLike, batch_size: int, reduce_fx: "reax.types.ReduceFx"
+) -> jax.Array:
+    """Express ``value`` as a total over its batch so that it can be accumulated.
+
+    Values logged as ``"mean"`` are averages over ``batch_size`` samples, so they are weighted by
+    the number of samples they represent.  This keeps the numerator counting samples, just like the
+    ``cumulated_batch_size`` denominator does.
+    """
+    if reduce_fx == "mean":
+        return jnp.asarray(value) * batch_size
+
+    if reduce_fx != "sum":
+        raise ValueError(f"`reduce_fx` must be one of 'sum' or 'mean', got {reduce_fx!r}")
+
+    return jnp.asarray(value)
 
 
 class ResultEntry(Generic[_OutT]):
@@ -115,15 +137,20 @@ class ResultCollection(dict[str, ResultEntry]):
         on_step: bool = False,
         on_epoch: bool = True,
         batch_size: int | None = None,
+        reduce_fx: "reax.types.ReduceFx" = "sum",
     ):
-        """Log function."""
+        """Log function.
+
+        ``reduce_fx`` says how a raw ``value`` was reduced over its batch by the caller and is
+        ignored for metric instances, which carry their own count.
+        """
         key = f"{fx}.{name}"
 
         if isinstance(value, types.MetricInstance):
             metric = value
         else:
             try:
-                metric = ArrayResultMetric.create(value, batch_size)
+                metric = ArrayResultMetric.create(value, batch_size, reduce_fx)
             except TypeError:
                 raise TypeError(
                     f"Value must be a `reax.Metric` or a raw value, got {type(value).__name__}"

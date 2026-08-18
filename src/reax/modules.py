@@ -171,12 +171,22 @@ class Module(
         logger: bool | None = None,
         on_step=True,
         on_epoch=True,
+        reduce_fx: "reax.types.ReduceFx" = "sum",
     ) -> None:
         """Log a key, value pair.
 
         Example::
 
             self.log('train_loss', loss)
+
+        A raw (i.e. non-metric) ``value`` is accumulated over the epoch as
+        ``sum(values) / sum(batch sizes)``, which assumes each value is the total over its batch.
+        If it is instead an average over ``batch_size`` samples, say so with ``reduce_fx="mean"``
+        and it will be weighted accordingly::
+
+            self.log('train_loss', loss, batch_size=len(batch), reduce_fx='mean')
+
+        Metric instances carry their own count, so ``reduce_fx`` doesn't apply to them.
         """
         trainer = self._trainer
         if trainer is None:
@@ -206,6 +216,7 @@ class Module(
             logger=logger,
             on_step=on_step,
             on_epoch=on_epoch,
+            reduce_fx=reduce_fx,
         )
 
     def log_dict(
