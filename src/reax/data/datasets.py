@@ -15,12 +15,13 @@ from . import _types
 
 if TYPE_CHECKING:
     import reax
+__all__ = ("ArrayDataset", "ConcatDataset", "Subset", "random_split")
 
 _T = TypeVar("_T")
 _T_co = TypeVar("_T_co", covariant=True)
 
-
-__all__ = ("ArrayDataset", "ConcatDataset", "Subset", "random_split")
+# Accept a list of ints, or a 1D NumPy/JAX array of integers
+IndexType = Sequence[int] | jt.Integer[np.ndarray, " N"] | jt.Integer[jax.Array, " N"]
 
 
 class ConcatDataset(Sequence[_T_co]):
@@ -104,10 +105,10 @@ class Subset(Sequence[_T_co]):
     r"""Subset of a dataset at specified indices."""
 
     dataset: Sequence[_T_co]
-    indices: Sequence[int]
+    indices: IndexType
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def __init__(self, dataset: Sequence[_T_co], indices: Sequence[int]) -> None:
+    def __init__(self, dataset: Sequence[_T_co], indices: IndexType) -> None:
         """
         Args:
             dataset: The whole Dataset
@@ -118,7 +119,7 @@ class Subset(Sequence[_T_co]):
 
     def __getitem__(self, idx: int | list[int]) -> _T_co | list[_T_co]:
         if isinstance(idx, list):
-            return self.dataset[[self.indices[i] for i in idx]]
+            return self.__getitems__(idx)
 
         return self.dataset[self.indices[idx]]
 

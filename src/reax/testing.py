@@ -4,6 +4,7 @@ import inspect
 import json
 import logging
 import subprocess
+import sys
 import tempfile
 import textwrap
 from typing import Final
@@ -145,7 +146,7 @@ def run_function_in_subprocess(target_func: Callable, *func_args, **func_kwargs)
         # 6. Launch the file in a new Python subprocess, passing arguments via command line.
         try:
             # Pass the serialized args as the third command-line argument (index 1 in sys.argv)
-            cmd = ["python", temp_file_path, serialized_args]
+            cmd = [sys.executable, temp_file_path, serialized_args]
 
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)  # nosec
 

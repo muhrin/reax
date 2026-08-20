@@ -119,6 +119,11 @@ class Stage(abc.ABC):
         return self._module
 
     @property
+    def engine(self) -> "reax.Engine":
+        """The engine executing this stage."""
+        return self._engine
+
+    @property
     def rngs(self) -> nnx.Rngs | None:
         return self._rngs
 
