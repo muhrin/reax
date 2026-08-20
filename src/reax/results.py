@@ -31,14 +31,14 @@ class Metadata:
 class ArrayResultMetric(_metric.Metric[jax.Array]):
     """Accumulate raw logged values, reducing them over the batches of an epoch.
 
-    Nothing is known about a raw value beyond the number itself, so it is taken at face value and
-    combined with the values from the other batches using ``reduce_fn``: either their mean, or
-    their total.  Anything that needs the numbers to be interpreted (e.g. an average over samples
-    rather than over batches) should be logged as a `reax.Metric`, which carries its own count.
+    With ``reduce_fn="sum"`` the values are simply added up.  With ``"mean"`` each is weighted by
+    the ``batch_size`` it was logged with, so the result is the average over all the samples seen
+    rather than over the batches, and a short final batch counts for the samples it actually holds.
+    Where the batch size isn't known every value counts once, giving the mean over the batches.
     """
 
     value: jax.Array = 0  # Redefine here so the typing hinting works
-    num_values: int = 0
+    weight: jax.Array = 0
     reduce_fn: "reax.types.ReduceFn" = equinox.field(static=True, default="mean")
 
     @classmethod
@@ -46,11 +46,15 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
         # pylint: disable=arguments-differ
         cls,
         value: jt.ArrayLike,
+        batch_size: int | None = None,
         reduce_fn: "reax.types.ReduceFn" = "mean",
     ) -> "ArrayResultMetric":
         """Create function."""
+        reduce_fn = _check_reduce_fn(reduce_fn)
+        weight = _weight(batch_size, reduce_fn)
+
         return ArrayResultMetric(
-            value=jnp.asarray(value), num_values=1, reduce_fn=_check_reduce_fn(reduce_fn)
+            value=jnp.asarray(value) * weight, weight=weight, reduce_fn=reduce_fn
         )
 
     @override
@@ -58,11 +62,14 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
         # pylint: disable=arguments-differ
         self,
         value: jt.ArrayLike,
+        batch_size: int | None = None,
     ) -> "ArrayResultMetric":
         """Update function."""
+        weight = _weight(batch_size, self.reduce_fn)
+
         return ArrayResultMetric(
-            value=self.value + jnp.asarray(value),
-            num_values=self.num_values + 1,
+            value=self.value + jnp.asarray(value) * weight,
+            weight=self.weight + weight,
             reduce_fn=self.reduce_fn,
         )
 
@@ -77,7 +84,7 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
 
         return ArrayResultMetric(
             value=self.value + other.value,
-            num_values=self.num_values + other.num_values,
+            weight=self.weight + other.weight,
             reduce_fn=self.reduce_fn,
         )
 
@@ -87,7 +94,19 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
         if self.reduce_fn == "sum":
             return self.value
 
-        return self.value / self.num_values
+        return self.value / self.weight
+
+
+def _weight(batch_size: int | None, reduce_fn: "reax.types.ReduceFn") -> int:
+    """How much a value logged with ``batch_size`` counts for.
+
+    Totals are added up as they are, so they carry no weight.  Averages are weighted by the number
+    of samples behind them, falling back to counting once each when that isn't known.
+    """
+    if reduce_fn == "sum" or batch_size is None:
+        return 1
+
+    return batch_size
 
 
 def _check_reduce_fn(reduce_fn: "reax.types.ReduceFn") -> "reax.types.ReduceFn":
@@ -148,8 +167,9 @@ class ResultCollection(dict[str, ResultEntry]):
     ):
         """Log function.
 
-        ``reduce_fn`` says how raw values logged over an epoch should be reduced to a single value.
-        It is ignored for metric instances, which know how to combine themselves.
+        ``reduce_fn`` says how raw values logged over an epoch should be reduced to a single value,
+        with ``batch_size`` weighting them when taking their mean.  Both are ignored for metric
+        instances, which know how to combine themselves.
         """
         key = f"{fx}.{name}"
 
@@ -157,7 +177,7 @@ class ResultCollection(dict[str, ResultEntry]):
             metric = value
         else:
             try:
-                metric = ArrayResultMetric.create(value, reduce_fn)
+                metric = ArrayResultMetric.create(value, batch_size, reduce_fn)
             except TypeError:
                 raise TypeError(
                     f"Value must be a `reax.Metric` or a raw value, got {type(value).__name__}"

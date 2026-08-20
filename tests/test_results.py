@@ -5,7 +5,7 @@ import pytest
 from reax import results
 
 # Deliberately ragged: the final batch is smaller, as it is whenever the dataset size isn't a
-# multiple of the batch size.  Nothing about the reduction should depend on that.
+# multiple of the batch size
 BATCH_SIZES = (32, 32, 32, 11)
 VALUES = (0.10, 0.20, 0.30, 0.25)
 
@@ -28,25 +28,40 @@ def _log_epoch(values, batch_sizes, **kwargs):
 
 
 def test_mean_is_the_default():
-    """Values are averaged over the batches they were logged in"""
-    expected = np.mean(VALUES)
+    """Values are averaged over the samples they were computed from"""
+    expected = np.average(VALUES, weights=BATCH_SIZES)
 
     assert jnp.isclose(_log_epoch(VALUES, BATCH_SIZES, reduce_fn="mean"), expected)
     assert jnp.isclose(_log_epoch(VALUES, BATCH_SIZES), expected)
 
 
-def test_sum():
-    """Values that are parts of a whole are totalled instead"""
+def test_mean_weights_by_batch_size():
+    """A short final batch counts for the samples it holds, not as a whole batch"""
+    weighted = _log_epoch(VALUES, BATCH_SIZES, reduce_fn="mean")
+
+    assert jnp.isclose(weighted, np.average(VALUES, weights=BATCH_SIZES))
+    # The ragged batch makes this differ from the plain mean over batches
+    assert not jnp.isclose(weighted, np.mean(VALUES))
+
+
+def test_mean_without_batch_sizes():
+    """Where the batch size isn't known, every value counts once"""
+    sizes = (None,) * len(VALUES)
+
+    assert jnp.isclose(_log_epoch(VALUES, sizes, reduce_fn="mean"), np.mean(VALUES))
+
+
+def test_equal_batches_are_a_plain_mean():
+    """Weighting only shows up when the batches differ in size"""
+    equal = _log_epoch(VALUES, (16,) * len(VALUES), reduce_fn="mean")
+
+    assert jnp.isclose(equal, np.mean(VALUES))
+
+
+def test_sum_ignores_batch_size():
+    """Values that are parts of a whole are totalled as they are"""
     assert jnp.isclose(_log_epoch(VALUES, BATCH_SIZES, reduce_fn="sum"), sum(VALUES))
-
-
-def test_batch_size_does_not_affect_the_result():
-    """A raw value says nothing about how many samples are behind it, so the batch size can't be
-    used to weight it"""
-    even = _log_epoch(VALUES, (16, 16, 16, 16), reduce_fn="mean")
-    ragged = _log_epoch(VALUES, BATCH_SIZES, reduce_fn="mean")
-
-    assert jnp.isclose(even, ragged)
+    assert jnp.isclose(_log_epoch(VALUES, (1,) * len(VALUES), reduce_fn="sum"), sum(VALUES))
 
 
 def test_unknown_reduce_fn():
