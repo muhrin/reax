@@ -210,7 +210,9 @@ def test_early_stopping_no_val_step(tmp_path):
     """Test that early stopping listener falls back to training metrics when no validation defined."""
     pytest.importorskip("sklearn")
 
-    max_epochs = 4
+    # Early stopping fires on a genuine plateau at around epoch 4, so this bound just has to be
+    # comfortably clear of that
+    max_epochs = 8
     model = helpers.ClassificationModel()
     dm = helpers.ClassifDataModule()
     model.validation_step = None

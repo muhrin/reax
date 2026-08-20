@@ -5,10 +5,9 @@ import pytest
 from reax import results
 
 # Deliberately ragged: the final batch is smaller, as it is whenever the dataset size isn't a
-# multiple of the batch size
+# multiple of the batch size.  Nothing about the reduction should depend on that.
 BATCH_SIZES = (32, 32, 32, 11)
-BATCH_MEANS = (0.10, 0.20, 0.30, 0.25)
-BATCH_TOTALS = tuple(mean * size for mean, size in zip(BATCH_MEANS, BATCH_SIZES))
+VALUES = (0.10, 0.20, 0.30, 0.25)
 
 
 def _log_epoch(values, batch_sizes, **kwargs):
@@ -28,40 +27,37 @@ def _log_epoch(values, batch_sizes, **kwargs):
     return collection["train.loss"].metric.compute()
 
 
-def test_sum_is_the_default():
-    """A raw value is taken to be the total over its batch unless we're told otherwise"""
-    expected = sum(BATCH_TOTALS) / sum(BATCH_SIZES)
+def test_mean_is_the_default():
+    """Values are averaged over the batches they were logged in"""
+    expected = np.mean(VALUES)
 
-    assert jnp.isclose(_log_epoch(BATCH_TOTALS, BATCH_SIZES, reduce_fx="sum"), expected)
-    # Not passing `reduce_fx` at all must keep doing exactly the same thing
-    assert jnp.isclose(_log_epoch(BATCH_TOTALS, BATCH_SIZES), expected)
-
-
-def test_mean_is_weighted_by_batch_size():
-    """Values that are already averages are weighted by the number of samples behind them"""
-    expected = np.average(BATCH_MEANS, weights=BATCH_SIZES)
-
-    assert jnp.isclose(_log_epoch(BATCH_MEANS, BATCH_SIZES, reduce_fx="mean"), expected)
+    assert jnp.isclose(_log_epoch(VALUES, BATCH_SIZES, reduce_fn="mean"), expected)
+    assert jnp.isclose(_log_epoch(VALUES, BATCH_SIZES), expected)
 
 
-def test_mean_and_sum_agree():
-    """Logging the mean of a batch and logging its total are two ways of saying the same thing"""
-    assert jnp.isclose(
-        _log_epoch(BATCH_MEANS, BATCH_SIZES, reduce_fx="mean"),
-        _log_epoch(BATCH_TOTALS, BATCH_SIZES, reduce_fx="sum"),
-    )
+def test_sum():
+    """Values that are parts of a whole are totalled instead"""
+    assert jnp.isclose(_log_epoch(VALUES, BATCH_SIZES, reduce_fn="sum"), sum(VALUES))
 
 
-def test_mean_logged_as_a_total_is_scaled_down():
-    """The bug this guards against: a mean logged as if it were a total comes out roughly the batch
-    size times too small"""
-    correct = _log_epoch(BATCH_MEANS, BATCH_SIZES, reduce_fx="mean")
-    as_if_total = _log_epoch(BATCH_MEANS, BATCH_SIZES, reduce_fx="sum")
+def test_batch_size_does_not_affect_the_result():
+    """A raw value says nothing about how many samples are behind it, so the batch size can't be
+    used to weight it"""
+    even = _log_epoch(VALUES, (16, 16, 16, 16), reduce_fn="mean")
+    ragged = _log_epoch(VALUES, BATCH_SIZES, reduce_fn="mean")
 
-    assert as_if_total < correct
-    assert jnp.isclose(as_if_total, sum(BATCH_MEANS) / sum(BATCH_SIZES))
+    assert jnp.isclose(even, ragged)
 
 
-def test_unknown_reduce_fx():
-    with pytest.raises(ValueError, match="reduce_fx"):
-        _log_epoch(BATCH_MEANS, BATCH_SIZES, reduce_fx="average")
+def test_unknown_reduce_fn():
+    with pytest.raises(ValueError, match="reduce_fn"):
+        _log_epoch(VALUES, BATCH_SIZES, reduce_fn="average")
+
+
+def test_cannot_merge_different_reductions():
+    """The same key logged two ways has no single answer"""
+    summed = results.ArrayResultMetric.create(1.0, reduce_fn="sum")
+    averaged = results.ArrayResultMetric.create(1.0, reduce_fn="mean")
+
+    with pytest.raises(ValueError, match="reduced differently"):
+        summed.merge(averaged)

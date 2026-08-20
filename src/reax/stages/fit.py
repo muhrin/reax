@@ -258,13 +258,13 @@ class FitEpoch(train.Train):
         logger: bool = False,
         on_step=False,
         on_epoch=True,
-        reduce_fx: "reax.types.ReduceFx" = "sum",
+        reduce_fn: "reax.types.ReduceFn" = "mean",
     ) -> None:
         """Log function."""
         if self._child is not None:
-            self._child.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch, reduce_fx)
+            self._child.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch, reduce_fn)
         else:
-            super().log(name, value, batch_size, prog_bar, logger, on_step, on_epoch, reduce_fx)
+            super().log(name, value, batch_size, prog_bar, logger, on_step, on_epoch, reduce_fn)
 
     def _should_check_val(self) -> bool:
         """Decide if we should run validation based on the current mode and progress."""
@@ -556,7 +556,7 @@ class Fit(stages.Stage):
         logger: bool = False,
         on_step=False,
         on_epoch=True,
-        reduce_fx: "reax.types.ReduceFx" = "sum",
+        reduce_fn: "reax.types.ReduceFn" = "mean",
     ) -> None:
         """Log function."""
         if self._child is None:
@@ -565,7 +565,7 @@ class Fit(stages.Stage):
                 "so cannot currently log anything"
             )
 
-        self._child.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch, reduce_fx)
+        self._child.log(name, value, batch_size, prog_bar, logger, on_step, on_epoch, reduce_fn)
 
     @override
     def _on_iteration_starting(self):

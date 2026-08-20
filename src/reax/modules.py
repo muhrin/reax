@@ -171,7 +171,7 @@ class Module(
         logger: bool | None = None,
         on_step=True,
         on_epoch=True,
-        reduce_fx: "reax.types.ReduceFx" = "sum",
+        reduce_fn: "reax.types.ReduceFn" = "mean",
     ) -> None:
         """Log a key, value pair.
 
@@ -179,14 +179,19 @@ class Module(
 
             self.log('train_loss', loss)
 
-        A raw (i.e. non-metric) ``value`` is accumulated over the epoch as
-        ``sum(values) / sum(batch sizes)``, which assumes each value is the total over its batch.
-        If it is instead an average over ``batch_size`` samples, say so with ``reduce_fx="mean"``
-        and it will be weighted accordingly::
+        A raw (i.e. non-metric) ``value`` is logged once per batch and the values are reduced to a
+        single number at the end of the epoch.  Use the default ``reduce_fn="mean"`` when each
+        batch measures the same quantity, and ``"sum"`` when each batch contributes part of a
+        whole::
 
-            self.log('train_loss', loss, batch_size=len(batch), reduce_fx='mean')
+            self.log('train_loss', loss)                           # typical loss over the epoch
+            self.log('samples_seen', len(batch), reduce_fn='sum')  # samples seen this epoch
 
-        Metric instances carry their own count, so ``reduce_fx`` doesn't apply to them.
+        Nothing else is assumed about the value: it is taken at face value and, in particular, is
+        not rescaled by the batch size.  Log a `reax.Metric` if the reduction needs to account for
+        what the numbers actually are, e.g. an average over samples rather than over batches.
+
+        Metric instances know how to combine themselves, so ``reduce_fn`` doesn't apply to them.
         """
         trainer = self._trainer
         if trainer is None:
@@ -216,7 +221,7 @@ class Module(
             logger=logger,
             on_step=on_step,
             on_epoch=on_epoch,
-            reduce_fx=reduce_fx,
+            reduce_fn=reduce_fn,
         )
 
     def log_dict(

@@ -11,11 +11,9 @@ Path = str | bytes | pathlib.Path
 ArrayMask = jt.Int[jt.ArrayLike, "..."] | jt.Bool[jt.ArrayLike, "..."]
 MetricsDict = dict[str, jax.typing.ArrayLike]
 
-#: How a raw (i.e. non-metric) value has already been reduced over its batch by the caller.
-#: ``"sum"`` means the value is the total over the batch, ``"mean"`` that it is the average over the
-#: ``batch_size`` samples it was computed from.  In both cases the epoch value is the mean over all
-#: the samples seen, but we can only work that out if we are told which of the two we were given.
-ReduceFx = Literal["sum", "mean"]
+#: How the raw (i.e. non-metric) values logged over the batches of an epoch should be reduced to a
+#: single value at the end of it: either their mean, or their total.
+ReduceFn = Literal["sum", "mean"]
 
 
 @runtime_checkable
