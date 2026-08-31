@@ -1,6 +1,6 @@
 from collections.abc import Callable, Generator, Sequence
 import contextlib
-from typing import TYPE_CHECKING, Any, Generic, TypedDict, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeAlias, TypedDict, TypeVar
 
 import beartype
 from flax import nnx
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 __all__ = ("Module",)
 
-MetricType = "reax.Metric" | jax.typing.ArrayLike
+MetricType: TypeAlias = "reax.Metric | jax.typing.ArrayLike"
 OutputT_co = TypeVar("OutputT_co", covariant=True)
 BatchT = TypeVar("BatchT")
 OptimizerData = tuple[optax.GradientTransformation, Any]
