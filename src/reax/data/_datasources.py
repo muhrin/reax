@@ -8,9 +8,10 @@ if TYPE_CHECKING:
 __all__ = ("DataSource",)
 
 _T_co = TypeVar("_T_co", covariant=True)
+U = TypeVar("U")
 
 
-class DataSource(Generic[_T_co]):
+class DataSource(Generic[_T_co, U]):
     """Interface for classes that provide datasets."""
 
     def __init__(self) -> None:
@@ -117,7 +118,7 @@ class DataSource(Generic[_T_co]):
 
     # endregion
 
-    def train_dataloader(self) -> "reax.DataLoader[_T_co]":
+    def train_dataloader(self) -> "reax.DataLoader[_T_co, U]":
         """An iterable or collection of iterables specifying training samples.
 
         For more information about multiple dataloaders, see :ref:`section <multiple-dataloaders>`.
@@ -148,7 +149,7 @@ class DataSource(Generic[_T_co]):
             "`train_dataloader` must be implemented to be used with the REAX Trainer"
         )
 
-    def val_dataloader(self) -> Optional["reax.DataLoader[_T_co]"]:
+    def val_dataloader(self) -> Optional["reax.DataLoader[_T_co, U]"]:
         r"""An iterable or collection of iterables specifying validation samples.
 
         For more information about multiple dataloaders, see :ref:`section <multiple-dataloaders>`.
@@ -174,7 +175,7 @@ class DataSource(Generic[_T_co]):
 
         """
 
-    def test_dataloader(self) -> "reax.DataLoader[_T_co]":
+    def test_dataloader(self) -> "reax.DataLoader[_T_co, U]":
         r"""An iterable or collection of iterables specifying test samples.
 
         For more information about multiple dataloaders, this :ref:`section <multiple-dataloaders>`.
@@ -206,7 +207,7 @@ class DataSource(Generic[_T_co]):
             "`test_dataloader` must be implemented to be used with the REAX Trainer"
         )
 
-    def predict_dataloader(self) -> "reax.DataLoader[_T_co]":
+    def predict_dataloader(self) -> "reax.DataLoader[_T_co, U]":
         r"""An iterable or collection of iterables specifying prediction samples.
 
         For more information about multiple dataloaders, see :ref:`section <multiple-dataloaders>`.

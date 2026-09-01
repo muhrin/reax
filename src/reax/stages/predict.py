@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 import weakref
 
 import beartype
@@ -35,6 +35,8 @@ class Predict(stages.EpochStage):
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )
+        # Params
+        self._mod: "Final[reax.Module]" = module
         self._keep_predictions = keep_predictions
         self._all_outputs: list[Any] | list[list[Any]] | None = []
 
@@ -45,22 +47,22 @@ class Predict(stages.EpochStage):
     @override
     def _on_starting(self):
         super()._on_starting()
-        self._module.on_predict_start(weakref.proxy(self))
+        self._mod.on_predict_start(weakref.proxy(self))
 
     @override
     def _on_epoch_start(self):
         super()._on_epoch_start()
-        self._module.on_predict_epoch_start(weakref.proxy(self))
+        self._mod.on_predict_epoch_start(weakref.proxy(self))
 
     @override
     def _on_iteration_starting(self):
         super()._on_iteration_starting()
-        self._module.on_predict_batch_start(self, self.batch, self.batch_idx)
+        self._mod.on_predict_batch_start(self, self.batch, self.batch_idx)
 
     @override
     def _step(self) -> "reax.stages.MetricResults":
         """Step function."""
-        return self._module.predict_step(self.batch, self._iter)
+        return self._mod.predict_step(self.batch, self._iter)
 
     @override
     def _on_iteration_finishing(self, outputs: Any, /):
@@ -69,14 +71,14 @@ class Predict(stages.EpochStage):
         if self._keep_predictions:
             cpu = jax.devices("cpu")[0]
             self._all_outputs.append(jax.device_put(outputs, cpu))
-        self._module.on_predict_batch_end(self, outputs, self.batch, self.batch_idx)
+        self._mod.on_predict_batch_end(self, outputs, self.batch, self.batch_idx)
 
     @override
     def _on_epoch_end(self) -> None:
         super()._on_epoch_end()
-        self._module.on_predict_epoch_end(weakref.proxy(self))
+        self._mod.on_predict_epoch_end(weakref.proxy(self))
 
     @override
     def _on_stopped(self) -> None:
         super()._on_stopped()
-        self._module.on_predict_end(weakref.proxy(self))
+        self._mod.on_predict_end(weakref.proxy(self))

@@ -415,7 +415,7 @@ class Engine:
         """
         self._events.fire_event(getattr(hooks.TrainerListener, name), *args, **kwargs)
 
-    def compute(self, metric: "reax.typing.MetricInstance[_OutT]") -> _OutT:
+    def compute(self, metric: "reax.types.MetricInstance[_OutT]") -> _OutT:
         """
         Computes the final value of a metric across all distributed processes.
 

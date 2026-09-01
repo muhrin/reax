@@ -41,27 +41,29 @@ class Test(stages.EpochStage):
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )
+        # Params
+        self._mod: "reax.Module" = module
 
     @override
     def _on_starting(self):
         super()._on_starting()
-        self._module.on_test_start(weakref.proxy(self))
+        self._mod.on_test_start(weakref.proxy(self))
 
     @override
     def _on_epoch_start(self):
         super()._on_epoch_start()
-        self._module.on_test_epoch_start(weakref.proxy(self))
+        self._mod.on_test_epoch_start(weakref.proxy(self))
 
     @override
     def _step(self) -> "reax.stages.MetricResults":
-        return self._module.test_step(self.batch, self._iter)
+        return self._mod.test_step(self.batch, self._iter)
 
     @override
     def _on_epoch_end(self):
         super()._on_epoch_end()
-        self._module.on_test_epoch_end(weakref.proxy(self))
+        self._mod.on_test_epoch_end(weakref.proxy(self))
 
     @override
     def _on_stopping(self) -> None:
         super()._on_stopping()
-        self._module.on_test_end(weakref.proxy(self))
+        self._mod.on_test_end(weakref.proxy(self))

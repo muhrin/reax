@@ -54,6 +54,7 @@ class Train(stages.EpochStage):
             enable_checkpointing=True,
         )
         # Params
+        self._mod: "Final[reax.Module]" = module
         self._min_updates: Final[int] = min_updates
         self._max_updates: Final[int | float | None] = max_updates
         self._accumulate_grad_batches: Final[int] = accumulate_grad_batches
@@ -73,12 +74,12 @@ class Train(stages.EpochStage):
         return sum(opt.update_count for opt in self._optimizers)
 
     @property
-    def optimizers(self) -> list["reax.Optimizer"] | None:
+    def optimizers(self) -> "list[reax.Optimizer] | None":
         """Optimizers function."""
         return self._optimizers
 
     @override
-    def run(self) -> list["reax.Optimizer"]:
+    def run(self) -> "list[reax.Optimizer]":
         """Run function."""
         super().run()
         return self._optimizers
@@ -89,14 +90,14 @@ class Train(stages.EpochStage):
         super()._on_starting()
 
         if not self._optimizers:
-            opts = self._module.configure_optimizers()
+            opts = self._mod.configure_optimizers()
             if opts is None:
                 rank_zero.rank_zero_warn(
                     "`reax.Module.configure_optimizers` returned `None`, this fit will run "
                     "with no optimizer"
                 )
                 opt = optimizers_.mock_optimizer
-                opts = opt, opt.init(self._module.parameters())
+                opts = opt, opt.init(self._mod.parameters())
 
             if not isinstance(opts, list):
                 opts = [opts]
@@ -107,7 +108,7 @@ class Train(stages.EpochStage):
                 state = self._engine.to_device(state)
                 if self._accumulate_grad_batches > 1:
                     stepper = optax.MultiSteps(opt, every_k_schedule=self._accumulate_grad_batches)
-                    state = stepper.init(self._module.parameters())
+                    state = stepper.init(self._mod.parameters())
                     opt = stepper.gradient_transformation()
 
                 optimizers.append(optimizers_.Optimizer(opt, state))
@@ -115,38 +116,38 @@ class Train(stages.EpochStage):
             # Create the `Optimizer` instances
             self._optimizers = optimizers
 
-        self._module.on_train_start(weakref.proxy(self))
+        self._mod.on_train_start(weakref.proxy(self))
 
     @override
     def _on_iteration_starting(self):
         super()._on_iteration_starting()
-        self._module.on_train_batch_start(weakref.proxy(self), self.batch, self.batch_idx)
+        self._mod.on_train_batch_start(weakref.proxy(self), self.batch, self.batch_idx)
 
     @override
     def _on_epoch_start(self):
         """On started."""
         super()._on_epoch_start()
-        self._module.on_train_epoch_start(weakref.proxy(self))
+        self._mod.on_train_epoch_start(weakref.proxy(self))
 
     @override
     def _step(self) -> Any:
         """Step function."""
-        if self._module.parameters() is None:
+        if self._mod.parameters() is None:
             raise exceptions.MisconfigurationException(
                 "Module does not have any parameters set, this should have been done in "
                 ".configure_model()."
             )
 
-        res = self._module.training_step(self.batch, self._iter)
-        if self._module.automatic_optimization:
+        res = self._mod.training_step(self.batch, self._iter)
+        if self._mod.automatic_optimization:
             if isinstance(res, dict):
                 grad = res["grad"]
                 loss = res.get("loss", None)
             else:
                 loss, grad = res
             opt = self._optimizers[0]
-            self._module.on_before_optimizer_step(opt, grad)
-            opt = opt.update_module(self._module, grad, value=loss)
+            self._mod.on_before_optimizer_step(opt, grad)
+            opt = opt.update_module(self._mod, grad, value=loss)
             self._optimizers = [opt]
 
         if (self._min_updates is None or self.updates >= self._min_updates) and (
@@ -159,17 +160,17 @@ class Train(stages.EpochStage):
     @override
     def _on_iteration_finishing(self, outputs: Any, /):
         super()._on_iteration_finishing(outputs)
-        self._module.on_train_batch_end(weakref.proxy(self), outputs, self.batch, self.batch_idx)
+        self._mod.on_train_batch_end(weakref.proxy(self), outputs, self.batch, self.batch_idx)
 
     @override
     def _on_epoch_end(self) -> None:
         super()._on_epoch_end()
-        self._module.on_train_epoch_end(weakref.proxy(self))
+        self._mod.on_train_epoch_end(weakref.proxy(self))
 
     @override
     def _on_stopping(self) -> None:
         super()._on_stopping()
-        self._module.on_train_end(weakref.proxy(self))
+        self._mod.on_train_end(weakref.proxy(self))
 
     @override
     def _done(self) -> bool:
@@ -192,12 +193,14 @@ class Train(stages.EpochStage):
                     f"`{type(self).__name__}` stopped: `{type(self).__name__}.should_stop` was set."
                 )
             else:
-                self._warning_cache.info(
-                    f"Trainer was signaled to stop but the required "
-                    f"`min_epochs={self.parent.min_iters!r}` or"
+                lines = ["Trainer was signaled to stop but the required "]
+                if self.parent is not None:
+                    lines.append(f"`min_epochs={self.parent.min_iters!r}` or")
+                lines.append(
                     f" `min_steps={self._min_updates!r}` has not been met. "
                     f"Training will continue..."
                 )
+                self._warning_cache.info("".join(lines))
             return self._stopper.can_stop
 
         return False

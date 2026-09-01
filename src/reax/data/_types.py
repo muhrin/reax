@@ -17,6 +17,13 @@ CollateFn = Callable[[Sequence[_T_co]], U]
 
 
 class DataLoader(Generic[_T_co, U], Iterable[U], abc.ABC):
+    """Abstract base class for loaders that yield processed batches of data.
+
+    Args:
+        _T_co: The type of elements in the underlying dataset.
+        U: The type of the batches produced by the loader.
+    """
+
     def __len__(self) -> int:
         return len(self.sampler)
 

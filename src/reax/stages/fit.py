@@ -186,7 +186,7 @@ class FitEpoch(train.Train):
 
     @property
     def val_dataloader(self) -> "reax.DataLoader | None":
-        """Train dataloader."""
+        """Validation dataloader."""
         if self._validate is None:
             return None
 
@@ -252,7 +252,7 @@ class FitEpoch(train.Train):
     def log(
         self,
         name: str,
-        value: "jt.ArrayLike | reax.typing.MetricInstance",
+        value: "jt.ArrayLike | reax.types.MetricInstance",
         batch_size: int | None = None,
         prog_bar: bool = False,
         logger: bool = False,
@@ -512,6 +512,7 @@ class Fit(stages.Stage):
         if not self.enable_validation:
             return None
 
+        assert self._fit_epoch.validate is not None
         return self._fit_epoch.validate.num_batches
 
     @property
@@ -531,11 +532,12 @@ class Fit(stages.Stage):
 
     @property
     def train_dataloaders(self) -> "reax.DataLoader":
+        """Training dataloader"""
         return self.train_dataloader
 
     @property
     def val_dataloader(self) -> "reax.DataLoader | None":
-        """Train dataloader."""
+        """Validation dataloader."""
         return self._datamanager.get_dataloader("val")
 
     @property

@@ -392,12 +392,12 @@ class EpochStage(Stage, abc.ABC):
         self._outputs = None
 
     @property
-    def dataloader(self) -> "reax.DataLoader | None":
+    def dataloader(self) -> "reax.DataLoader":
         """Dataloader function."""
         return self._datamanager.get_dataloader(self._dataloader_name)
 
     @property
-    def dataloaders(self) -> "reax.DataLoader | None":
+    def dataloaders(self) -> "reax.DataLoader":
         """Dataloader function."""
         return self.dataloader
 

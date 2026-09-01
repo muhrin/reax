@@ -22,7 +22,7 @@ class BatchSizer:
     """Tool for extracting batch sizes from dataset."""
 
     def __init__(self):
-        self._registry = containers.TypeRegistry[Extractor]()
+        self._registry: containers.TypeRegistry[Extractor] = containers.TypeRegistry()
 
     def register(
         self,

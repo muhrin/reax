@@ -238,5 +238,5 @@ class DeviceDataLoader(_types.DataLoader[_T_co, _U]):
         return self._loader.sampler
 
     @override
-    def with_new_sampler(self, sampler: "reax.data.Sampler") -> "DataLoader[_T_co, U]":
+    def with_new_sampler(self, sampler: "reax.data.Sampler") -> "DeviceDataLoader[_T_co, _U]":
         return DeviceDataLoader(self._loader.with_new_sampler(sampler), device=self._device)

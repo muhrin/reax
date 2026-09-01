@@ -170,7 +170,7 @@ class DataSourceManager(Generic[_T_co]):
         ) -> "reax.data.DataLoader[_T_co, _U]":
             return self.dataloader.with_new_sampler(sampler)
 
-    def __init__(self, source: "reax.data.DataSource[_T_co]"):
+    def __init__(self, source: "reax.data.DataSource[_T_co, _U]"):
         self._source = source
         self._ready = False
 
@@ -182,7 +182,7 @@ class DataSourceManager(Generic[_T_co]):
         return DataSourceManager.LoaderProxy(self, method_name)
 
     @property
-    def source(self) -> "reax.data.DataSource[_T_co]":
+    def source(self) -> "reax.data.DataSource[_T_co, _U]":
         if not self._ready:
             raise RuntimeError(
                 "`prepare_and_setup` has not been called, this must be done before accessing the "
@@ -201,7 +201,7 @@ class DataSourceManager(Generic[_T_co]):
 
 
 def get_datasource(
-    datamodule: "reax.DataModule[_T_co] | None" = None,
+    datamodule: "reax.DataModule[_T_co, _U] | None" = None,
     module: "reax.Module | None" = None,
 ) -> DataSourceManager[_T_co] | None:
     if datamodule is not None:

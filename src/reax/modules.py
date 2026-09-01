@@ -34,7 +34,7 @@ TrainOutput = LossAndGrad | LossAndGradDict
 
 
 class Module(
-    Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, _datasources.DataSource[BatchT]
+    Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, _datasources.DataSource[BatchT, Any]
 ):
     example_input_array: BatchT | None
 

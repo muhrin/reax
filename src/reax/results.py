@@ -120,7 +120,7 @@ class ResultEntry(Generic[_OutT]):
     def __init__(
         self,
         meta: Metadata,
-        metric: "reax.typing.MetricInstance[_OutT]",
+        metric: "reax.types.MetricInstance[_OutT]",
         last_value: "reax.types.MetricInstance[_OutT] | None" = None,
     ):
         """Init function."""
@@ -155,7 +155,7 @@ class ResultCollection(dict[str, ResultEntry]):
         self,
         fx: str,
         name: str,
-        value: "jt.ArrayLike | reax.typing.MetricInstance[_OutT]",
+        value: "jt.ArrayLike | reax.types.MetricInstance[_OutT]",
         batch_idx: int,
         *,
         prog_bar: bool = False,
