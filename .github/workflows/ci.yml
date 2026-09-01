@@ -54,7 +54,6 @@ jobs:
         python-version: [ '3.10', '3.11', '3.12', '3.13', '3.14']
         include:
           - python-version: '3.12'
-          - python-version: '3.12'
 
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +66,7 @@ jobs:
 
       # Automatically installs the local project in editable mode based on uv.lock
       - name: Install Python dependencies
-        run: uv sync --extra dev
+        run: uv sync --frozen --extra dev
 
       - name: Run pytest
         run: uv run pytest --cov=reax --durations 0 -sv -p no:nb_regression tests
@@ -91,14 +90,14 @@ jobs:
           enable-cache: true
           python-version: '3.12'
 
-      # Syncs editable project with dev extras, and layers docs requirements safely inside the virtualenv
       - name: Install dependencies
         run: |
-          uv sync --extra dev
+          uv sync --frozen --extra dev
           uv pip install -r docs/requirements.txt
 
-      # Executes the Makefile within the uv virtual environment context
       - name: Build docs and run notebooks
+        env:
+          JAX_PLATFORMS: cpu
         run: uv run make -C docs html
 
   publish:
