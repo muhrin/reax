@@ -173,6 +173,7 @@ class SetAccumulation(Metric[jax.Array]):
         fv_cast = np_.array(fill_value, dtype=values.dtype)
 
         if where is not None:
+            where = utils.prepare_mask(values, where)
             values = np_.where(where, values, fv_cast)
 
         if np_ is jnp:

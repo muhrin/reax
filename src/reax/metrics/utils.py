@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import math
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar
 
 import beartype
@@ -9,7 +10,6 @@ import jaxtyping as jt
 from jaxtyping import ArrayLike
 from typing_extensions import override
 
-from .. import utils as reax_utils
 from ._metric import Metric
 
 if TYPE_CHECKING:
@@ -31,84 +31,80 @@ class ReduceFn(Protocol):
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def _prepare_mask(
-    mask: "reax.types.ArrayMask", array: jt.Float[ArrayLike, "..."]
-) -> "reax.types.ArrayMask":
-    """Prepare a mask for use with jnp.where(mask, array, ...).
+    mask: jt.Bool[ArrayLike, "N"], array: jt.Shaped[ArrayLike, "N ..."]
+) -> jt.Bool[ArrayLike, "N ..."]:
+    """Prepare a 1D entity mask by expanding its dimensions to broadcast against `array`.
 
-    This needs to be done to make sure the mask is of the right shape to be compatible with such an
-    operation.  The other alternative is
-
-    .. code-block::
-
-        jnp.where(mask, array.T, ...).T
-
-    but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not
-    sure why, but this approach seems to avoid the problem.
+    This relies on zero-copy reshaping. Appending size-1 dimensions allows JAX/NumPy
+    to automatically broadcast the mask across feature dimensions in `jnp.where`
+    without allocating memory for a dense N-dimensional boolean tensor.
 
     Args:
-        mask (jt.Bool[jax.Array, "n_elements"]): The mask to prepare.
-        array (jt.Float[jax.Array, "..."]): The array the mask will be
-            applied to.
+        mask: The 1D entity mask to prepare.
+        array: The array the mask will be applied to.
 
     Returns:
-        The prepared mask, typically this is just padded with extra
-        dimensions (or reduced).
+        The prepared mask, padded with extra trailing dimensions of size 1.
     """
-    return mask.reshape(-1, *(1,) * len(array.shape[1:]))
+    return mask.reshape(mask.shape[0], *(1,) * (len(array.shape) - 1))
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def prepare_mask(
-    values: ArrayLike, mask: OptionalMask = None, *, return_count: bool = False
+    values: jt.Shaped[ArrayLike, "N ..."], mask: OptionalMask = None, *, return_count: bool = False
 ) -> "OptionalMask | tuple[OptionalMask, int | jt.Int[ArrayLike, '']]":
-    """Prepare a mask for use with jnp.where(mask, array, ...).  This needs to be done to make sure
-    the mask is of the right shape to be compatible with such an operation.  The other alternative
-    is
-        ``
-        jnp.where(mask, array.T, ...).T
-        ``
-    but this sometimes leads to creating a copy when doing one or both of the transposes.  I'm not
-    sure why, but this approach seems to avoid the problem.
+    """Prepare a mask for use with jnp.where(mask, values, ...).
+
+    Implements a dual-behavior convention:
+      - If `mask` is 1D [N]: Treated as an entity mask. It is verified to match the
+        leading dimension of `values` and broadcasted up to [N, *values_dims].
+      - If `mask` is N-D [N, ...]: Treated as a data-specific mask. Its shape is
+        strictly verified to match `values.shape` exactly.
 
     Args:
         values: the array the mask will be applied to
         mask: the mask to prepare
-        return_count: is ``True``, returns a tuple where the second
-            element is the number of masked elements
+        return_count: if ``True``, returns a tuple where the second
+            element is the number of valid (True) elements across all dimensions.
 
     Returns:
-        the prepared mask, typically this is just padded with extra
-        dimensions (or reduced)
+        the prepared mask, and optionally the count of masked elements.
     """
     if mask is None:
         if return_count:
             return None, values.size
         return None
 
-    if mask.shape != values.shape:
-        # Create a mask of the correct shape
-        if len(mask.shape) > 1:
+    # Cast early to ensure boolean sums and properties are well-behaved downstream
+    mask = mask.astype(bool)
+
+    if mask.ndim == 1:
+        # 1. Entity Mask Behavior: Shape must be [N]
+        if mask.shape[0] != values.shape[0]:
             raise ValueError(
-                "Mask must either have same shape as values array ({values.shape}) or the same "
-                "leading dimension, got {mask.shape}."
+                f"1D entity mask must have the same leading dimension as `values`. "
+                f"Received mask shape {mask.shape} and values shape {values.shape}."
             )
 
         mask = _prepare_mask(mask, values)
 
-        # Leading dimensions of mask and predictions must match.
-        if mask.shape[0] != values.shape[0]:
+        if return_count:
+            # math.prod computes at trace-time natively. This avoids the overhead
+            # of allocating an intermediate JAX/NumPy array just to compute the product.
+            feature_size = math.prod(values.shape[1:])
+            count = mask.sum() * feature_size
+            return mask, count
+
+    else:
+        # 2. Data-Specific Mask Behavior: Shape must be [N, *shape]
+        if mask.shape != values.shape:
             raise ValueError(
-                f"Argument `mask` must have the same leading dimension as `values`. "
-                f"Received mask of dimension {mask.shape} "
-                f"and values of dimension {values.shape}."
+                f"Multidimensional mask must exactly match `values` shape. "
+                f"Received mask shape {mask.shape} and values shape {values.shape}."
             )
 
-    mask = mask.astype(bool)
-    if return_count:
-        np_ = reax_utils.arrays.infer_backend(mask)
-        # Calculate the number of non-masked elements in total
-        count = values.size if mask is None else np_.array([mask.sum(), *values.shape[1:]]).prod()
-        return mask, count
+        if return_count:
+            return mask, mask.sum()
 
     return mask
 
