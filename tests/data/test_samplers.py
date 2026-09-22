@@ -308,3 +308,107 @@ def test_dataset_length_zero(sampler_factory):
     """Test with dataset length zero"""
     sampler = sampler_factory(0)
     assert len(list(sampler)) == 0
+
+
+@pytest.fixture
+def dataset_list():
+    return list(range(10))
+
+
+def test_random_sampler_num_samples():
+    sampler = samplers.RandomSampler(8, num_samples=4)
+    assert sampler.num_samples == 4
+    assert len(sampler) == 4
+    samples = list(sampler)
+    assert len(samples) == 4
+    assert all(0 <= s < 8 for s in samples)
+
+
+def test_random_sampler_replacements_long():
+    sampler = samplers.RandomSampler(4, replacements=True, num_samples=64)
+    samples = list(sampler)
+    assert len(samples) == 64
+
+
+def test_batch_sampler_no_drop_last():
+    sampler = samplers.BatchSampler(samplers.SequentialSampler(5), batch_size=2, drop_last=False)
+    assert list(sampler) == [[0, 1], [2, 3], [4]]
+    assert len(sampler) == 3
+
+
+def test_batch_sampler_drop_last():
+    sampler = samplers.BatchSampler(samplers.SequentialSampler(5), batch_size=2, drop_last=True)
+    assert list(sampler) == [[0, 1], [2, 3]]
+    assert len(sampler) == 2
+
+
+def test_batch_sampler_len_formulas():
+    sampler = samplers.BatchSampler(samplers.SequentialSampler(10), batch_size=3, drop_last=False)
+    assert len(sampler) == 4  # ceil(10 / 3)
+    sampler = samplers.BatchSampler(samplers.SequentialSampler(10), batch_size=3, drop_last=True)
+    assert len(sampler) == 3  # floor(10 / 3)
+
+
+def test_iterable_sampler_yields_repeated_none_batches():
+    sampler = samplers.IterableSampler()
+    it = iter(sampler)
+    assert [next(it) for _ in range(5)] == [[None]] * 5
+
+
+def test_create_sampler_sequence_shuffle():
+    dataset = list(range(5))
+    sampler = samplers.create_sampler(dataset, shuffle=True, batch_size=2)
+    assert isinstance(sampler, samplers.BatchSampler)
+
+
+def test_create_sampler_sequence_no_batch_size():
+    dataset = list(range(5))
+    sampler = samplers.create_sampler(dataset)
+    assert list(sampler) == list(range(5))
+
+
+def test_create_sampler_with_custom_sampler_passthrough():
+    dataset = list(range(5))
+    custom = samplers.RandomSampler(5, replacements=True)
+    sampler = samplers.create_sampler(dataset, sampler=custom)
+    assert sampler is custom
+
+
+def test_create_sampler_iterable_no_shuffle_no_batch():
+    iterable = (x for x in range(5))
+    sampler = samplers.create_sampler(iterable)
+    assert isinstance(sampler, samplers.IterableSampler)
+
+
+def test_create_sampler_iterable_shuffle_raises():
+    iterable = (x for x in range(5))
+    with pytest.raises(ValueError, match="shuffle"):
+        samplers.create_sampler(iterable, shuffle=True)
+
+
+def test_create_sampler_iterable_replacements_raises():
+    iterable = (x for x in range(5))
+    with pytest.raises(ValueError, match="replacements"):
+        samplers.create_sampler(iterable, replacements=True)
+
+
+def test_create_sampler_numpy_array_batches():
+    import numpy as np
+
+    sampler = samplers.create_sampler(np.arange(8), batch_size=3)
+    batches = list(sampler)
+    assert len(batches) == 3
+    assert sorted(sum(batches, [])) == list(range(8))
+
+
+def test_create_sampler_jax_array_batches():
+    import jax.numpy as jnp
+
+    sampler = samplers.create_sampler(jnp.arange(8), batch_size=3)
+    batches = list(sampler)
+    assert len(batches) == 3
+
+
+def test_create_sampler_unsupported_type_raises():
+    with pytest.raises(TypeError, match="Unsupported type"):
+        samplers.create_sampler(object(), batch_size=2)
