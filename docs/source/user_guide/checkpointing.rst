@@ -12,10 +12,9 @@ The :class:`~reax.Trainer` automatically saves checkpoints when you enable check
 .. code-block:: python
 
     trainer = reax.Trainer(
-        max_epochs=10,
         enable_checkpointing=True  # Enabled by default
     )
-    trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, train_loader, val_loader, max_epochs=10)
 
 By default, REAX saves checkpoints in ``./reax_logs/version_X/checkpoints/``.
 
@@ -51,9 +50,10 @@ For fine-grained control, use the :class:`~reax.listeners.ModelCheckpoint` liste
     )
 
     trainer = reax.Trainer(
-        listeners=[checkpoint_listener],
-        max_epochs=10
+        listeners=[checkpoint_listener]
     )
+
+    trainer.fit(model, train_loader, val_loader, max_epochs=10)
 
 Monitor Options
 ~~~~~~~~~~~~~~~
@@ -106,9 +106,10 @@ Load a checkpoint to resume training:
 The checkpoint contains:
 
 *   ``parameters``: Model parameters
-*   ``optimizer_state``: Optimiser state
+*   ``state_dict``: Any additional module state (the optimiser is restored automatically)
 *   ``epoch``: Current epoch
 *   ``global_step``: Global training step
+*   ``reax_version``: The REAX version the checkpoint was written with
 
 Manual Checkpointing
 --------------------
@@ -120,12 +121,12 @@ Save checkpoints manually:
     # During training
     checkpoint_data = {
         "parameters": model.parameters(),
-        "optimizer_state": optimizer_state,
+        "state_dict": model.state_dict(),
         "epoch": current_epoch,
-        "custom_data": my_data
     }
 
-    trainer.checkpointing.save("my_checkpoint.ckpt", checkpoint_data)
+    # ``save`` takes the checkpoint dict first, then the filepath
+    trainer.checkpointing.save(checkpoint_data, "my_checkpoint.ckpt")
 
 Load manual checkpoints:
 
@@ -134,36 +135,20 @@ Load manual checkpoints:
     checkpoint = trainer.checkpointing.load("my_checkpoint.ckpt")
     model.set_parameters(checkpoint["parameters"])
 
-Checkpoint Formats
-------------------
+Checkpoint Format
+-----------------
 
-REAX supports multiple checkpoint formats:
-
-MessagePack (Default)
-~~~~~~~~~~~~~~~~~~~~~
-
-Fast and compact binary format:
-
-.. code-block:: python
-
-    from reax.saving import MsgpackCheckpointing
-
-    trainer = reax.Trainer(
-        checkpointing=MsgpackCheckpointing()
-    )
-
-Pickle
-~~~~~~
-
-Python's native serialisation format:
+REAX serialises checkpoints with MessagePack (a fast, compact binary format) by default. The
+:class:`~reax.Checkpointing` backend is a small abstract interface with
+:meth:`~reax.Checkpointing.save` and :meth:`~reax.Checkpointing.load`, and
+:class:`~reax.MsgpackCheckpointing` is the built-in implementation. You can pass an
+alternate backend to the Trainer:
 
 .. code-block:: python
 
-    from reax.saving import PickleCheckpointing
+    from reax import MsgpackCheckpointing
 
-    trainer = reax.Trainer(
-        checkpointing=PickleCheckpointing()
-    )
+    trainer = reax.Trainer(checkpointing=MsgpackCheckpointing())
 
 Best Practices
 --------------
@@ -212,7 +197,7 @@ For large models, consider:
 
 *   Saving less frequently (``every_n_epochs=10``)
 *   Keeping fewer checkpoints (``save_top_k=1``)
-*   Using compression (MessagePack is more compact than Pickle)
+*   Saving weights only with ``save_weights_only=True`` to skip the extra module state
 
 Example: Complete Checkpointing Setup
 --------------------------------------
@@ -244,12 +229,11 @@ Example: Complete Checkpointing Setup
     )
 
     trainer = Trainer(
-        max_epochs=100,
         listeners=[best_checkpoint, periodic_checkpoint, last_checkpoint],
         default_root_dir="./experiments/my_model"
     )
 
-    trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, train_loader, val_loader, max_epochs=100)
 
     # After training, load the best model
     best_path = best_checkpoint.best_model_path

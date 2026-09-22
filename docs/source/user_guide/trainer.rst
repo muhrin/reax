@@ -13,8 +13,8 @@ To use the Trainer, you simply initialise it and call :meth:`~reax.Trainer.fit`.
 .. code-block:: python
 
     model = MyModel(din=32, dout=10, rngs=nnx.Rngs(0))
-    trainer = reax.Trainer(max_epochs=10, accelerator='auto')
-    trainer.fit(model, train_dataloader, val_dataloader)
+    trainer = reax.Trainer(accelerator='auto')
+    trainer.fit(model, train_dataloader, val_dataloader, max_epochs=10)
 
 Under the Hood
 --------------
@@ -25,12 +25,26 @@ hardware and distributed strategy details.
 Key Arguments
 -------------
 
-*   **max_epochs**: The maximum number of epochs to train for.
+The ``Trainer`` constructor takes the following keyword arguments:
+
 *   **accelerator**: The hardware accelerator to use (e.g., ``'cpu'``, ``'gpu'``, ``'tpu'``, or
     ``'auto'``).
+*   **strategy**: The distributed strategy to use (e.g., ``'ddp'`` or ``'auto'``).
 *   **devices**: The number of devices or specific device indices to use.
 *   **logger**: The logger to use (e.g., :class:`~reax.loggers.CsvLogger`).
 *   **listeners**: A list of listeners to extend the Trainer's behaviour.
+*   **enable_checkpointing**: Whether to automatically save checkpoints (default ``True``).
+*   **default_root_dir**: Root directory for logs and checkpoints.
+*   **checkpointing**: A :class:`~reax.Checkpointing` instance controlling serialisation.
+
+The following limits and scheduling options are **not** constructor arguments -- they are passed to
+:meth:`~reax.Trainer.fit` instead:
+
+*   **max_epochs**: The maximum number of epochs to train for.
+*   **min_epochs**: The minimum number of epochs to train for.
+*   **max_updates**: The maximum number of optimizer updates.
+*   **max_time**: The maximum amount of wall-clock time to train for.
+*   **limit_train_batches** / **limit_val_batches**: Limits the fraction of batches per epoch.
 
 Methods
 -------
@@ -48,7 +62,8 @@ max_time
 ~~~~~~~~
 
 Set the maximum amount of time for training. Training will get interrupted
-mid-epoch. For customizable options use the Timer callback.
+mid-epoch. ``max_time`` is a keyword argument to :meth:`~reax.Trainer.fit` and accepts a
+``"DD:HH:MM:SS"`` string, a :class:`datetime.timedelta`, or a ``dict`` of calendar fields.
 
 .. code-block:: python
 

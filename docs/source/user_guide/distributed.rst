@@ -6,13 +6,13 @@ REAX makes it easy to scale your training to multiple GPUs or TPUs.
 Strategies
 ----------
 
-REAX supports several distributed strategies:
+REAX supports the following strategies:
 
+*   **'single'**: Trains on a single device.
 *   **'ddp'** (Data Distributed Parallel): Replicates the model on each device and synchronises
     gradients.
-*   **'fsdp'** (Fully Sharded Data Parallel): Shards the model parameters across devices to save
-    memory.
-*   **'auto'**: Automatically selects the best strategy based on the available hardware.
+*   **'auto'** (default): Automatically selects the best strategy based on the number of available
+    devices -- a single device when there is one, :obj:`ddp` otherwise.
 
 Configuration
 -------------

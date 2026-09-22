@@ -2,7 +2,7 @@ REAX Module
 ===========
 
 The :class:`~reax.Module` is the central building block of your model in REAX. It organises your
-PyTorch/JAX code into 5 specific sections:
+JAX code into 5 specific sections:
 
 1.  **Computations** (``__init__``, ``__call__``, etc.)
 2.  **Train Loop** (``training_step``)

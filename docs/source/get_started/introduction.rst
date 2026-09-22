@@ -83,24 +83,19 @@ The :class:`~reax.Module` organises your code into clear sections:
 3. Prepare Your Data
 ~~~~~~~~~~~~~~~~~~~~
 
-REAX works with any iterable (DataLoader, numpy arrays, lists, etc.):
+REAX works with any iterable. The most common case -- plain in-memory arrays of features and
+labels -- is handled by :class:`~reax.data.ArrayDataset` and :class:`~reax.data.ReaxDataLoader`:
 
 .. code-block:: python
 
-    from torch.utils.data import DataLoader
-    from torchvision import datasets, transforms
+    from reax.data import ArrayDataset, ReaxDataLoader
 
-    # REAX works with PyTorch DataLoaders
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-    ])
+    # e.g. 55000 MNIST images of shape (28, 28) and integer labels of shape (55000,)
+    train_dataset = ArrayDataset(train_x, train_y)
+    val_dataset = ArrayDataset(val_x, val_y)
 
-    train_dataset = datasets.MNIST('./data', train=True, download=True, transform=transform)
-    val_dataset = datasets.MNIST('./data', train=False, transform=transform)
-
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=64)
+    train_loader = ReaxDataLoader(train_dataset, batch_size=64, shuffle=True)
+    val_loader = ReaxDataLoader(val_dataset, batch_size=64)
 
 4. Train Your Model
 ~~~~~~~~~~~~~~~~~~~
@@ -113,10 +108,10 @@ The :class:`~reax.Trainer` handles the training loop automatically:
     model = ImageClassifier(num_classes=10, rngs=nnx.Rngs(42))
 
     # Create a trainer
-    trainer = reax.Trainer(max_epochs=10)
+    trainer = reax.Trainer()
 
-    # Train!
-    trainer.fit(model, train_loader, val_loader)
+    # Train! (max_epochs is a fit() argument)
+    trainer.fit(model, train_loader, val_loader, max_epochs=10)
 
 That's it! REAX handles:
 
@@ -133,10 +128,10 @@ Want to train on 4 GPUs? Just change one line:
 .. code-block:: python
 
     # Single GPU
-    trainer = reax.Trainer(max_epochs=10)
+    trainer = reax.Trainer(accelerator="gpu", devices=1)
 
     # 4 GPUs with Data Distributed Parallel
-    trainer = reax.Trainer(max_epochs=10, accelerator="gpu", devices=4, strategy="ddp")
+    trainer = reax.Trainer(accelerator="gpu", devices=4, strategy="ddp")
 
 REAX automatically handles:
 
@@ -156,9 +151,8 @@ Track your experiments with built-in logger support:
 
     logger = TensorBoardLogger("logs/", name="my_experiment")
     trainer = reax.Trainer(
-        max_epochs=10,
         logger=logger,
-        enable_checkpointing=True  # Automatically saves best model
+        enable_checkpointing=True,  # Automatically saves a checkpoint each epoch
     )
 
 7. Use Your Trained Model

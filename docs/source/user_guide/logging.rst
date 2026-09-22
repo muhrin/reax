@@ -8,7 +8,7 @@ Supported Loggers
 
 *   :class:`~reax.loggers.CsvLogger`: Logs metrics to a CSV file.
 *   :class:`~reax.loggers.TensorBoardLogger`: Logs metrics to TensorBoard.
-*   :class:`~reax.loggers.WandbLogger`: Logs metrics to Weights & Biases.
+*   :class:`~reax.loggers.MlflowLogger`: Logs metrics to MLflow.
 
 Configuration
 -------------

@@ -55,6 +55,7 @@ Quick Example
     # Works with any JAX library - Flax NNX example
     class MyModel(reax.Module):
         def __init__(self, rngs):
+            super().__init__()
             self.linear = nnx.Linear(784, 10, rngs=rngs)
 
         def __call__(self, x):
