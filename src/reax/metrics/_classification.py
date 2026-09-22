@@ -216,7 +216,7 @@ class Accuracy(_metric.Metric):
                 "with {num_classes} classes"
             )
 
-        if mdmc_average == "samplewise":
+        if mdmc_average == jm.MDMCAverageMethod.SAMPLEWISE:
             raise ValueError(f"The `mdmc_average` method '{mdmc_average}' is not yet supported.")
 
         # Params

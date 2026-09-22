@@ -330,7 +330,7 @@ def _input_format_classification(
     )
 
     if case in (DataType.BINARY, DataType.MULTILABEL) and not top_k:
-        preds = (preds >= threshold).int()
+        preds = jnp.where(preds >= threshold, 1, 0)
         num_classes = num_classes if not multiclass else 2
 
     if case == DataType.MULTILABEL and top_k:

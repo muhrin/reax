@@ -327,3 +327,364 @@ def test_least_squares_vmap_reduction(rng_key):
     std_w = standard_metric.compute()
 
     assert jnp.allclose(vmap_w, std_w)
+
+
+# ---------------------------------------------------------------------------
+# jm.utils internals
+# ---------------------------------------------------------------------------
+
+
+def test_jm_select_topk():
+    from reax.metrics import jm
+
+    res = jm.select_topk(jnp.array([[0.1, 0.9, 0.0], [0.8, 0.1, 0.1]]), topk=2)
+    assert res.tolist() == [[1, 1, 0], [1, 1, 0]]
+    assert res.dtype in (jnp.uint32, jnp.int32)
+
+    with pytest.raises(NotImplementedError):
+        jm.select_topk(jnp.zeros((2, 3, 4)), topk=2)
+
+
+def test_jm_stat_scores_update():
+    from reax.metrics import jm
+    import reax.metrics.jm.utils as jmu
+
+    # multiclass (N, C) float preds, (N,) int target
+    preds = jnp.array([[0.5, 0.5, 0.0], [0.1, 0.6, 0.3]])
+    target = jnp.array([0, 1])
+
+    tp, fp, tn, fn = jmu.stat_scores_update(
+        preds, target, intended_mode=jm.DataType.MULTICLASS, average_method=jm.AverageMethod.MICRO
+    )
+    # row1 -> class0, row2 -> class1: 2 correct, 2*3 - 2 = 4 negatives, 0 wrong
+    assert (int(tp), int(fp), int(tn), int(fn)) == (2, 0, 4, 0)
+    assert int(tp) + int(fp) + int(tn) + int(fn) == 6
+
+    with pytest.raises(ValueError):
+        jmu.stat_scores_update(
+            preds, target, intended_mode=jm.DataType.BINARY, average_method=jm.AverageMethod.MICRO
+        )
+
+
+def test_jm_accuracy_compute():
+    from reax.metrics import jm
+
+    AM, MD, DT = jm.AverageMethod, jm.MDMCAverageMethod, jm.DataType
+
+    # micro: tp / (tp + fn)
+    assert jnp.isclose(
+        jm.accuracy_compute(
+            jnp.array(3),
+            jnp.array(1),
+            jnp.array(2),
+            jnp.array(1),
+            AM.MICRO,
+            MD.GLOBAL,
+            DT.MULTICLASS,
+        ),
+        0.75,
+    )
+    # binary/multilabel: (tp + tn) / (tp + tn + fp + fn) = (2+3)/7
+    assert jnp.isclose(
+        jm.accuracy_compute(
+            jnp.array(2), jnp.array(1), jnp.array(3), jnp.array(1), AM.MICRO, MD.GLOBAL, DT.BINARY
+        ),
+        5 / 7,
+    )
+    # weighted
+    assert jnp.isclose(
+        jm.accuracy_compute(
+            jnp.array([3, 0]),
+            jnp.zeros(2),
+            jnp.zeros(2),
+            jnp.array([1, 2]),
+            AM.WEIGHTED,
+            MD.GLOBAL,
+            DT.MULTICLASS,
+        ),
+        0.5,
+    )
+    # macro
+    assert jnp.isclose(
+        jm.accuracy_compute(
+            jnp.array([3, 0]),
+            jnp.array([1, 2]),
+            jnp.zeros(2),
+            jnp.array([1, 0]),
+            AM.MACRO,
+            MD.GLOBAL,
+            DT.MULTICLASS,
+        ),
+        0.375,
+    )
+
+
+def test_jm_basic_input_validation_raises():
+    import reax.metrics.jm.utils as jmu
+
+    # target must be integer
+    with pytest.raises(ValueError, match="target.*integer"):
+        jmu._basic_input_validation(jnp.array([1, 2]), jnp.array([0.5, 0.5]), 0.5, None)
+    # first dim must match
+    with pytest.raises(ValueError, match="first dimension"):
+        jmu._basic_input_validation(jnp.array([[1, 2], [3, 4]]), jnp.array([0, 1, 2]), 0.5, None)
+    # multiclass=False but target > 1
+    with pytest.raises(ValueError, match="target.*1"):
+        jmu._basic_input_validation(jnp.array([1, 2]), jnp.array([0, 2]), 0.5, False)
+    # multiclass=False and integer preds > 1
+    with pytest.raises(ValueError, match="preds.*1"):
+        jmu._basic_input_validation(jnp.array([1, 2]), jnp.array([0, 1]), 0.5, False)
+
+
+def test_jm_shape_type_consistency_raises():
+    from reax.metrics import jm
+    import reax.metrics.jm.utils as jmu
+
+    # 1D target with 2D float preds in binary mode -> not allowed
+    with pytest.raises(ValueError, match="should not be `binary`"):
+        jmu._check_shape_and_type_consistency(
+            jnp.array([[0.5, 0.5]]), jnp.array([0]), jm.DataType.BINARY
+        )
+    # integer preds with extra dim -> not allowed
+    with pytest.raises(ValueError, match="float"):
+        jmu._check_shape_and_type_consistency(
+            jnp.array([[1, 2]]), jnp.array([0]), jm.DataType.MULTICLASS
+        )
+    # mismatched ndim (> 1 difference)
+    with pytest.raises(ValueError):
+        jmu._check_shape_and_type_consistency(
+            jnp.zeros((2, 3, 4)), jnp.zeros(2), jm.DataType.MULTICLASS
+        )
+
+
+# ---------------------------------------------------------------------------
+# Accuracy
+# ---------------------------------------------------------------------------
+
+
+def test_accuracy_multiclass():
+    preds = jnp.array([[0.5, 0.5, 0.0], [0.1, 0.6, 0.3], [0.2, 0.2, 0.6], [0.9, 0.1, 0.0]])
+    target = jnp.array([0, 1, 2, 1])
+
+    acc = metrics.Accuracy()
+    # tp/fp/tn/fn are dataclass fields
+    for field in ("tp", "fp", "tn", "fn"):
+        assert hasattr(acc, field)
+
+    acc1 = acc.update(preds, target)
+    acc2 = acc.update(preds, target)
+    merged = acc1.merge(acc2)
+    # rows -> classes [0,1,2,0], so target [0,1,2,1] gives 3/4 correct
+    assert jnp.isclose(merged.compute(), 0.75)
+
+
+def test_accuracy_binary_and_multilabel():
+    # regression: jnp.where threshold path (previously crashed with `.int()`)
+    preds = jnp.array([0.1, 0.6, 0.8, 0.3])
+    target = jnp.array([0, 1, 1, 0])
+    acc = metrics.Accuracy(mode="binary").update(preds, target)
+    assert jnp.isclose(acc.compute(), 1.0)  # 0.1->0, 0.6->1, 0.8->1, 0.3->0 == target
+
+    # multilabel
+    preds = jnp.array([[0.9, 0.1], [0.2, 0.7]])
+    target = jnp.array([[1, 0], [0, 1]])
+    acc = metrics.Accuracy(mode="multilabel").update(preds, target)
+    assert jnp.isclose(acc.compute(), 1.0)
+
+    # samplewise mdmc_average no longer dead-code
+    with pytest.raises(ValueError, match="not yet supported"):
+        metrics.Accuracy(mdmc_average="samplewise")
+
+
+def test_accuracy_invalid_args():
+    with pytest.raises(ValueError, match="number of classes"):
+        metrics.Accuracy(average="macro")  # macro -> needs num_classes
+    with pytest.raises(ValueError, match="top_k"):
+        metrics.Accuracy(top_k=0)
+    with pytest.raises(ValueError, match="is not valid"):
+        metrics.Accuracy(num_classes=3, ignore_index=5)
+
+
+# ---------------------------------------------------------------------------
+# utils.prepare_mask / concat
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_mask():
+    from reax.metrics import utils as mu
+
+    vals = jnp.array([[1.0, 2.0], [3.0, 4.0]])
+
+    assert mu.prepare_mask(vals, None) is None
+    mask, count = mu.prepare_mask(vals, None, return_count=True)
+    assert mask is None and count == vals.size
+
+    mask, count = mu.prepare_mask(vals, jnp.array([True, False]), return_count=True)
+    assert mask.shape == (2, 1) and count == 2
+
+    mask, count = mu.prepare_mask(vals, jnp.array([[True, False], [True, True]]), return_count=True)
+    assert count == 3
+
+    with pytest.raises(ValueError):
+        mu.prepare_mask(vals, jnp.array([True]))
+    with pytest.raises(ValueError):
+        mu.prepare_mask(vals, jnp.zeros((2, 3), dtype=bool))
+
+
+def test_utils_concat():
+    from reax.metrics import utils as mu
+
+    assert mu.concat((jnp.array(1), jnp.array([2.0, 3.0]))).tolist() == [1, 2, 3]
+
+
+# ---------------------------------------------------------------------------
+# Aggregation primitives (Sum / Min / Max)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "cls,expected",
+    [(metrics.Sum, 21.0), (metrics.Min, 1.0), (metrics.Max, 6.0)],
+)
+def test_aggregation_sum_min_max(cls, expected):
+    m = cls.create(jnp.array([1.0, 2.0, 3.0]))
+    assert m.empty().accumulator is None
+    m = m.update(jnp.array([4.0, 5.0]))
+    other = cls.create(jnp.array([6.0]))
+    assert jnp.isclose(m.merge(other).compute(), expected)
+
+
+def test_num_unique_update_and_saturation():
+    nu = metrics.NumUnique.create(jnp.array([1, 2, 2, 3]))
+    assert nu.compute() == 3
+    assert nu.update(jnp.array([3, 4])).compute() == 4
+
+    with pytest.raises(RuntimeError):
+        _ = metrics.Unique.empty().accumulator
+
+    sat = metrics.Unique.create(jnp.array([1, 2, 3])).saturation()
+    assert sat == 3.0 / metrics.Unique.create(jnp.array([1, 2, 3])).max_size
+
+
+# ---------------------------------------------------------------------------
+# Std
+# ---------------------------------------------------------------------------
+
+
+def test_std():
+    vals = jnp.array([1.0, 2.0, 3.0, 4.0])
+    s = metrics.Std.empty()
+    assert s.count == 0
+    s = metrics.Std.create(vals)
+    assert jnp.isclose(s.compute(), vals.std())
+    # Masked version only averages the first element
+    masked = metrics.Std.create(vals, mask=jnp.array([True, True, False, False]))
+    assert jnp.isclose(masked.compute(), 0.0)  # single value -> no variance
+
+
+# ---------------------------------------------------------------------------
+# get / registry / collections
+# ---------------------------------------------------------------------------
+
+
+def test_globals_get_dispatch():
+    assert isinstance(metrics.get("mse"), metrics.MeanSquaredError)
+    assert isinstance(metrics.get(metrics.Sum), metrics.Sum)
+    inst = metrics.Sum()
+    assert metrics.get(inst) is inst
+    with pytest.raises(TypeError):
+        metrics.get(123)
+
+
+def test_registry_getitem_and_register():
+    reg = metrics.get_registry()
+    assert "mse" in reg
+    with pytest.raises(KeyError, match="Metric not found"):
+        reg["does_not_exist_zzz"]
+
+    fresh = metrics.Registry()
+    with pytest.raises(ValueError, match="reax.Metric"):
+        fresh.register("bad", 42)
+    fresh.register("avg_cls", metrics.Average)
+    assert "avg_cls" in fresh
+    assert isinstance(fresh["avg_cls"], metrics.Average)
+
+
+def test_set_registry_roundtrip():
+    original = metrics.get_registry()
+    try:
+        fresh = metrics.Registry()
+        fresh.register("mean", metrics.Average)
+        metrics.set_registry(fresh)
+        assert isinstance(metrics.get("mean"), metrics.Average)
+    finally:
+        metrics.set_registry(original)
+
+
+def test_build_collection():
+    col = metrics.build_collection("mean")
+    assert isinstance(col, metrics.MetricCollection)
+    assert "Average" in {name for name, _ in col.items()}
+
+    col = metrics.build_collection({"a": "mean", "b": "std"})
+    names = {name for name, _ in col.items()}
+    assert "a" in names or "Average" in names
+
+    assert isinstance(metrics.build_collection(["mean"]), metrics.MetricCollection)
+
+    with pytest.raises(TypeError, match="Unknown metrics type"):
+        metrics._registry._get_metrics(123)
+
+
+def test_metric_collection_single_and_sequence():
+    single = metrics.MetricCollection(metrics.Average())
+    assert "Average" in {name for name, _ in single.items()}
+
+    seq = metrics.MetricCollection([metrics.Average(), metrics.Std()])
+    names = {name for name, _ in seq.items()}
+    assert names == {"Average", "Std"}
+
+    import reax.metrics.collections as coll
+
+    with pytest.raises(TypeError, match="reax.Matric"):
+        coll._ensure_metric(42)
+
+
+def test_metric_collection_merge_and_combine():
+    c1 = metrics.MetricCollection(dict(avg=metrics.Average())).empty()
+    c2 = metrics.MetricCollection(dict(std=metrics.Std())).empty()
+    merged = c1.merge(c2)
+    names = {name for name, _ in merged.items()}
+    assert names == {"avg", "std"}
+
+    combined = metrics.combine(metrics.Average(), metrics.Std())
+    assert isinstance(combined, metrics.MetricCollection)
+
+
+def test_regression_empty_and_merge(rng_key):
+    keys = random.split(rng_key, 3)
+    v1 = random.uniform(keys[0], (2, 3))
+    v2 = random.uniform(keys[1], (2, 3))
+    t = random.uniform(keys[2], (2, 3))
+
+    # Default constructor is empty
+    rmse = metrics.RootMeanSquareError()
+    assert rmse.is_empty
+
+    # Each update uses targets `t` for its own batch
+    expected = jnp.sqrt(jnp.mean(jnp.concat([jnp.square(v1 - t), jnp.square(v2 - t)])))
+    rmse = metrics.RootMeanSquareError.create(v1, t).update(v2, t)
+    assert jnp.isclose(rmse.compute(), expected)
+
+    # Merge two independently created metrics -> same as a single update
+    m1 = metrics.RootMeanSquareError.create(v1, t)
+    m2 = metrics.RootMeanSquareError.create(v2, t)
+    merged = m1.merge(m2)
+    assert jnp.isclose(merged.compute(), expected)
+
+    mae = metrics.MeanAbsoluteError()
+    mae_c = mae.create(v1, t)
+    assert jnp.isclose(mae_c.compute(), jnp.mean(jnp.abs(v1 - t)))
+    assert jnp.isclose(
+        metrics.MeanSquaredError.create(v1, t).compute(), jnp.mean(jnp.square(v1 - t))
+    )
