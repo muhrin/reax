@@ -412,3 +412,26 @@ def test_create_sampler_jax_array_batches():
 def test_create_sampler_unsupported_type_raises():
     with pytest.raises(TypeError, match="Unsupported type"):
         samplers.create_sampler(object(), batch_size=2)
+
+
+def test_create_batch_sampler_no_shuffle():
+    sampler = samplers.create_batch_sampler([0, 1, 2, 3])
+    assert list(sampler) == [0, 1, 2, 3]
+
+
+def test_create_batch_sampler_shuffle():
+    sampler = samplers.create_batch_sampler([0, 1, 2, 3], shuffle=True)
+    assert sorted(list(sampler)) == [0, 1, 2, 3]
+    assert sampler.num_samples == 4
+
+
+def test_distributed_sampler_padding_repeat_branch():
+    # Dataset smaller than `num_replicas` (total > 2*len) forces the
+    # padding-repeat branch in __iter__ to fire.
+    dataset = [0]
+    for process_index in range(3):
+        sampler = samplers.DistributedSampler(
+            dataset, num_replicas=3, process_index=process_index, shuffle=False, drop_last=False
+        )
+        assert len(sampler) == 1
+        assert list(sampler) == [0]

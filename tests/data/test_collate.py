@@ -102,6 +102,32 @@ def test_fallback_collate_mapping_init_error(collator):
     assert result["a"].tolist() == [1, 2]
 
 
+def test_fallback_collate_mapping_constructor_rejects_dict(collator):
+    # A read-only Mapping whose constructor does not accept the iterable of
+    # key-value pairs that `type(elem)(iterable)` would pass -> raises TypeError,
+    # so the plain-dict fallback path is taken.
+    class NoDictCtor(Mapping):
+        def __getitem__(self, key):
+            return self._map[key]
+
+        def __iter__(self):
+            return iter(self._map)
+
+        def __len__(self):
+            return len(self._map)
+
+        def __init__(self, *args, **kwargs):
+            if args or kwargs:
+                raise TypeError("no callable constructor with arguments")
+
+    collator.register(int, lambda batch: np.asarray(batch))
+    m1, m2 = NoDictCtor(), NoDictCtor()
+    m1._map, m2._map = {"a": 1}, {"a": 2}
+    # `elem_type({...})` raises -> falls back to a plain dict.
+    result = collator.collate([m1, m2])
+    assert result["a"].tolist() == [1, 2]
+
+
 def test_fallback_collate_namedtuple(collator):
     collator.register(int, lambda batch: np.asarray(batch))
     Point = namedtuple("Point", ["x", "y"])
