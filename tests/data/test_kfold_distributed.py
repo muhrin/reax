@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 from reax import Engine, testing
 from reax.data import KFold
@@ -35,4 +36,4 @@ def kfold_distributed_test():
     assert np.array_equal(gathered_train_idx[0], train_idx)
 
 
-test_kfold_distributed = testing.in_subprocess(kfold_distributed_test)
+test_kfold_distributed = pytest.mark.multiproc(testing.in_subprocess(kfold_distributed_test))

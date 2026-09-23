@@ -74,11 +74,14 @@ def test_create_fetcher_for_generator_is_iterable_fetcher():
     assert fetcher.fetch([None, None]) == [1, 2]
 
 
-def test_create_fetcher_for_jax_array_is_iterable_fetcher():
+def test_create_fetcher_for_jax_array_is_map_fetcher():
     import jax.numpy as jnp
 
     fetcher = fetchers.create_fetcher(jnp.arange(3), fake_collate)
-    assert isinstance(fetcher, fetchers._IterableFetcher)
+    assert isinstance(fetcher, fetchers._MapFetcher)
+    # A jax array supports random access, so it must be fetched by index
+    # (not treated as a sequential iterable that would ignore sampler indices).
+    assert fetcher.fetch([0, 2]) == [0, 2]
 
 
 def test_create_fetcher_unsupported_type_raises():

@@ -65,6 +65,7 @@ dev = [
     'pytest',
     'pytest-cov',
     'pytest-env',
+    'pytest-timeout',
     'pre-commit',
     'pylint',
 ]
@@ -162,11 +163,16 @@ XLA_PYTHON_CLIENT_PREALLOCATE = false # Don't allow JAX to preallocate memory
 [tool.pytest.ini_options]
 minversion = '6.0'
 testpaths = [
-    'test',
+    'tests',
 ]
 filterwarnings = [
     'ignore::DeprecationWarning:frozendict:',
 ]
+markers = [
+    'multiproc: tests that spawn multiple JAX DDP subprocesses',
+]
+timeout = 600
+timeout_method = 'thread'
 #addopts = "--jaxtyping-packages=reax,beartype.beartype"
 
 [tool.yapf]

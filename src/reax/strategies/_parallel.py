@@ -34,7 +34,12 @@ class ParallelStrategy(_strategies.Strategy, abc.ABC):
         if not isinstance(data, data_.DataLoader):
             data = super().setup_dataloader(data)
 
-        seed = self.device.id
+        # The seed must be identical across all ranks so every rank builds the same
+        # permutation of indices before subsampling by ``process_index`` (i.e. sharding).
+        # Seeding with a per-rank value such as ``self.device.id`` would make each rank
+        # shuffle differently, causing the per-rank subsets to overlap and the union of
+        # their indices to miss a subset of the dataset.
+        seed = 0
         sampler = data_.samplers.DistributedSampler(
             dataset=data.dataset,
             num_replicas=self.process_count,

@@ -1,4 +1,5 @@
 import jax
+import pytest
 
 from reax import strategies, testing
 
@@ -13,4 +14,4 @@ def jax_strategy():
     assert jax.process_index() == 0
 
 
-test_jax_strategy = testing.in_subprocess(jax_strategy)
+test_jax_strategy = pytest.mark.multiproc(testing.in_subprocess(jax_strategy))

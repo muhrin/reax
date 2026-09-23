@@ -227,7 +227,9 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
         Args:
             name: an optional name to pass into barrier.
         """
-        multihost_utils.sync_global_devices(name)
+        # `sync_global_devices` requires a str (it calls `name.encode()`), so provide a
+        # default when the caller passes `None`.
+        multihost_utils.sync_global_devices(name if name is not None else "reax_barrier")
 
     @override
     def compute(self, metric: "reax.types.MetricInstance[_OutT]") -> _OutT:

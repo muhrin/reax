@@ -99,6 +99,16 @@ class BatchSampler(_types.Sampler[list[_IdxT]]):
         # State
         self._sampler = sampler
 
+    @property
+    def sampler(self) -> _types.Sampler[_IdxT]:
+        """Return the wrapped sampler."""
+        return self._sampler
+
+    @sampler.setter
+    def sampler(self, value: _types.Sampler[_IdxT]) -> None:
+        """Replace the wrapped sampler (e.g. with a sharded distributed sampler)."""
+        self._sampler = value
+
     def __iter__(self) -> Iterator[list[_IdxT]]:
         """Iter function."""
         if self._drop_last:

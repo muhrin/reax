@@ -389,6 +389,7 @@ def test_trainer_access_in_configure_optimizers(tmp_path):
         ("cpu", 2),
     ],
 )
+@pytest.mark.multiproc
 def test_eval_stats(platform, devices, tmp_path):
     testing.in_subprocess(eval_stats)(platform, devices, str(tmp_path))
 
