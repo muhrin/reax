@@ -59,8 +59,12 @@ class TestDistributedSamplerInit:
     """Tests initialization and property calculations."""
 
     def test_init_invalid_replicas(self, mock_dataset_small):
-        with pytest.raises(ValueError, match="Number of replicas cannot be 0."):
+        with pytest.raises(ValueError, match="Number of replicas must be positive"):
             samplers.DistributedSampler(mock_dataset_small, num_replicas=0)
+
+    def test_init_invalid_process_index_negative(self, mock_dataset_small):
+        with pytest.raises(ValueError, match="Process index must be non-negative"):
+            samplers.DistributedSampler(mock_dataset_small, num_replicas=2, process_index=-1)
 
     @pytest.mark.parametrize("replica_count, index", [(4, 4), (2, 3), (1, 1)])
     def test_init_invalid_process_index(self, mock_dataset_small, replica_count, index):
@@ -104,7 +108,7 @@ class TestDistributedSamplerIteration:
 
     # Scenario: 10 items, 3 replicas, process_index=0, no shuffle, no drop
     # len=10, num_replicas=3. total_size = math.ceil(10/3)*3 = 4*3 = 12
-    # Padded indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1] (Indices 0, 1 padded)
+    # Padded indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9] (last element repeated)
     # Chunked (contiguous block of length 4 starting at 0): [0, 1, 2, 3]
     def test_uneven_padding_proc0(self, mock_dataset_small):
         sampler = samplers.DistributedSampler(
@@ -121,13 +125,13 @@ class TestDistributedSamplerIteration:
         assert len(sampler) == 4
         assert list(sampler) == [4, 5, 6, 7]
 
-    # Chunked (starting at 2 * 4): [8, 9, 0, 1]
+    # Chunked (starting at 2 * 4): [8, 9, 9, 9] (last element padded, contiguous window)
     def test_uneven_padding_proc2(self, mock_dataset_small):
         sampler = samplers.DistributedSampler(
             mock_dataset_small, num_replicas=3, process_index=2, shuffle=False, drop_last=False
         )
         assert len(sampler) == 4
-        assert list(sampler) == [8, 9, 0, 1]
+        assert list(sampler) == [8, 9, 9, 9]
 
     # Scenario: 23 items, 4 replicas, drop_last=True
     # total_size = 20. num_samples = 5.
@@ -182,7 +186,7 @@ class TestDistributedSamplerIteration:
     # Scenario: Test with default jax process values -- 4 replicas, 10 items,
     # no shuffle, default (rank 0)
     # total_size = math.ceil(10/4)*4 = 12, num_samples = 3.
-    # Padded indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1]
+    # Padded indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9]
     # Chunked (block of length 3 starting at 0): [0, 1, 2]
     def test_default_jax_mock_values(self, mock_dataset_small):
         sampler = samplers.DistributedSampler(

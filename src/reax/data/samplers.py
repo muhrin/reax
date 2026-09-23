@@ -3,10 +3,11 @@ import contextlib
 import functools
 import itertools
 import math
-from typing import TYPE_CHECKING, Final, TypeVar
+from typing import TYPE_CHECKING, Final, TypeVar, cast
 
 import beartype
 import jax
+import jax.numpy as jnp
 import jaxtyping as jt
 import numpy as np
 
@@ -176,12 +177,13 @@ class DistributedSampler(_types.Sampler[_IdxT]):
             seed: The seed for shuffling.
             drop_last: Whether to drop the last incomplete batch.
         """
-        if num_replicas == 0:
-            raise ValueError("Number of replicas cannot be 0.")
-
         # Params
         self._num_replicas: Final[int] = self._init_num_replicas(num_replicas)
         self._process_index: Final[int] = self._init_process_index(process_index)
+        if self._num_replicas <= 0:
+            raise ValueError(f"Number of replicas must be positive, got {self._num_replicas}.")
+        if self._process_index < 0:
+            raise ValueError(f"Process index must be non-negative, got {self._process_index}.")
         if self._process_index >= self._num_replicas:
             raise ValueError(
                 f"Process index ({self._process_index}) must be less than the number of replicas "
@@ -191,7 +193,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         self._shuffle: Final[bool] = shuffle
         self._drop_last: Final[bool] = drop_last
         self._len_dataset = datasets.len_dataset(dataset)
-        self._num_samples: Final[float] = self._init_num_samples(
+        self._num_samples: Final[int] = self._init_num_samples(
             self._len_dataset, drop_last, self._num_replicas
         )
         self._total_size: Final[int] = self._num_samples * self._num_replicas
@@ -201,7 +203,7 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         self._epoch: int = 0
 
     @staticmethod
-    def _init_num_samples(len_dataset: int | float, drop_last: bool, num_replicas: int) -> float:
+    def _init_num_samples(len_dataset: int | float, drop_last: bool, num_replicas: int) -> int:
         """Calculates the number of samples each process should receive.
 
         If the dataset length is evenly divisible by the number of replicas,
@@ -216,14 +218,8 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         Returns:
             The number of samples each process should receive.
         """
-        # If the dataset length is evenly divisible by # of replicas, then there
-        # is no need to drop any data, since the dataset will be split equally.
-        if drop_last and len_dataset % num_replicas != 0:
-            # Split to nearest available length that is evenly divisible.
-            # This is to ensure each rank receives the same amount of data when
-            # using this Sampler.
-            return math.ceil((len_dataset - num_replicas) / num_replicas)
-
+        if drop_last:
+            return int(len_dataset) // num_replicas
         return math.ceil(len_dataset / num_replicas)
 
     @staticmethod
@@ -241,49 +237,85 @@ class DistributedSampler(_types.Sampler[_IdxT]):
         If `drop_last` is True, the last incomplete batch is removed.  Otherwise,
         the dataset is padded to ensure each process receives the same number of samples.
 
+        .. note::
+            When both ``drop_last=True`` and ``shuffle=True``, the shuffle is
+            applied to the *full* permutation and then the tail truncated to
+            ``total_size`` (PyTorch's "shuffle-then-truncate" semantics),
+            *not* "truncate-then-shuffle".  For very small epochs with a
+            non-divisible dataset the two orderings produce different
+            per-rank subsets; the former is what PyTorch ships, and it is
+            what this implementation matches.
+
         Returns:
             An iterator over the sampled indices.
         """
+        if self._len_dataset == 0:
+            # Invariant: an empty dataset always has ``total_size == 0``
+            # (``num_samples = ceil(0 / n) = 0``), so the ``else`` branch is
+            # unreachable.  Kept as a loud invariant so the guard stays honest
+            # even if ``_num_samples`` / ``_total_size`` arithmetic changes.
+            if self._total_size != 0:
+                raise ValueError("Cannot pad an empty dataset to a non-zero total size.")
+            return cast("Iterator[_IdxT]", iter(()))
+
         if self._shuffle:
             # deterministically shuffle based on epoch and seed
             key = jax.random.key(self._seed + self._epoch)
-            indices = jax.random.permutation(key, self._len_dataset).tolist()
+            indices = jax.random.permutation(key, self._len_dataset)
         else:
-            indices = list(range(self._len_dataset))
+            indices = jnp.arange(self._len_dataset)
 
         if self._drop_last:
-            # remove the last set of indices
+            # remove the last partial shard
             indices = indices[: self._total_size]
         else:
-            # pad up to evenly divisible
-            padding_size = self._total_size - len(indices)
-            if padding_size <= len(indices):
-                indices += indices[:padding_size]
-            else:
-                indices += (indices * math.ceil(padding_size / len(indices)))[:padding_size]
-
-        assert len(indices) == self.total_size
+            # pad up to evenly divisible.
+            #
+            # Keep the per-rank windows *contiguous* when ``shuffle=False`` by
+            # anchoring the padding on the LAST element (i.e. wrap around at
+            # the dataset boundary, not the start).  Padding with the leading
+            # elements would hand the final rank a non-contiguous window
+            # (e.g. ``[..., 4, 0]``), which would defeat any "max over
+            # contiguous windows" bound a downstream consumer may compute.
+            #
+            # With ``shuffle=True`` the order is already random, so reuse the
+            # leading elements of the permutation instead.
+            padding_size = self._total_size - indices.shape[0]
+            if padding_size > 0:
+                if self._shuffle:
+                    # Leading elements of the (random) permutation — reuse up
+                    # to `padding_size` entries, wrapping if the dataset is
+                    # smaller than the padding needed.
+                    n_tiles = -(-padding_size // indices.shape[0])  # ceil-div
+                    pad = (indices * n_tiles)[:padding_size]
+                else:
+                    # Anchor on the last element to keep per-rank windows
+                    # contiguous.
+                    pad = jnp.full(padding_size, indices[-1])
+                indices = jnp.concatenate([indices, pad])
 
         # Partition across replicas.
         #
-        # With ``shuffle=False`` we hand each rank a *contiguous block* of the
-        # dataset in its natural order (i.e. chunked sampling, not strided).
-        # This keeps per-rank batches as contiguous windows of the dataset,
-        # which preserves any "max over contiguous windows" bound a
-        # downstream consumer may compute, and it is friendlier to
-        # block/cache locality than a stride.
+        # The partition is computed on the JAX array (avoids materialising
+        # the whole permutation as a Python list on every process for the
+        # shuffle=True path — only the per-rank slice is converted to a
+        # list at the end).
         #
-        # With ``shuffle=True`` we keep PyTorch's strided partition of the
-        # (random) permutation, where block- vs stride- equivalence no longer
-        # matters because the order is already random.
+        # With ``shuffle=False`` we hand each rank a *contiguous block* of
+        # the dataset in its natural order (i.e. chunked sampling, not
+        # strided), which keeps per-rank batches as contiguous windows and
+        # is friendlier to block/cache locality than a stride.  With
+        # ``shuffle=True`` we keep PyTorch's strided partition of the
+        # (random) permutation, where block- vs stride- equivalence no
+        # longer matters because the order is already random.
         if self._shuffle:
+            # PyTorch's strided partition of the (random) permutation.
             indices = indices[self._process_index : self._total_size : self._num_replicas]
         else:
+            # Contiguous block of the dataset in its natural order (chunked).
             start = self._process_index * self._num_samples
             indices = indices[start : start + self._num_samples]
-        assert len(indices) == self._num_samples
-
-        return iter(indices)
+        return iter(indices.tolist())
 
     def __len__(self) -> int:
         """Returns the number of samples in the sampler.
