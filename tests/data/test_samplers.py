@@ -105,50 +105,51 @@ class TestDistributedSamplerIteration:
     # Scenario: 10 items, 3 replicas, process_index=0, no shuffle, no drop
     # len=10, num_replicas=3. total_size = math.ceil(10/3)*3 = 4*3 = 12
     # Padded indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1] (Indices 0, 1 padded)
-    # Subsampled (every 3rd index, starting at 0): [0, 3, 6, 9]
+    # Chunked (contiguous block of length 4 starting at 0): [0, 1, 2, 3]
     def test_uneven_padding_proc0(self, mock_dataset_small):
         sampler = samplers.DistributedSampler(
             mock_dataset_small, num_replicas=3, process_index=0, shuffle=False, drop_last=False
         )
         assert len(sampler) == 4
-        assert list(sampler) == [0, 3, 6, 9]
+        assert list(sampler) == [0, 1, 2, 3]
 
-    # Subsampled (every 3rd index, starting at 1): [1, 4, 7, 0]
+    # Chunked (starting at 1 * 4): [4, 5, 6, 7]
     def test_uneven_padding_proc1(self, mock_dataset_small):
         sampler = samplers.DistributedSampler(
             mock_dataset_small, num_replicas=3, process_index=1, shuffle=False, drop_last=False
         )
         assert len(sampler) == 4
-        assert list(sampler) == [1, 4, 7, 0]
+        assert list(sampler) == [4, 5, 6, 7]
 
-    # Subsampled (every 3rd index, starting at 2): [2, 5, 8, 1]
+    # Chunked (starting at 2 * 4): [8, 9, 0, 1]
     def test_uneven_padding_proc2(self, mock_dataset_small):
         sampler = samplers.DistributedSampler(
             mock_dataset_small, num_replicas=3, process_index=2, shuffle=False, drop_last=False
         )
         assert len(sampler) == 4
-        assert list(sampler) == [2, 5, 8, 1]
+        assert list(sampler) == [8, 9, 0, 1]
 
     # Scenario: 23 items, 4 replicas, drop_last=True
     # total_size = 20. num_samples = 5.
     # Original indices: [0, 1, ..., 22]. Truncated to: [0, 1, ..., 19]
-    # Subsample Proc 0: [0, 4, 8, 12, 16]
+    # Chunked Proc 0 (block of 5 starting at 0): [0, 1, 2, 3, 4]
     def test_drop_last_proc0(self, mock_dataset_large):
         sampler = samplers.DistributedSampler(
             mock_dataset_large, num_replicas=4, process_index=0, shuffle=False, drop_last=True
         )
         assert len(sampler) == 5
-        assert list(sampler) == [0, 4, 8, 12, 16]
+        assert list(sampler) == [0, 1, 2, 3, 4]
 
-    # Subsample Proc 3: [3, 7, 11, 15, 19]
+    # Chunked Proc 3 (block of 5 starting at 15): [15, 16, 17, 18, 19]
     def test_drop_last_proc3(self, mock_dataset_large):
         sampler = samplers.DistributedSampler(
             mock_dataset_large, num_replicas=4, process_index=3, shuffle=False, drop_last=True
         )
         assert len(sampler) == 5
-        assert list(sampler) == [3, 7, 11, 15, 19]
+        assert list(sampler) == [15, 16, 17, 18, 19]
 
-    # Scenario: Shuffling and epoch change
+    # Scenario: Shuffling and epoch change -- shuffle=True keeps PyTorch's
+    # strided convention (unchanged by the chunking fix).
     def test_shuffling_and_determinism(self, mock_dataset_small):
         # 10 items, 2 replicas, process 0, shuffle=True, seed=123
         sampler = samplers.DistributedSampler(
@@ -178,19 +179,19 @@ class TestDistributedSamplerIteration:
         assert epoch1_indices != epoch0_indices  # Ensure the shuffle changed
         assert epoch1_indices == indices[::2]
 
-    # Scenario: Test with default jax process count (mocked to 4)
+    # Scenario: Test with default jax process values -- 4 replicas, 10 items,
+    # no shuffle, default (rank 0)
+    # total_size = math.ceil(10/4)*4 = 12, num_samples = 3.
+    # Padded indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1]
+    # Chunked (block of length 3 starting at 0): [0, 1, 2]
     def test_default_jax_mock_values(self, mock_dataset_small):
-        # Dataset size 10, default index=0, no drop
-        # len=10, num_replicas=4. total_size = math.ceil(10/4)*4 = 3*4 = 12
-        # Padded indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1]
-        # Subsampled (every 4th index, starting at 0): [0, 4, 8]
         sampler = samplers.DistributedSampler(
             mock_dataset_small, num_replicas=4, shuffle=False, drop_last=False
         )  # Uses mock jax defaults
         assert sampler._num_replicas == 4
         assert sampler._process_index == 0
         assert len(sampler) == 3
-        assert list(sampler) == [0, 4, 8]
+        assert list(sampler) == [0, 1, 2]
 
 
 @pytest.mark.parametrize(
@@ -242,8 +243,8 @@ def test_sample_indices_no_shuffle(sampler_factory):
     """Test sampling without shuffle"""
     sampler = sampler_factory(10, num_replicas=2, shuffle=False)
     indices = list(sampler)
-    # Expected for 10 samples, 2 replicas, rank=0: [0, 2, 4, 6, 8]
-    assert indices == [0, 2, 4, 6, 8]
+    # Chunked for 10 samples, 2 replicas, rank=0: [0, 1, 2, 3, 4]
+    assert indices == [0, 1, 2, 3, 4]
     assert len(indices) == 5  # ceil(10/2) = 5
 
 
@@ -251,8 +252,8 @@ def test_sample_indices_with_drop_last(sampler_factory):
     """Test sampling with drop_last=True"""
     sampler = sampler_factory(11, num_replicas=2, drop_last=True, shuffle=False)
     indices = list(sampler)
-    # For 11 samples, drop_last=True: should get first 10 samples
-    assert indices == [0, 2, 4, 6, 8]
+    # For 11 samples, drop_last=True: rank 0 gets contiguous block [0..4]
+    assert indices == [0, 1, 2, 3, 4]
     assert len(indices) == 5
 
 
@@ -277,8 +278,8 @@ def test_rank_1_sampling(sampler_factory):
     with patch("jax.process_index", return_value=1):
         sampler = sampler_factory(10, num_replicas=2, shuffle=False)
         indices = list(sampler)
-        # Expected for rank 1: [1,3,5,7,9]
-        assert indices == [1, 3, 5, 7, 9]
+    # Chunked for rank 1 (block of 5 starting at 5): [5, 6, 7, 8, 9]
+    assert indices == [5, 6, 7, 8, 9]
 
 
 def test_empty_dataset(sampler_factory):

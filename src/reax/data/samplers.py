@@ -264,8 +264,23 @@ class DistributedSampler(_types.Sampler[_IdxT]):
 
         assert len(indices) == self.total_size
 
-        # subsample
-        indices = indices[self._process_index : self._total_size : self._num_replicas]
+        # Partition across replicas.
+        #
+        # With ``shuffle=False`` we hand each rank a *contiguous block* of the
+        # dataset in its natural order (i.e. chunked sampling, not strided).
+        # This keeps per-rank batches as contiguous windows of the dataset,
+        # which preserves any "max over contiguous windows" bound a
+        # downstream consumer may compute, and it is friendlier to
+        # block/cache locality than a stride.
+        #
+        # With ``shuffle=True`` we keep PyTorch's strided partition of the
+        # (random) permutation, where block- vs stride- equivalence no longer
+        # matters because the order is already random.
+        if self._shuffle:
+            indices = indices[self._process_index : self._total_size : self._num_replicas]
+        else:
+            start = self._process_index * self._num_samples
+            indices = indices[start : start + self._num_samples]
         assert len(indices) == self._num_samples
 
         return iter(indices)
