@@ -84,7 +84,7 @@ def test_ddp_all_reduce_any():
 
 def _run_ddp_all_reduce_any():
     strategy = JaxDdpStrategy(platform="cpu", devices=2)
-    # Rank 0 has [False], rank 1 has [True] -> gathered (2,1); any() is True.
+    # Rank 0 has False, rank 1 has True -> gathered (2,); any() is True.
     # Mirrors early_stopping.py, which all_reduces a per-rank stop flag with `any`.
     value = jnp.array(strategy.process_index == 1)
     result = strategy.all_reduce(value, reduce_op="any")
