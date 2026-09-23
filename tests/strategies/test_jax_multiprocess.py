@@ -78,6 +78,33 @@ def _run_ddp_all_reduce_sum():
 
 
 @pytest.mark.multiproc
+def test_ddp_all_reduce_any():
+    testing.in_subprocess(_run_ddp_all_reduce_any)()
+
+
+def _run_ddp_all_reduce_any():
+    strategy = JaxDdpStrategy(platform="cpu", devices=2)
+    # Rank 0 has [False], rank 1 has [True] -> gathered (2,1); any() is True.
+    # Mirrors early_stopping.py, which all_reduces a per-rank stop flag with `any`.
+    value = jnp.array(strategy.process_index == 1)
+    result = strategy.all_reduce(value, reduce_op="any")
+    assert bool(result)
+
+
+@pytest.mark.multiproc
+def test_ddp_all_reduce_any_all_false():
+    testing.in_subprocess(_run_ddp_all_reduce_any_all_false)()
+
+
+def _run_ddp_all_reduce_any_all_false():
+    strategy = JaxDdpStrategy(platform="cpu", devices=2)
+    # Every rank has False -> any() stays False.
+    value = jnp.array(False)
+    result = strategy.all_reduce(value, reduce_op="any")
+    assert not bool(result)
+
+
+@pytest.mark.multiproc
 def test_ddp_all_gather():
     testing.in_subprocess(_run_ddp_all_gather)()
 
