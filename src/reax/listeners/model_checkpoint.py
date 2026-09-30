@@ -566,7 +566,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             self._save_checkpoint(trainer, filepath)
 
         if previous and self._should_remove_checkpoint(trainer, previous, filepath):
-            os.unlink(previous)
+            self._remove_checkpoint(trainer, previous)
 
     def _save_monitor_checkpoint(
         self, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
@@ -602,7 +602,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             and previous
             and self._should_remove_checkpoint(trainer, previous, filepath)
         ):
-            os.unlink(previous)
+            self._remove_checkpoint(trainer, previous)
 
     def _update_best_and_save(
         self, current: jax.Array, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
@@ -647,7 +647,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         self._save_checkpoint(trainer, filepath)
 
         if del_filepath and self._should_remove_checkpoint(trainer, del_filepath, filepath):
-            os.unlink(del_filepath)
+            self._remove_checkpoint(trainer, del_filepath)
 
     def format_checkpoint_name(
         self,
@@ -761,15 +761,35 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         trainer.strategy.barrier()
 
     def _save_checkpoint(self, trainer: "reax.Trainer", filepath: str) -> None:
-        """Save checkpoint."""
-        trainer.save_checkpoint(filepath, self._save_weights_only)
+        """Save checkpoint.
+
+        Only rank zero performs the filesystem write and logger notification; all other ranks
+        skip the I/O. The listener state is updated identically on every rank (and a barrier is
+        taken) so that the ranks stay in lockstep and no rank races with rank zero on a shared
+        filesystem.
+        """
+        if trainer.is_global_zero:
+            trainer.save_checkpoint(filepath, self._save_weights_only)
+
+            # notify loggers
+            for logger in trainer.loggers:
+                logger.after_save_checkpoint(weakref.proxy(self))
+
         self._last_global_step_saved = trainer.global_updates
         self._last_checkpoint_saved = filepath
 
-        # notify loggers
+        trainer.strategy.barrier()
+
+    def _remove_checkpoint(self, trainer: "reax.Trainer", filepath: str) -> None:
+        """Delete a checkpoint file on rank zero only, then synchronize all ranks.
+
+        Only rank zero touches the filesystem so that multiple ranks never race to ``unlink``
+        the same path (which would otherwise raise ``FileNotFoundError``).
+        """
         if trainer.is_global_zero:
-            for logger in trainer.loggers:
-                logger.after_save_checkpoint(weakref.proxy(self))
+            os.unlink(filepath)
+
+        trainer.strategy.barrier()
 
     def _should_remove_checkpoint(
         self, trainer: "reax.Trainer", previous: str, current: str
