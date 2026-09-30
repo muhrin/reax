@@ -815,15 +815,15 @@ def test_trainer_model_hook_system_predict(tmp_path):
 
 
 def assert_calls(called: list[dict[str, Any]], expected: list[dict[str, Any]]):
-    for i, (call, expect) in enumerate(zip(called, expected)):
+    for _, (call, expect) in enumerate(zip(called, expected, strict=False)):
         name = call["name"]
         assert name == expect["name"], f"{name}: expected {expect['name']}, got {call['name']}"
-        assert call.get("args") == expect.get(
-            "args"
-        ), f"{name}: Args don't match: {call.get('args')} != {expect.get('args')}"
-        assert call.get("kwargs") == expect.get(
-            "kwargs"
-        ), f"{name}: Args don't match: {call.get('kwargs')} != {expect.get('kwargs')}"
+        assert call.get("args") == expect.get("args"), (
+            f"{name}: Args don't match: {call.get('args')} != {expect.get('args')}"
+        )
+        assert call.get("kwargs") == expect.get("kwargs"), (
+            f"{name}: Args don't match: {call.get('kwargs')} != {expect.get('kwargs')}"
+        )
 
 
 #

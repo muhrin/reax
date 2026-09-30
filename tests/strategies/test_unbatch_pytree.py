@@ -15,7 +15,7 @@ def test_unbatch_scalar_leaf():
     result = unbatch_pytree(batched, original)
 
     assert len(result) == 3
-    for entry, expected in zip(result, (1.0, 2.0, 3.0)):
+    for entry, expected in zip(result, (1.0, 2.0, 3.0), strict=False):
         assert entry.shape == ()
         assert entry == expected
 

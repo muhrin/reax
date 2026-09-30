@@ -1,5 +1,5 @@
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, Final, Optional, TypeVar
+from typing import TYPE_CHECKING, Final, TypeVar
 
 import beartype
 import jax
@@ -107,7 +107,7 @@ class ArrayLoader(_types.DataLoader[ArrayOrArrayTuple, ArrayOrArrayTuple]):
         arrays: ArrayOrArrayTuple,
         batch_size: int = 1,
         shuffle=False,
-        sampler: "Optional[reax.data.Sampler]" = None,
+        sampler: "reax.data.Sampler | None" = None,
     ):
         # Params
         self._batch_size: int = batch_size

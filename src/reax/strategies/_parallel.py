@@ -6,8 +6,8 @@ import beartype
 import jaxtyping as jt
 from typing_extensions import override
 
-from . import _strategies
 from .. import data as data_
+from . import _strategies
 
 if TYPE_CHECKING:
     import reax

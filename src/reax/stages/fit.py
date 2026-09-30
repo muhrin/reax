@@ -8,8 +8,8 @@ import jaxtyping as jt
 from lightning_utilities.core import overrides
 from typing_extensions import override
 
-from . import _timer, common, stages, train, validation
 from .. import data, exceptions, modules
+from . import _timer, common, stages, train, validation
 
 if TYPE_CHECKING:
     import reax

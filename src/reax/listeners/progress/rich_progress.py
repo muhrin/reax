@@ -293,7 +293,7 @@ class RichProgressBar(progress_bar.ProgressBar):
         self,
         refresh_rate: int = 1,
         leave: bool = False,
-        theme: RichProgressBarTheme = RichProgressBarTheme(),
+        theme: RichProgressBarTheme = RichProgressBarTheme(),  # noqa: B008
         console_kwargs: dict[str, Any] | None = None,
     ) -> None:
         if not _RICH_AVAILABLE:
@@ -601,8 +601,8 @@ class RichProgressBar(progress_bar.ProgressBar):
         _outputs: Any,
         _batch: Any,
         batch_idx: int,
-        /,
         # dataloader_idx: int = 0,
+        /,
     ) -> None:
         if self.is_disabled:
             return

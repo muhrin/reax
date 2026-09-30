@@ -22,7 +22,7 @@ def test_mean_square_error(rng_key):
     targets = random.uniform(keys[1], (n_batches, 10))
 
     mse = metrics.MeanSquaredError()
-    for prediction, target in zip(values, targets):
+    for prediction, target in zip(values, targets, strict=False):
         mse = mse.update(prediction, target)
 
     assert jnp.isclose(mse.compute(), optax.squared_error(values, targets).mean())
@@ -37,7 +37,7 @@ def test_root_mean_square_error(shape, rng_key):
     targets = random.uniform(keys[1], shape)
 
     rmse = metrics.RootMeanSquareError.empty()
-    for prediction, target in zip(predictions, targets):
+    for prediction, target in zip(predictions, targets, strict=False):
         rmse = rmse.update(prediction, target)
 
     assert jnp.isclose(rmse.compute(), jnp.sqrt(optax.squared_error(predictions, targets).mean()))
@@ -47,7 +47,7 @@ def test_root_mean_square_error(shape, rng_key):
     # Test that masking works
     masks = np.random.randint(0, 2, size=shape[:2], dtype=bool)
     rmse = metrics.RootMeanSquareError.create(predictions[0], targets[0], mask=masks[0])
-    for prediction, target, mask in zip(predictions[1:], targets[1:], masks[1:]):
+    for prediction, target, mask in zip(predictions[1:], targets[1:], masks[1:], strict=False):
         rmse = rmse.update(prediction, target, mask=mask)
 
     expected = jnp.sqrt(optax.squared_error(predictions[masks], targets[masks]).mean())
@@ -63,7 +63,7 @@ def test_mae(rng_key):
     targets = random.uniform(keys[1], (n_batches, 10))
 
     mse = metrics.MeanAbsoluteError()
-    for prediction, target in zip(predictions, targets):
+    for prediction, target in zip(predictions, targets, strict=False):
         mse = mse.update(prediction, target)
 
     assert jnp.isclose(mse.compute(), jnp.abs(predictions - targets).mean())
@@ -151,9 +151,9 @@ def test_vmap_evaluator_parity(rng_key):
 
         # 4. Assert mathematical parity
         # We use a slight tolerance for Std due to sum-of-squares precision
-        assert jnp.isclose(
-            vmapped_result, standard_result, atol=1e-6
-        ), f"Parity failed for {name}: vmap={vmapped_result}, std={standard_result}"
+        assert jnp.isclose(vmapped_result, standard_result, atol=1e-6), (
+            f"Parity failed for {name}: vmap={vmapped_result}, std={standard_result}"
+        )
 
     # 5. Regression check against raw JNP
     # Ensure our Metric logic itself matches the JAX primitives

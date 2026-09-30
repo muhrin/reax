@@ -2,10 +2,10 @@ import logging
 
 from typing_extensions import override
 
-from . import _metric as metric_
-from . import collections
 from .. import plugins
 from ..utils import containers
+from . import _metric as metric_
+from . import collections
 
 __all__ = ("Registry", "get_registry", "set_registry", "build_collection")
 

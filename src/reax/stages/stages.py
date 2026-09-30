@@ -13,9 +13,9 @@ import jaxtyping as jt
 from lightning_utilities.core import enums
 from typing_extensions import deprecated, override
 
-from . import common
 from .. import data, keys, modules, results
 from ..lightning import rank_zero
+from . import common
 
 # Note: We do not import the trainer here, the relationship is deliberately one way i.e. `Trainer`
 # knows about stages, but stages don't know about the trainer.  This helps to reduce coupling.
@@ -81,7 +81,7 @@ class Stage(abc.ABC):
         # State
         self._engine = engine
         self._state: StageState = StageState.INITIALIZING
-        self._module: "reax.Module | None" = module
+        self._module: reax.Module | None = module
         self._datamanager = datamanager
         self._rngs = rngs if rngs is not None else engine.rngs
         self._warning_cache = rank_zero.WarningCache()
@@ -92,8 +92,8 @@ class Stage(abc.ABC):
         self._stop_reason: str = ""
         self._run_count = 0
         self._events = common.StageEvents()
-        self._parent: "reax.Stage | None" = None
-        self._child: "reax.Stage | None" = None
+        self._parent: reax.Stage | None = None
+        self._child: reax.Stage | None = None
 
     def __str__(self) -> str:
         """Str function."""
@@ -267,7 +267,7 @@ class Stage(abc.ABC):
             self._prepare_data()
             self._setup()
 
-    def _on_started(self):
+    def _on_started(self):  # noqa: B027
         """On started."""
 
     def _on_iteration_starting(self):
@@ -340,7 +340,7 @@ class Stage(abc.ABC):
         if self._module is not None:
             self._module.setup(weakref.proxy(self))
 
-    def _on_exception(self, exception: BaseException) -> None:
+    def _on_exception(self, exception: BaseException) -> None:  # noqa: B027
         """Hook to deal with an exception"""
 
 
@@ -387,8 +387,8 @@ class EpochStage(Stage, abc.ABC):
         self._iterator = None
         self._batch: Any | None = None
         self._next_batch: Any | None = None
-        self._metrics: "reax.results.ResultCollection | None" = None
-        self._metrics_results: "reax.stages.MetricResults | None" = None
+        self._metrics: reax.results.ResultCollection | None = None
+        self._metrics_results: reax.stages.MetricResults | None = None
         self._outputs = None
 
     @property

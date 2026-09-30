@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING
 
 from lightning_utilities.core import overrides
 
-from . import _datasources, datamodules
 from .. import modules
+from . import _datasources, datamodules
 
 if TYPE_CHECKING:
     import reax
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 ___all__ = ("DataSourceManager", "create_manager")
 
 
-class DataSourceManager(abc.ABC):
+class DataSourceManager(abc.ABC):  # noqa: B024
     """Manager for coordinating getting data from a source"""
 
     def __init__(
@@ -21,10 +21,10 @@ class DataSourceManager(abc.ABC):
     ):
         self._datasource: _datasources.DataSource | None = source
         self._engine = engine
-        self._loaders: dict[str, "reax.data.DataLoader"] = {
+        self._loaders: dict[str, reax.data.DataLoader] = {
             name: self._setup_dataloader(loaders) for name, loaders in loaders.items()
         }
-        self._from_datasource: dict[str, "reax.data.DataLoader"] = {}
+        self._from_datasource: dict[str, reax.data.DataLoader] = {}
 
     @property
     def _source_base_type(

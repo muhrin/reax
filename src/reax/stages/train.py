@@ -54,7 +54,7 @@ class Train(stages.EpochStage):
             enable_checkpointing=True,
         )
         # Params
-        self._mod: "Final[reax.Module]" = module
+        self._mod: Final[reax.Module] = module
         self._min_updates: Final[int] = min_updates
         self._max_updates: Final[int | float | None] = max_updates
         self._accumulate_grad_batches: Final[int] = accumulate_grad_batches

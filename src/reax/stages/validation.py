@@ -28,7 +28,7 @@ class Validate(stages.EpochStage):
         enable_checkpointing: bool = True,
     ):
         """Init function."""
-        if getattr(module, "validation_step") is None:
+        if module.validation_step is None:
             raise RuntimeError(
                 f"Cannot perform validation as the module '{type(module).__name__}' does not "
                 f"define validation_step()"
@@ -47,7 +47,7 @@ class Validate(stages.EpochStage):
         )
 
         # Params
-        self._mod: "reax.Module" = module
+        self._mod: reax.Module = module
 
     @property
     def epoch(self) -> int:

@@ -110,7 +110,7 @@ class MnistDataset(Sequence[tuple[jax.Array, jax.Array]]):
                 break
             else:
                 s = f"Error downloading {filename}:\n"
-                for mirror, err in zip(self.MIRRORS, errors):
+                for mirror, err in zip(self.MIRRORS, errors, strict=False):
                     s += f"Tried {mirror}, got:\n{str(err)}\n"
                 raise RuntimeError(s)
 
@@ -128,7 +128,7 @@ class MnistDataset(Sequence[tuple[jax.Array, jax.Array]]):
 
         out_file = path.join(save_dir, filename)
         if not path.isfile(out_file):
-            urllib.request.urlretrieve(url, out_file)  # nosec
+            urllib.request.urlretrieve(url, out_file)  # noqa: S310
             print(f"downloaded {url} to {save_dir}")
 
 
@@ -331,7 +331,7 @@ class MnistDataModule(reax.DataModule):
 
         out_file = path.join(save_dir, filename)
         if not path.isfile(out_file):
-            urllib.request.urlretrieve(url, out_file)  # nosec
+            urllib.request.urlretrieve(url, out_file)  # noqa: S310
             print(f"downloaded {url} to {save_dir}")
 
 

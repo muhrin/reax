@@ -12,10 +12,9 @@ import jax
 import jaxtyping as jt
 
 from . import data as data_
-from . import hooks
+from . import hooks, modules, optimizers, profilers, strategies
 from . import loggers as loggers_
 from . import metrics as metrics_
-from . import modules, optimizers, profilers, strategies
 from .data import DeviceDataLoader
 from .training import _logger_connector
 from .utils import events

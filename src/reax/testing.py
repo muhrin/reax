@@ -152,9 +152,7 @@ def run_function_in_subprocess(target_func: Callable, *func_args, **func_kwargs)
 
             # 7. Check for Serialized Exception (Custom Logic)
             if result.returncode != 0:
-
                 if ERROR_START_MARKER in result.stdout and ERROR_END_MARKER in result.stdout:
-
                     start_index = result.stdout.find(ERROR_START_MARKER) + len(ERROR_START_MARKER)
                     end_index = result.stdout.find(ERROR_END_MARKER)
 

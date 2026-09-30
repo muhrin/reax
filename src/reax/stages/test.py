@@ -42,7 +42,7 @@ class Test(stages.EpochStage):
             limit_batches=limit_batches,
         )
         # Params
-        self._mod: "reax.Module" = module
+        self._mod: reax.Module = module
 
     @override
     def _on_starting(self):

@@ -115,7 +115,9 @@ class SetAccumulation(Metric[jax.Array]):
         new_acc = self._get_unique_fixed(jnp, combined, self.max_size, self.fill_value)
 
         return eqx.tree_at(
-            lambda m: m._accumulator, self, new_acc  # pylint: disable=protected-access
+            lambda m: m._accumulator,  # pylint: disable=protected-access
+            self,
+            new_acc,
         )
 
     @override

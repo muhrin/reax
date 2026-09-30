@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Any, Final
 
 from typing_extensions import override
 
-from . import common
 from .. import exceptions
+from . import common
 
 if TYPE_CHECKING:
     import reax

@@ -6,9 +6,9 @@ import equinox
 import flax.core
 import jaxtyping as jt
 
+from .. import exceptions
 from . import _evaluators
 from . import _metric as metric_
-from .. import exceptions
 
 if TYPE_CHECKING:
     import reax

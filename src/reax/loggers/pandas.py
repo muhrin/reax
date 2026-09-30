@@ -1,7 +1,7 @@
 import argparse
 from collections.abc import Callable, Mapping
 import os
-from typing import Any, Final, Optional, Union
+from typing import Any, Final
 
 import fsspec
 import jax.typing
@@ -17,7 +17,7 @@ from . import _utils, logger
 __all__ = ("PandasLogger",)
 
 DEFAULT_FORMAT = "json"
-Path = Union[str, bytes, os.PathLike]
+Path = str | bytes | os.PathLike
 
 
 class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
@@ -43,7 +43,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
         self._prefix = prefix
         self._flush_logs_every_n_step = flush_logs_every_n_steps
 
-        self._exp: Optional["ExperimentWriter"] = None
+        self._exp: ExperimentWriter | None = None
         self._fs: fsspec.AbstractFileSystem = fsspec.url_to_fs(self.root_dir)[0]
 
     @property

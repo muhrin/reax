@@ -46,7 +46,7 @@ def get_metrics() -> "dict[str, reax.types.MetricType]":
         on_load_failure_callback=load_failed,
     )
 
-    metrics: "dict[str, reax.types.MetricType]" = {}
+    metrics: dict[str, reax.types.MetricType] = {}
 
     def get_type(extension: stevedore.extension.Extension):
         try:

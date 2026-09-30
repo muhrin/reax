@@ -111,7 +111,7 @@ def test_manager_source_base_type_raises_for_invalid_source():
 
     manager = _datasource_manager.DataSourceManager(InvalidSource())
     with pytest.raises(RuntimeError, match="expected datasource"):
-        manager._source_base_type
+        manager._source_base_type  # noqa: B018
 
 
 def test_manager_get_dataloader():

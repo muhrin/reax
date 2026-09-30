@@ -31,7 +31,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from lightning_utilities.core import rank_zero
 from typing_extensions import override
@@ -73,7 +73,7 @@ class ProgressBar(hooks.TrainerListener):
     """
 
     def __init__(self) -> None:
-        self._trainer: "Optional[reax.Trainer]" = None
+        self._trainer: reax.Trainer | None = None
         self._current_eval_dataloader_idx: int | None = None
 
     @property
@@ -169,7 +169,6 @@ def get_standard_metrics(trainer: "reax.Trainer") -> dict[str, int | str]:
     """
     items_dict: dict[str, int | str] = {}
     if trainer.loggers:
-
         if (version := _version(trainer.loggers)) not in ("", None):
             if isinstance(version, str):
                 # show last 4 places of long version strings

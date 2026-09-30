@@ -62,7 +62,7 @@ class Collator:
                 # or `__init__(iterable)`.
                 return {key: self.collate([d[key] for d in batch]) for key in elem}
         elif isinstance(elem, tuple) and hasattr(elem, "_fields"):  # namedtuple
-            return elem_type(*(self.collate(samples) for samples in zip(*batch)))
+            return elem_type(*(self.collate(samples) for samples in zip(*batch, strict=False)))
         elif isinstance(elem, Sequence):
             # check to make sure that the elements in batch have consistent size
             it = iter(batch)
@@ -70,7 +70,9 @@ class Collator:
             if not all(len(elem) == elem_size for elem in it):
                 raise RuntimeError("each element in list of batch should be of equal size")
             # else:
-            transposed = list(zip(*batch))  # It may be accessed twice, so we use a list.
+            transposed = list(
+                zip(*batch, strict=False)
+            )  # It may be accessed twice, so we use a list.
 
             if isinstance(elem, tuple):
                 return [self.collate(samples) for samples in transposed]  # Backwards compatibility.

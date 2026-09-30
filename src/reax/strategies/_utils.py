@@ -19,5 +19,5 @@ def probe_local_device_count(platform: str) -> int:
     ]
 
     code = ";".join(code)
-    result = subprocess.check_output([sys.executable, "-c", code])  # nosec
+    result = subprocess.check_output([sys.executable, "-c", code])  # noqa
     return int(result.decode().strip())

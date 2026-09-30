@@ -29,9 +29,9 @@ A = tp.TypeVar("A")
 B = tp.TypeVar("B")
 
 
-IndexLike = tp.Union[str, int, tp.Sequence[tp.Union[str, int]]]
-PathLike = tp.Tuple[IndexLike, ...]
-ScalarLike = tp.Union[float, np.ndarray, jax.Array]
+IndexLike = str | int | tp.Sequence[str | int]
+PathLike = tuple[IndexLike, ...]
+ScalarLike = float | np.ndarray | jax.Array
 
 
 # -----------------------------------------

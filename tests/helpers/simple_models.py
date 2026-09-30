@@ -53,7 +53,7 @@ class ClassificationModel(reax.Module):
         self.num_classes = num_classes
 
         layers = []
-        for i in range(3):
+        for _ in range(3):
             layers.append(linen.Dense(num_features))
             layers.append(linen.activation.relu)
         layers.append(linen.Dense(num_classes))

@@ -127,8 +127,7 @@ def batches_limit(
             return int(round(batch_limit * dataloader_size))
 
         raise ValueError(
-            f"Cannot determine number of batches from dataloader and batch_limit is "
-            f"{batch_limit}"
+            f"Cannot determine number of batches from dataloader and batch_limit is {batch_limit}"
         )
 
     # We can't say anything other than just 'go to the end'

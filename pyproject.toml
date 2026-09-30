@@ -56,7 +56,6 @@ docs = [
     'sphinx-autobuild',
 ]
 dev = [
-    'black',
     'cloudpickle',
     'flit',
     'ipython',
@@ -68,6 +67,7 @@ dev = [
     'pytest-timeout',
     'pre-commit',
     'pylint',
+    'ruff',
 ]
 examples = [
     "lightning",
@@ -97,16 +97,48 @@ mse = "reax.metrics:MeanSquaredError"
 rmse = "reax.metrics:RootMeanSquareError"
 mae = "reax.metrics:MeanAbsoluteError"
 
-[tool.flynt]
+[tool.ruff]
 line-length = 100
-fail-on-change = true
+target-version = "py310"
+exclude = [
+    'migrations',
+]
 
-[tool.isort]
-profile = "black"
-force_sort_within_sections = true
-include_trailing_comma = true
-line_length = 100
-multi_line_output = 3
+[tool.ruff.lint]
+select = [
+    'B',
+    'B9',
+    'C90',
+    'E',
+    'F',
+    'I',
+    'S',
+    'UP',
+    'W',
+]
+ignore = [
+    'E203',
+    'E266',
+    'E501',
+    'F401',
+    'F403',
+    'F722',
+    'F821',
+    'S101',
+    'S603',
+    'S607',
+]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+
+[tool.ruff.lint.mccabe]
+max-complexity = 18
+
+[tool.ruff.lint.per-file-ignores]
+'src/reax/lightning/*.py' = [
+    'C90',
+]
 
 [tool.pylint.MASTER]
 ignore-paths = '^src/reax/lightning/.*$'  # These are copy-paste from lightning, so don't lint
@@ -137,15 +169,6 @@ max-returns = 8
 max-positional-arguments = 10
 max-public-methods = 22
 
-[tool.bandit]
-skips = [
-    "B101",
-    "B404" # This warns on import of subprocess
-]
-
-[tool.black]
-line-length = 100
-
 [tool.doc8]
 max-line-length = 100
 
@@ -175,15 +198,6 @@ markers = [
 timeout = 600
 timeout_method = 'thread'
 #addopts = "--jaxtyping-packages=reax,beartype.beartype"
-
-[tool.yapf]
-align_closing_bracket_with_visual_indent = true
-based_on_style = 'google'
-coalesce_brackets = true
-column_limit = 100
-dedent_closing_brackets = true
-indent_dictionary_value = false
-split_arguments_when_comma_terminated = true
 
 [tool.tox]
 legacy_tox_ini = """

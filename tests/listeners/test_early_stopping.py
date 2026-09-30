@@ -32,7 +32,7 @@
 # limitations under the License.
 import logging
 import math
-import pickle  # nosec B403
+import pickle  # noqa
 from unittest import mock
 from unittest.mock import Mock
 
@@ -198,7 +198,7 @@ def test_pickling():
     early_stopping = listeners.EarlyStopping(monitor="foo")
 
     early_stopping_pickled = pickle.dumps(early_stopping)
-    early_stopping_loaded = pickle.loads(early_stopping_pickled)  # nosec B301
+    early_stopping_loaded = pickle.loads(early_stopping_pickled)  # noqa: S301
     assert vars(early_stopping) == vars(early_stopping_loaded)
 
     early_stopping_pickled = cloudpickle.dumps(early_stopping)

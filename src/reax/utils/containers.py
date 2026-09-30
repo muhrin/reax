@@ -1,5 +1,5 @@
 from collections.abc import Hashable, Iterable, Mapping
-from typing import TypeVar, Union
+from typing import TypeVar
 
 K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")
@@ -55,7 +55,7 @@ class Registry(BaseRegistry[str, V]):
                 yield name, obj
 
 
-class TypeRegistry(BaseRegistry[Union[type, tuple[type, ...]], V]):
+class TypeRegistry(BaseRegistry[type | tuple[type, ...], V]):
     def find(self, obj: type) -> V | None:
         """Find function."""
         obj_type = type(obj)

@@ -31,7 +31,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import TYPE_CHECKING, Any, TypeVar, Union
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import jax
 import jaxtyping as jt
@@ -49,7 +49,7 @@ _OutT = TypeVar("_OutT")
 
 
 class Strategy(abc.ABC):
-    def teardown(self):
+    def teardown(self):  # noqa: B027
         """Shut down the strategy and free all resources."""
 
     @abc.abstractmethod
@@ -111,9 +111,7 @@ class Strategy(abc.ABC):
     def device(self) -> jax.Device:
         """Get the device used by this strategy."""
 
-    def setup_dataloader(
-        self, data: "Union[reax.DataLoader, reax.data.Dataset]"
-    ) -> "reax.DataLoader":
+    def setup_dataloader(self, data: "reax.DataLoader | reax.data.Dataset") -> "reax.DataLoader":
         if isinstance(data, data_.DataLoader):
             # By default, we don't do anything to the loader
             return data

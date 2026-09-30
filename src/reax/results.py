@@ -126,7 +126,7 @@ class ResultEntry(Generic[_OutT]):
         """Init function."""
         self._meta = meta  # Readonly
         self.metric = metric
-        self._last_value: "reax.types.MetricInstance[_OutT] | _OutT | None" = last_value
+        self._last_value: reax.types.MetricInstance[_OutT] | _OutT | None = last_value
 
     @property
     def meta(self) -> Metadata:

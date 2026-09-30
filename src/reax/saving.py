@@ -68,7 +68,8 @@ def save_hparams_to_yaml(
             yaml.dump(value)
         except (TypeError, ValueError):
             warnings.warn(
-                f"Skipping '{key}' parameter because it is not possible to safely dump to YAML."
+                f"Skipping '{key}' parameter because it is not possible to safely dump to YAML.",
+                stacklevel=2,
             )
             hparams[key] = type(value).__name__
         else:

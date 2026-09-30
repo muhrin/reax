@@ -147,9 +147,9 @@ def test_trainer_min_steps_and_epochs(tmp_path):
 
     assert fit.state.finished, f"Training failed with {fit.state}"
     assert trainer.current_epoch > 0
-    assert (
-        trainer.global_updates >= num_train_samples
-    ), "Model did not train for at least min_epochs"
+    assert trainer.global_updates >= num_train_samples, (
+        "Model did not train for at least min_epochs"
+    )
     trainer.finalize()
 
     # define less epochs than min_steps
@@ -159,9 +159,9 @@ def test_trainer_min_steps_and_epochs(tmp_path):
 
     assert fit.state.finished, f"Training failed with {fit.state}"
     assert trainer.current_epoch > 0
-    assert trainer.global_updates >= math.floor(
-        num_train_samples * 1.5
-    ), "Model did not train for at least min_steps"
+    assert trainer.global_updates >= math.floor(num_train_samples * 1.5), (
+        "Model did not train for at least min_steps"
+    )
 
 
 def test_trainer_min_steps_and_min_epochs_not_reached(tmp_path, caplog):
@@ -257,9 +257,9 @@ def test_disabled_validation(tmp_path):
     # check that limit_val_batches=0 turns off validation
     assert fit.state.finished, f"Training failed with {fit.state}"
     assert trainer.current_epoch == 2
-    assert (
-        not model.validation_step_invoked
-    ), "`validation_step` should not run when `limit_val_batches=0`"
+    assert not model.validation_step_invoked, (
+        "`validation_step` should not run when `limit_val_batches=0`"
+    )
 
     # check that limit_val_batches has no influence when fast_dev_run is turned on
     model = CurrentModel()
@@ -371,9 +371,9 @@ def test_trainer_access_in_configure_optimizers(tmp_path):
 
     class TestModel(demos.BoringModel):
         def configure_optimizers(self):
-            assert (
-                self.trainer is not None
-            ), "Expect to have access to the trainer within `configure_optimizers`"
+            assert self.trainer is not None, (
+                "Expect to have access to the trainer within `configure_optimizers`"
+            )
 
     train_data = reax.data.ReaxDataLoader(demos.RandomDataset(32, 64))
 

@@ -13,7 +13,7 @@ VALUES = (0.10, 0.20, 0.30, 0.25)
 def _log_epoch(values, batch_sizes, **kwargs):
     """Log one value per batch, as a module would during an epoch, and compute the result"""
     collection = results.ResultCollection()
-    for batch_idx, (value, batch_size) in enumerate(zip(values, batch_sizes)):
+    for batch_idx, (value, batch_size) in enumerate(zip(values, batch_sizes, strict=False)):
         collection.log(
             "train",
             "loss",

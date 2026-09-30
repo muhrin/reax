@@ -52,8 +52,8 @@ except ImportError:
 
 from reax.lightning import rank_zero
 
-from . import _utils, logger
 from .. import types
+from . import _utils, logger
 
 __all__ = ("TensorBoardLogger",)
 
@@ -144,7 +144,7 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
         self._prefix = prefix
         self._fs: fsspec.AbstractFileSystem = fsspec.url_to_fs(log_dir)[0]
 
-        self._exp: "tensorboardX.SummaryWriter | None" = None
+        self._exp: tensorboardX.SummaryWriter | None = None
         self._kwargs = kwargs
         self._should_log_graph = log_graph
         self.hparams: dict[str, Any] | argparse.Namespace = {}

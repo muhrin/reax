@@ -36,7 +36,7 @@ class Predict(stages.EpochStage):
             limit_batches=limit_batches,
         )
         # Params
-        self._mod: "Final[reax.Module]" = module
+        self._mod: Final[reax.Module] = module
         self._keep_predictions = keep_predictions
         self._all_outputs: list[Any] | list[list[Any]] | None = []
 

@@ -2,7 +2,7 @@ import logging
 import os
 import random
 import socket
-import subprocess  # nosec  # Suppresses Bandit's B404 subprocess warning
+import subprocess  # noqa  # Suppresses Bandit's B404 subprocess warning
 import sys
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -54,14 +54,14 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
     def probe_local_device_count() -> int:
         """Use a subprocess to import JAX and ask it the number of local devices"""
         code = "import jax; print(jax.local_device_count())"
-        result = subprocess.check_output([sys.executable, "-c", code])  # nosec # Disable Bandit
+        result = subprocess.check_output([sys.executable, "-c", code])  # noqa # Disable Bandit
         return int(result.decode().strip())
 
     @staticmethod
     def get_available_port(min_port=49152, max_port=65535, max_attempts=100) -> int:
         """Generates a random port and checks if it's available.  Retries if necessary."""
         for _ in range(max_attempts):
-            port = random.randint(min_port, max_port)  # nosec
+            port = random.randint(min_port, max_port)  # noqa: S311
             try:
                 # Attempt to bind to the port.  If it's in use, this will raise an exception.
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -146,7 +146,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
             children.append(
                 subprocess.Popen(  # pylint: disable=consider-using-with
                     cmd, env=env
-                )  # nosec # Disable bandit
+                )  # noqa # Disable bandit
             )
 
         return children
@@ -238,7 +238,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
 
         dynamic, static = eqx.partition(metric, eqx.is_array)
         gathered = multihost_utils.process_allgather(dynamic)
-        unbatched: "list[reax.types.MetricInstance[_OutT]]" = unbatch_pytree(gathered, dynamic)
+        unbatched: list[reax.types.MetricInstance[_OutT]] = unbatch_pytree(gathered, dynamic)
         # Rejoin with the static data
         unbatched = [eqx.combine(entry, static) for entry in unbatched]
 
@@ -302,15 +302,13 @@ def unbatch_pytree(batched: jt.PyTree, original: jt.PyTree) -> list[jt.PyTree]:
     split_leaves = [jnp.split(leaf, batch_size, axis=0) for leaf in batched_leaves]
 
     # 'zip' now groups the k-th elements from all split lists together
-    unbatched_leaves_list = zip(*split_leaves)
+    unbatched_leaves_list = zip(*split_leaves, strict=False)
 
     # 4. Reconstruct the Pytree for each set of unbatched leaves
     unbatched_trees = []
     for leaves_for_batch_k in unbatched_leaves_list:
-
         reshaped_leaves = []
         for leaf_idx, split_leaf in enumerate(leaves_for_batch_k):
-
             # The split_leaf is guaranteed to have shape (1, D, W, H) or (1,)
             target_shape = target_shapes[leaf_idx]
 

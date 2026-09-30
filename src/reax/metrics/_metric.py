@@ -160,7 +160,7 @@ class FromFun(Metric[_OutT]):
     ) -> "FromFun[_OutT]":
         """Empty function."""
         if isinstance(self_or_cls, type):
-            cls: "type[FromFun[_OutT]]" = cast(type(FromFun), self_or_cls)
+            cls: type[FromFun[_OutT]] = cast(type(FromFun), self_or_cls)
             return cls(state=cls.metric.empty())  # pylint: disable=not-callable
 
         self = cast(FromFun, self_or_cls)

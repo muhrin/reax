@@ -7,12 +7,12 @@ try:
     import accimage
 except ImportError:
     accimage = None
-import PIL
 from flax import linen
 import jax
 from lightning.pytorch.demos.mnist_datamodule import MNIST
 import numpy as np
 import optax
+import PIL
 import torch  # pylint: disable=import-error
 from torch.utils.data import random_split  # pylint: disable=import-error
 

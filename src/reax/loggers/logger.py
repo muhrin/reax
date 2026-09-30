@@ -44,6 +44,7 @@ from reax.lightning import rank_zero
 
 if TYPE_CHECKING:
     import reax
+    from reax.listeners import ModelCheckpoint  # noqa: F401
 
 __all__ = ("Logger",)
 
@@ -115,7 +116,7 @@ class Logger(abc.ABC):
             **kwargs: Additional optional kwargs.
         """
 
-    def log_graph(self, model: Callable, *args, **kwargs) -> None:
+    def log_graph(self, model: Callable, *args, **kwargs) -> None:  # noqa: B027
         """Log the model graph.
 
         Args:
@@ -124,7 +125,7 @@ class Logger(abc.ABC):
             **kwargs: The kwargs to pass to the model
         """
 
-    def save(self) -> None:
+    def save(self) -> None:  # noqa: B027
         """Save the log data."""
 
     def finalize(self, status: str) -> None:  # pylint: disable=unused-argument
@@ -136,7 +137,7 @@ class Logger(abc.ABC):
         """
         self.save()
 
-    def after_save_checkpoint(self, checkpoint_listener: "reax.listeners.ModelCheckpoint") -> None:
+    def after_save_checkpoint(self, checkpoint_listener: "ModelCheckpoint") -> None:  # noqa: B027
         """Called after model checkpoint listener saves a new checkpoint.
 
         Args:

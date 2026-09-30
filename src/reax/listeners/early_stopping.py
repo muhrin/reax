@@ -229,7 +229,7 @@ class EarlyStopping(hooks.TrainerListener):
         error_msg = (
             f"Early stopping conditioned on metric `{self._monitor}` which is not available."
             " Pass in or modify your `EarlyStopping` listener to use any of the following:"
-            f' `{"`, `".join(list(logs.keys()))}`'
+            f" `{'`, `'.join(list(logs.keys()))}`"
         )
 
         if monitor_val is None:

@@ -6,8 +6,8 @@ from lightning_utilities.core import rank_zero
 import tqdm.auto as tqdm
 from typing_extensions import override
 
-from . import progress_bar
 from .. import utils
+from . import progress_bar
 
 if TYPE_CHECKING:
     import reax

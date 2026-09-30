@@ -41,7 +41,7 @@ class Module(
     def __init__(self):
         """Init function."""
         super().__init__()
-        self._trainer: "reax.Trainer | None" = None
+        self._trainer: reax.Trainer | None = None
         self._parameters = None
         self._automatic_optimization = True
 

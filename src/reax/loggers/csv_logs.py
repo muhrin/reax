@@ -52,8 +52,8 @@ from typing_extensions import override
 
 from reax.lightning import rank_zero
 
-from . import _utils, logger
 from .. import saving, types
+from . import _utils, logger
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -253,7 +253,7 @@ class ExperimentWriter:
         self._fs.makedirs(self.log_dir, exist_ok=True)
 
         # State
-        self._metrics: list[dict[str, float | jt.Float[jnp.ndarray, "..."]]] = []
+        self._metrics: list[dict[str, float | jt.Float[jnp.ndarray, ...]]] = []
         self.metrics_keys: list[str] = []
         self.hparams: dict[str, Any] = {}
 

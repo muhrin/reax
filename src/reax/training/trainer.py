@@ -16,13 +16,12 @@ import jaxtyping as jt
 from lightning_utilities.core import rank_zero
 from typing_extensions import override
 
-from . import _checkpointing, _deprecated, _logger_connector
 from .. import _engine as engine_
-from .. import data, exceptions, hooks, keys
+from .. import data, exceptions, hooks, keys, modules, stages, strategies
 from .. import listeners as listeners_
 from .. import loggers as loggers_
-from .. import modules, stages, strategies
 from ..utils import events
+from . import _checkpointing, _deprecated, _logger_connector
 
 if TYPE_CHECKING:
     import reax
@@ -984,9 +983,9 @@ def _reorder_listeners(listeners: list["reax.TrainerListener"]) -> list["reax.Tr
         ModelCheckpoints if there were any present in the input.
 
     """
-    tuner_listeners: list["reax.TrainerListener"] = []
-    other_listeners: list["reax.TrainerListener"] = []
-    checkpoint_listeners: list["reax.TrainerListener"] = []
+    tuner_listeners: list[reax.TrainerListener] = []
+    other_listeners: list[reax.TrainerListener] = []
+    checkpoint_listeners: list[reax.TrainerListener] = []
 
     for cb in listeners:
         # if isinstance(cb, (BatchSizeFinder, LearningRateFinder)):
