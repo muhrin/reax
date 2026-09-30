@@ -62,6 +62,8 @@ class FetcherDataLoader(_types.DataLoader[_T_co, _U]):
         fetcher = fetchers.create_fetcher(self._dataset, collate_fn=self._collate_fn)
         try:
             for indices in self.sampler:
+                if not indices:
+                    continue
                 yield fetcher.fetch(indices)
         except StopIteration:
             pass

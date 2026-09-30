@@ -3,15 +3,15 @@ import contextlib
 import functools
 import itertools
 import math
-from typing import TYPE_CHECKING, Final, TypeVar, cast
+from typing import TYPE_CHECKING, Final, TypeVar
 
 import beartype
 import jax
-import jax.numpy as jnp
 import jaxtyping as jt
 import numpy as np
+from typing_extensions import Never
 
-from . import _types, datasets
+from . import _types
 
 if TYPE_CHECKING:
     import reax
@@ -26,6 +26,7 @@ __all__ = (
 
 _T_co = TypeVar("_T_co", covariant=True)
 _IdxT = TypeVar("_IdxT", bound=Hashable)
+Empty = list[Never]
 
 
 class SequentialSampler(_types.Sampler[int]):
@@ -147,39 +148,37 @@ class IterableSampler(_types.Sampler[list[None]]):
         yield from itertools.repeat([None])
 
 
-class DistributedSampler(_types.Sampler[_IdxT]):
-    """A sampler that distributes data across multiple processes, ensuring each process
-    receives a unique and non-overlapping subset of the dataset.
+class DistributedSampler(_types.Sampler[_T_co]):
+    """A sampler that distributes data across multiple processes.
 
-    This sampler is designed for use with JAX's distributed training capabilities.
-    It handles shuffling, dropping the last incomplete batch (if specified),
-    and partitioning the dataset based on the process rank and number of replicas.
+    This sampler is a pure sharding wrapper around an inner sampler (e.g.,
+    SequentialSampler, RandomSampler, or BatchSampler). It distributes the inner
+    sampler's items across processes using a strided partition. It doesn't know
+    about indices vs. batches—it treats the inner stream as an opaque sequence.
     """
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
-        dataset: "reax.data.Dataset",
+        inner: _types.Sampler[_T_co],
         num_replicas: int | None = None,
         process_index: int | None = None,
-        shuffle: bool = True,
-        seed: int = 0,
         drop_last: bool = False,
     ) -> None:
         """Initializes the DistributedSampler.
 
         Args:
-            dataset: The dataset to sample from.
+            inner: The inner sampler to distribute.
             num_replicas: The total number of replicas (processes).
                 Defaults to jax.process_count().
             process_index: The index of the current process. Defaults to jax.process_index().
-            shuffle: Whether to shuffle the data.
-            seed: The seed for shuffling.
-            drop_last: Whether to drop the last incomplete batch.
+            drop_last: Whether to drop the last incomplete step across ranks.
         """
         # Params
+        self._inner = inner
         self._num_replicas: Final[int] = self._init_num_replicas(num_replicas)
         self._process_index: Final[int] = self._init_process_index(process_index)
+
         if self._num_replicas <= 0:
             raise ValueError(f"Number of replicas must be positive, got {self._num_replicas}.")
         if self._process_index < 0:
@@ -190,37 +189,13 @@ class DistributedSampler(_types.Sampler[_IdxT]):
                 f"({self._num_replicas})."
             )
 
-        self._shuffle: Final[bool] = shuffle
         self._drop_last: Final[bool] = drop_last
-        self._len_dataset = datasets.len_dataset(dataset)
-        self._num_samples: Final[int] = self._init_num_samples(
-            self._len_dataset, drop_last, self._num_replicas
-        )
-        self._total_size: Final[int] = self._num_samples * self._num_replicas
-        self._seed: Final[int] = seed
 
-        # State
-        self._epoch: int = 0
-
-    @staticmethod
-    def _init_num_samples(len_dataset: int | float, drop_last: bool, num_replicas: int) -> int:
-        """Calculates the number of samples each process should receive.
-
-        If the dataset length is evenly divisible by the number of replicas,
-        no data is dropped. Otherwise, the dataset is split to the nearest
-        available length that is evenly divisible.
-
-        Args:
-            len_dataset: The total size of the dataset.
-            drop_last: Whether to drop the last incomplete batch.
-            num_replicas: The number of replicas.
-
-        Returns:
-            The number of samples each process should receive.
-        """
-        if drop_last:
-            return int(len_dataset) // num_replicas
-        return math.ceil(len_dataset / num_replicas)
+        # Sized inner: we know the global step count arithmetically.
+        try:
+            self._global_steps: int | None = len(inner)
+        except TypeError:
+            self._global_steps: int | None = None
 
     @staticmethod
     def _init_num_replicas(num_replicas: int | None) -> int:
@@ -230,114 +205,54 @@ class DistributedSampler(_types.Sampler[_IdxT]):
     def _init_process_index(process_index: int | None) -> int:
         return process_index if process_index is not None else jax.process_index()
 
-    def __iter__(self) -> Iterator[_IdxT]:
-        """Returns an iterator over the sampled indices.
+    @property
+    def inner(self) -> _types.Sampler[_T_co]:
+        """Return the wrapped inner sampler."""
+        return self._inner
 
-        The indices are shuffled (if specified) and partitioned across processes.
-        If `drop_last` is True, the last incomplete batch is removed.  Otherwise,
-        the dataset is padded to ensure each process receives the same number of samples.
+    def _step_count(self, global_steps: int) -> int:
+        """Total number of steps this rank must emit (uniform across ranks)."""
+        if self._drop_last:
+            return global_steps // self._num_replicas
+        return math.ceil(global_steps / self._num_replicas)
 
-        .. note::
-            When both ``drop_last=True`` and ``shuffle=True``, the shuffle is
-            applied to the *full* permutation and then the tail truncated to
-            ``total_size`` (PyTorch's "shuffle-then-truncate" semantics),
-            *not* "truncate-then-shuffle".  For very small epochs with a
-            non-divisible dataset the two orderings produce different
-            per-rank subsets; the former is what PyTorch ships, and it is
-            what this implementation matches.
+    def _real_count(self, global_steps: int) -> int:
+        """Number of real (non-empty) items this rank will produce."""
+        if self._drop_last:
+            return global_steps // self._num_replicas
+        return math.ceil((global_steps - self._process_index) / self._num_replicas)
 
-        Returns:
-            An iterator over the sampled indices.
+    def __iter__(self) -> Iterator[_T_co | Empty]:
+        """Returns an iterator over the distributed samples.
+
+        Yields real items from the inner sampler for this rank. When ``drop_last``
+        is False and the inner sampler is sized, short ranks are padded with empty
+        ``[]`` entries so that every rank yields the same number of steps.
         """
-        if self._len_dataset == 0:
-            # Invariant: an empty dataset always has ``total_size == 0``
-            # (``num_samples = ceil(0 / n) = 0``), so the ``else`` branch is
-            # unreachable.  Kept as a loud invariant so the guard stays honest
-            # even if ``_num_samples`` / ``_total_size`` arithmetic changes.
-            if self._total_size != 0:
-                raise ValueError("Cannot pad an empty dataset to a non-zero total size.")
-            return cast("Iterator[_IdxT]", iter(()))
+        inner_iter = iter(self._inner)
+        global_steps = self._global_steps
 
-        if self._shuffle:
-            # deterministically shuffle based on epoch and seed
-            key = jax.random.key(self._seed + self._epoch)
-            indices = jax.random.permutation(key, self._len_dataset)
-        else:
-            indices = jnp.arange(self._len_dataset)
+        if global_steps is None:
+            yield from itertools.islice(inner_iter, self._process_index, None, self._num_replicas)
+            return
 
         if self._drop_last:
-            # remove the last partial shard
-            indices = indices[: self._total_size]
+            real = self._real_count(global_steps)
+            # Truncate the inner stream to real * R before striding
+            inner_iter = itertools.islice(inner_iter, real * self._num_replicas)
+            yield from itertools.islice(inner_iter, self._process_index, None, self._num_replicas)
         else:
-            # pad up to evenly divisible.
-            #
-            # Keep the per-rank windows *contiguous* when ``shuffle=False`` by
-            # anchoring the padding on the LAST element (i.e. wrap around at
-            # the dataset boundary, not the start).  Padding with the leading
-            # elements would hand the final rank a non-contiguous window
-            # (e.g. ``[..., 4, 0]``), which would defeat any "max over
-            # contiguous windows" bound a downstream consumer may compute.
-            #
-            # With ``shuffle=True`` the order is already random, so reuse the
-            # leading elements of the permutation instead.
-            padding_size = self._total_size - indices.shape[0]
-            if padding_size > 0:
-                if self._shuffle:
-                    # Leading elements of the (random) permutation — reuse up
-                    # to `padding_size` entries, wrapping if the dataset is
-                    # smaller than the padding needed.
-                    n_tiles = -(-padding_size // indices.shape[0])  # ceil-div
-                    pad = (indices * n_tiles)[:padding_size]
-                else:
-                    # Anchor on the last element to keep per-rank windows
-                    # contiguous.
-                    pad = jnp.full(padding_size, indices[-1])
-                indices = jnp.concatenate([indices, pad])
-
-        # Partition across replicas.
-        #
-        # The partition is computed on the JAX array (avoids materialising
-        # the whole permutation as a Python list on every process for the
-        # shuffle=True path — only the per-rank slice is converted to a
-        # list at the end).
-        #
-        # With ``shuffle=False`` we hand each rank a *contiguous block* of
-        # the dataset in its natural order (i.e. chunked sampling, not
-        # strided), which keeps per-rank batches as contiguous windows and
-        # is friendlier to block/cache locality than a stride.  With
-        # ``shuffle=True`` we keep PyTorch's strided partition of the
-        # (random) permutation, where block- vs stride- equivalence no
-        # longer matters because the order is already random.
-        if self._shuffle:
-            # PyTorch's strided partition of the (random) permutation.
-            indices = indices[self._process_index : self._total_size : self._num_replicas]
-        else:
-            # Contiguous block of the dataset in its natural order (chunked).
-            start = self._process_index * self._num_samples
-            indices = indices[start : start + self._num_samples]
-        return iter(indices.tolist())
+            real = self._real_count(global_steps)
+            steps = self._step_count(global_steps)
+            yield from itertools.islice(inner_iter, self._process_index, None, self._num_replicas)
+            for _ in range(steps - real):
+                yield []
 
     def __len__(self) -> int:
-        """Returns the number of samples in the sampler.
-
-        Returns:
-            The number of samples.
-        """
-        return self._num_samples
-
-    @property
-    def total_size(self) -> int:
-        return self._total_size
-
-    def set_epoch(self, epoch: int) -> None:
-        """Sets the epoch for shuffling.
-
-        This allows for different shuffles in each epoch.
-
-        Args:
-            epoch: The epoch number.
-        """
-        self._epoch = epoch
+        """Returns the number of steps this sampler will yield."""
+        if self._global_steps is None:
+            raise TypeError("Inner sampler is unsized and has no length.")
+        return self._step_count(self._global_steps)
 
 
 def create_sampler(

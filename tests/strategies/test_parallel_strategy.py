@@ -61,39 +61,46 @@ def _make_loader(n: int):
 
 def _inner_indices(loader):
     """Extract the per-rank index list from the setup-produced DataLoader."""
-    inner = loader.sampler.sampler
-    return [int(i) for i in inner]
+    # loader.sampler is DistributedSampler, loader.sampler.inner is BatchSampler
+    return [int(i) for batch in loader.sampler for i in batch]
 
 
 def test_base_strategy_dataloader_passthrough():
     strategy = FakeParallelStrategy()
     loader = _make_loader(10)
-    assert strategy.setup_dataloader(loader) is loader
+    res = strategy.setup_dataloader(loader)
+    assert res is not loader
+    assert isinstance(res.sampler, samplers.DistributedSampler)
 
 
 def test_base_strategy_wraps_raw_dataset():
     strategy = FakeParallelStrategy(process_index=0, process_count=2)
     wrapped = strategy.setup_dataloader([1, 2, 3])
-    assert isinstance(wrapped, reax.data.ReaxDataLoader)
-    # A raw sequence is wrapped in a BatchSampler -> DistributedSampler.
-    assert isinstance(wrapped.sampler, samplers.BatchSampler)
-    assert isinstance(wrapped.sampler.sampler, samplers.DistributedSampler)
+    assert isinstance(wrapped, reax.data.DataLoader)
+    # A raw sequence is wrapped in a BatchSampler, then DistributedSampler.
+    assert isinstance(wrapped.sampler, samplers.DistributedSampler)
+    assert isinstance(wrapped.sampler.inner, samplers.BatchSampler)
 
 
 def test_parallel_setup_dataloader_wraps_batch_sampler():
     strategy = FakeParallelStrategy(process_index=0, process_count=2)
     loader = _make_loader(10)
     assert isinstance(loader.sampler, samplers.BatchSampler)
-    inner_before = loader.sampler.sampler
+    inner_before = loader.sampler
 
     result = strategy.setup_dataloader(loader)
 
-    assert result is loader
-    inner = loader.sampler.sampler
-    assert isinstance(inner, samplers.DistributedSampler)
-    assert inner is not inner_before
-    assert inner._num_replicas == 2
-    assert inner._process_index == 0
+    # ReaxDataLoader.with_new_sampler returns a new loader. Wait, no, the old test did:
+    # assert result is loader
+    # because they did `data.sampler.sampler = sampler`.
+    # Now we do `data = data.with_new_sampler(sampler)`.
+    # So result is not loader.
+    assert result is not loader
+    outer = result.sampler
+    assert isinstance(outer, samplers.DistributedSampler)
+    assert outer.inner is inner_before
+    assert outer._num_replicas == 2
+    assert outer._process_index == 0
 
 
 def test_parallel_setup_dataloader_shards_indices_across_replicas():
@@ -105,8 +112,9 @@ def test_parallel_setup_dataloader_shards_indices_across_replicas():
     idx0 = _inner_indices(r0)
     idx1 = _inner_indices(r1)
 
-    # Each rank receives ceil(n / c) samples.
+    # Both ranks yield a uniform step count of ceil(n / c).
     assert len(idx0) == math.ceil(n / c)
+    assert len(list(r1.sampler)) == math.ceil(n / c)
     assert len(idx1) == math.ceil(n / c)
     # Union covers every sample exactly once (no loss when evenly divisible).
     assert sorted(idx0 + idx1) == list(range(n))
@@ -125,8 +133,8 @@ def test_parallel_setup_dataloader_is_deterministic():
 
 
 def test_parallel_setup_dataloader_padded_split_covers_dataset():
-    # 7 samples, 2 replicas -> ceil(7/2) == 4 each; padding introduces overlap
-    # but the union must still cover every sample.
+    # 7 samples, 2 replicas -> ceil(7/2) == 4 steps per rank (uniform). Rank 1 is
+    # padded with an empty batch; real indices still cover every sample exactly once.
     n = 7
     c = 2
     r0 = FakeParallelStrategy(process_index=0, process_count=c).setup_dataloader(_make_loader(n))
@@ -135,11 +143,17 @@ def test_parallel_setup_dataloader_padded_split_covers_dataset():
     idx0 = _inner_indices(r0)
     idx1 = _inner_indices(r1)
 
+    # Both ranks yield the same step count.
     assert len(idx0) == math.ceil(n / c)
-    assert len(idx1) == math.ceil(n / c)
+    assert len(list(r1.sampler)) == math.ceil(n / c)
+    # Rank 0: 4 real indices, Rank 1: 3 real + 1 padding empty.
+    assert len(idx0) == math.ceil(n / c)
+    assert len(idx1) == math.ceil((n - 1) / c)
     assert min(idx0 + idx1) >= 0
     assert max(idx0 + idx1) <= n - 1
     assert set(idx0 + idx1) == set(range(n))
+    # Disjoint real indices (no overlap).
+    assert set(idx0).isdisjoint(set(idx1))
 
 
 def test_parallel_setup_dataloader_default_process_count_is_replicas():
@@ -147,7 +161,7 @@ def test_parallel_setup_dataloader_default_process_count_is_replicas():
     # a single replica sees the full dataset.
     loader = reax.data.ReaxDataLoader(list(range(5)))
     sampler = samplers.DistributedSampler(
-        loader.dataset, num_replicas=1, process_index=0, shuffle=True, seed=0
+        samplers.RandomSampler(len(loader.dataset)), num_replicas=1, process_index=0
     )
     assert sorted(int(i) for i in sampler) == list(range(5))
     assert len(sampler) == 5

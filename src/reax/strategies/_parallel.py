@@ -15,7 +15,10 @@ if TYPE_CHECKING:
 
 _T_co = TypeVar("_T_co", covariant=True)
 _U = TypeVar("_U")
-_IdxT = TypeVar("_IdxT")
+_IdxEv = TypeVar("_IdxEv")
+
+
+__all__ = ("ParallelStrategy",)
 
 
 class ParallelStrategy(_strategies.Strategy, abc.ABC):
@@ -34,27 +37,14 @@ class ParallelStrategy(_strategies.Strategy, abc.ABC):
         if not isinstance(data, data_.DataLoader):
             data = super().setup_dataloader(data)
 
-        # The seed must be identical across all ranks so every rank builds the same
-        # permutation of indices before subsampling by ``process_index`` (i.e. sharding).
-        # Seeding with a per-rank value such as ``self.device.id`` would make each rank
-        # shuffle differently, causing the per-rank subsets to overlap and the union of
-        # their indices to miss a subset of the dataset.
-        seed = 0
+        # The new DistributedSampler wraps the existing sampler cleanly
         sampler = data_.samplers.DistributedSampler(
-            dataset=data.dataset,
+            inner=data.sampler,
             num_replicas=self.process_count,
             process_index=self.process_index,
-            shuffle=getattr(data, "shuffle", True),
-            seed=seed,
-            # seed=jnp.array(0, device=self.),
-            # drop_last: bool = False,
         )
-        # TODO: Maybe try to re-create the BatchSampler with the current sampler
-        if isinstance(data.sampler, data_.BatchSampler):
-            data.sampler.sampler = sampler
-        else:
-            data = data.with_new_sampler(sampler)
 
+        data = data.with_new_sampler(sampler)
         return data
 
 

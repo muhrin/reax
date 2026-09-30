@@ -76,6 +76,39 @@ def test_reax_dataloader_custom_collate():
     assert list(loader) == [1, 2]
 
 
+def test_fetcher_dataloader_skips_distributed_sampler_padding():
+    # DistributedSampler with drop_last=False pads short ranks with [] so every
+    # rank yields a uniform step count. The loader must skip the padding (not
+    # call the default collator on an empty batch, which would raise
+    # ValueError("Must supply a non-empty batch to collate")) and only yield
+    # real data.
+    dataset = [10, 20, 30, 40, 50]
+    inner_batch = samplers.BatchSampler(samplers.SequentialSampler(len(dataset)), 1, False)
+    from reax.data import collate
+
+    # Sanity: the default collater rejects empty batches, proving that without
+    # the loader guard the rank below would raise ValueError.
+    with pytest.raises(ValueError, match="non-empty batch"):
+        collate.get_default_collator().collate([])
+
+    # 5 items over 3 replicas: rank r takes strided positions r, r+3 ->
+    #   rank 0: 0, 3 -> items 10, 40
+    #   rank 1: 1, 4 -> items 20, 50
+    #   rank 2: 2     -> item  30, then 1 padding [] (skipped by the loader)
+    for process_index, expected in [
+        (0, [10, 40]),
+        (1, [20, 50]),
+        (2, [30]),
+    ]:
+        dist = samplers.DistributedSampler(
+            inner_batch, num_replicas=3, process_index=process_index, drop_last=False
+        )
+        loader = _loaders.FetcherDataLoader(dataset, dist, collate.get_default_collator().collate)
+        batches = list(loader)
+        flat = [int(x) for b in batches for x in np.atleast_1d(np.asarray(b))]
+        assert flat == expected
+
+
 def test_array_loader_single_array():
     array = np.arange(10)
     loader = _loaders.ArrayLoader(array, batch_size=3)
