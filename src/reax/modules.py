@@ -114,7 +114,7 @@ class Module(
 
     def setup(
         self,
-        engine: "reax.Engine" = None,
+        engine: "reax.Engine | None" = None,
         /,
         *,
         stage: str | None = None,

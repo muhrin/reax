@@ -13,7 +13,7 @@ _U = TypeVar("_U")
 CollateFn = Callable[[Sequence[_T_co]], _U]
 
 
-class _BaseFetcher(Generic[_T_co, _U]):
+class BaseFetcher(Generic[_T_co, _U]):
     def __init__(self, dataset: _types.Dataset[_T_co], collate_fn: CollateFn):
         """Init function."""
         self._dataset = dataset
@@ -24,7 +24,7 @@ class _BaseFetcher(Generic[_T_co, _U]):
         """Fetch the batch."""
 
 
-class _IterableFetcher(_BaseFetcher, Generic[_T_co, _U]):
+class _IterableFetcher(BaseFetcher, Generic[_T_co, _U]):
     def __init__(self, dataset: _types.Dataset[_T_co], collate_fn: CollateFn):
         """Init function."""
         super().__init__(dataset, collate_fn)
@@ -51,7 +51,7 @@ class _IterableFetcher(_BaseFetcher, Generic[_T_co, _U]):
         return self._collate_fn(data)
 
 
-class _MapFetcher(_BaseFetcher, Generic[_T_co, _U]):
+class _MapFetcher(BaseFetcher, Generic[_T_co, _U]):
     def fetch(self, possibly_batched_index) -> _U:
         """Fetch function."""
         if hasattr(self._dataset, "__getitems__") and self._dataset.__getitems__:
@@ -63,7 +63,7 @@ class _MapFetcher(_BaseFetcher, Generic[_T_co, _U]):
 
 
 @functools.singledispatch
-def _create_fetcher(dataset: _types.Dataset[_T_co], collate_fn: CollateFn) -> _BaseFetcher:
+def _create_fetcher(dataset: _types.Dataset[_T_co], collate_fn: CollateFn) -> BaseFetcher:
     """Create fetcher (internal singledispatch)."""
     raise TypeError(f"Unsupported type {type(dataset).__name__}")
 
@@ -104,7 +104,7 @@ def create_iterable_fetcher(
 
 def create_fetcher(
     dataset: _types.Dataset[_T_co], collate_fn: CollateFn[_T_co, _U]
-) -> _BaseFetcher[_T_co, _U]:
+) -> BaseFetcher[_T_co, _U]:
     """Create fetcher.
 
     A ``jax.Array`` is registered as a (concrete) ``Iterable`` but not a ``Sequence``, and

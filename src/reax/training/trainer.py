@@ -12,6 +12,7 @@ import weakref
 import beartype
 from flax import nnx
 import fsspec
+import fsspec.utils
 import jaxtyping as jt
 from lightning_utilities.core import rank_zero
 from typing_extensions import override
@@ -24,6 +25,8 @@ from ..utils import events
 from . import _checkpointing, _deprecated, _logger_connector
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     import reax
 
 StageT = TypeVar("StageT", bound=stages.Stage)
@@ -35,8 +38,6 @@ __all__ = ("Trainer",)
 
 class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     # pylint: disable=too-many-public-methods
-
-    _engine = None
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
@@ -53,7 +54,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         enable_progress_bar: bool = True,
         enable_model_summary: bool | None = None,
         deterministic: bool = False,
-        rngs: nnx.Rngs = None,
+        rngs: nnx.Rngs | None = None,
         default_root_dir: "reax.types.Path | None" = None,
         checkpointing: "reax.Checkpointing | None" = None,
         profiler: "reax.Profiler | None" = None,
@@ -127,13 +128,11 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         After this called this object should no longer be interacted with.
         """
         self._engine.finalize()
-        self._engine = None
-        self._events = None
+        self._events.reset()
 
     def __del__(self):
         """Del function."""
-        if self._engine is not None:
-            self.finalize()
+        self.finalize()
 
     @property
     def engine(self) -> "reax.Engine":
@@ -204,7 +203,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     @should_stop.setter
     def should_stop(self, stop: bool):
         """Should stop."""
-        if stop:
+        if stop and self._stage is not None:
             self._stage.stop("None")
 
     @property
@@ -391,7 +390,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         *,
         prog_bar: bool = False,
         batch_size: int | None = None,
-        logger: bool = None,
+        logger: bool | None = None,
         on_step=True,
         on_epoch=True,
         reduce_fn: "reax.types.ReduceFn" = "mean",
@@ -429,7 +428,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         max_epochs: int | None = 1_000,
         min_epochs: int = 0,
         min_updates: int = 0,
-        max_updates: int | float = None,
+        max_updates: int | float | None = None,
         max_time: str | datetime.timedelta | dict[str, int] | None = None,
         limit_train_batches: int | float | None = 1.0,
         accumulate_grad_batches: int = 1,
@@ -549,7 +548,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         ckpt_path: "reax.types.Path | None" = None,
         keep_predictions: bool | None = None,
         fast_dev_run: bool | int = False,
-        limit_batches: int | float = keys.NO_LIMIT,
+        limit_batches: int | float | None = keys.NO_LIMIT,
     ) -> "reax.stages.Predict":
         r"""Run inference on the data.
 
@@ -584,8 +583,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         datamodule: "reax.DataModule | None" = None,
         dataset_name: str = "train",
         fast_dev_run: bool | int = False,
-        limit_batches: int | float = keys.NO_LIMIT,
-        metric_evaluator: "reax.metrics.MetricEvaluator" = None,
+        limit_batches: int | float | None = keys.NO_LIMIT,
+        metric_evaluator: "reax.metrics.MetricEvaluator | None" = None,
     ) -> "reax.stages.EvaluateStats":
         r"""Evaluate metrics on a dataset to get statistics about it.
 
@@ -708,7 +707,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             all_listeners.extend(listeners)
             all_listeners = _reorder_listeners(all_listeners)
         else:
-            all_listeners = None
+            all_listeners = []
 
         original_events = self._events
         try:
@@ -721,8 +720,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
             yield
         finally:
-            if listeners:
-                self._events = original_events
+            self._events = original_events
 
     @override
     def on_stage_start(self, stage: "stages.Stage", /) -> None:
@@ -840,13 +838,11 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
     def _create_data_manager(
         self,
-        module: "reax.data.DataSource" = None,
-        datamodule: "reax.data.DataModule" = None,
+        module: "reax.data.DataSource | None" = None,
+        datamodule: "reax.data.DataModule | None" = None,
         **loaders,
     ) -> data.DataSourceManager:
-        return data.create_manager(
-            module=module, datamodule=datamodule, engine=self._engine, **loaders
-        )
+        return data.create_manager(self._engine, module=module, datamodule=datamodule, **loaders)
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)

@@ -27,7 +27,7 @@ class Metric(equinox.Module, Generic[_OutT], metaclass=abc.ABCMeta):
     """
 
     @classmethod
-    def from_fun(cls, function: Callable, name: str = None) -> type["FromFun[_OutT]"]:
+    def from_fun(cls, function: Callable, name: str | None = None) -> type["FromFun[_OutT]"]:
         """Create a new metric from this one where a function is called before passing it on to this
         metric.
 
@@ -138,7 +138,7 @@ class FromFun(Metric[_OutT]):
     func: ClassVar[Callable]
     _state: Metric[_OutT]
 
-    def __init__(self, *args, state: Metric[_OutT] = None, **kwargs):
+    def __init__(self, *args, state: Metric[_OutT] | None = None, **kwargs):
         super().__init__()
         if self.metric is None:
             raise RuntimeError(

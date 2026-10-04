@@ -260,7 +260,7 @@ def create_sampler(
     batch_size: int | None = None,
     replacements: bool = False,
     shuffle: bool = False,
-    sampler: "reax.data.Sampler[_T_co]" = None,
+    sampler: "reax.data.Sampler[_T_co] | None" = None,
     drop_last: bool = False,
 ) -> "reax.data.Sampler[_T_co]":
     """Create sampler."""

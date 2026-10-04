@@ -28,7 +28,7 @@ class MetricCollection(equinox.Module):
     def __init__(
         self,
         metrics: "reax.Metric | Sequence[reax.Metric] | dict[str, reax.Metric]",
-        evaluator: "reax.metrics.MetricEvaluator" = None,
+        evaluator: "reax.metrics.MetricEvaluator | None" = None,
     ):
         super().__init__()
         self._metrics = flax.core.FrozenDict(_metrics_dict(metrics))

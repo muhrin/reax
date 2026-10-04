@@ -32,7 +32,7 @@ Children = list[subprocess.Popen]
 class JaxDdpStrategy(_parallel.ParallelStrategy):
     """This strategy uses multi-processing and the JAX library for communication."""
 
-    def __init__(self, platform: str = None, devices: int | str = "auto"):
+    def __init__(self, platform: str | None = None, devices: int | str = "auto"):
         _LOGGER.info("Starting JAX DDP strategy...")
         res = self._init(platform, devices)
         self._process_id = res[0]

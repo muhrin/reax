@@ -10,7 +10,7 @@ class BaseRegistry(Mapping[K, V]):
     (a possibly) different type
     """
 
-    def __init__(self, init: dict[K, V] = None):
+    def __init__(self, init: dict[K, V] | None = None):
         self._registry = {}
         if init:
             self.register_many(init)

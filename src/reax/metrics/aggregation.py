@@ -230,7 +230,10 @@ class Std(Aggregation):
     count: jax.Array
 
     def __init__(
-        self, total: jax.Array = None, sum_of_squares: jax.Array = None, count: jax.Array = None
+        self,
+        total: jax.Array | None = None,
+        sum_of_squares: jax.Array | None = None,
+        count: jax.Array | None = None,
     ):
         super().__init__()
         # State

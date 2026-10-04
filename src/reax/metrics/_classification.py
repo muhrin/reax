@@ -36,11 +36,20 @@ import beartype
 import jax.numpy as jnp
 import jax.typing
 import jaxtyping as jt
-from typing_extensions import override
+from typing_extensions import TypedDict, override
 
 from . import _metric, jm
 
-__all__ = ("Accuracy",)
+__all__ = ("Accuracy", "StatScores")
+
+
+class StatScores(TypedDict):
+    """Accumulated true/false positive/negative counts (global or per-class)."""
+
+    tp: jax.Array
+    fp: jax.Array
+    tn: jax.Array
+    fn: jax.Array
 
 
 class Accuracy(_metric.Metric):
@@ -62,10 +71,7 @@ class Accuracy(_metric.Metric):
     be correctly predicted) by setting `subset_accuracy=True`.
     """
 
-    tp: jax.Array
-    fp: jax.Array
-    tn: jax.Array
-    fn: jax.Array
+    stats: StatScores
 
     mode: jm.DataType
     average: jm.AverageMethod
@@ -90,10 +96,7 @@ class Accuracy(_metric.Metric):
         multiclass: bool | None = None,
         subset_accuracy: bool = False,
         mode: str | jm.DataType = jm.DataType.MULTICLASS,
-        tp: jax.Array = None,
-        fp: jax.Array = None,
-        tn: jax.Array = None,
-        fn: jax.Array = None,
+        stats: StatScores | None = None,
     ):
         """Init function.
 
@@ -165,14 +168,10 @@ class Accuracy(_metric.Metric):
                 special cases, where you want to treat inputs as a
                 different type than what they appear to be. See the
                 parameter's, defaults to None.
-            fn (jax.Array, optional): Only used when merging, defaults
-                to None.
-            tn (jax.Array, optional): Only used when merging, defaults
-                to None.
-            fp (jax.Array, optional): Only used when merging, defaults
-                to None.
-            tp (jax.Array, optional): Only used when merging, defaults
-                to None.
+            stats (StatScores, optional): Accumulated true/false
+                positive/negative counts. Only used when merging or
+                restoring a prior state; when omitted, fresh zero counters
+                are initialised, defaults to None.
 
         Raises:
             ValueError: If `top_k` is not an `integer` larger than `0`.
@@ -230,15 +229,9 @@ class Accuracy(_metric.Metric):
         self.subset_accuracy = subset_accuracy
         self.mode = mode
 
-        if tp is None:
-            self.__dict__.update(self._initial_values())
-        else:
-            self.tp = tp
-            self.fp = fp
-            self.tn = tn
-            self.fn = fn
+        self.stats = stats if stats is not None else self._initial_values()
 
-    def _initial_values(self) -> dict[str, jax.Array]:
+    def _initial_values(self) -> StatScores:
         """Initial values."""
         # nodes
         zeros_shape: list[int]
@@ -255,7 +248,7 @@ class Accuracy(_metric.Metric):
 
         initial_value = jnp.zeros(zeros_shape, dtype=jnp.uint32)
 
-        return dict(
+        return StatScores(
             tp=initial_value,
             fp=initial_value,
             tn=initial_value,
@@ -311,17 +304,19 @@ class Accuracy(_metric.Metric):
             multiclass=self.multiclass,
         )
 
-        return dataclasses.replace(self, tp=tp, fp=fp, tn=tn, fn=fn)
+        return dataclasses.replace(self, stats=StatScores(tp=tp, fp=fp, tn=tn, fn=fn))
 
     @override
     def merge(self, other: "Accuracy") -> "Accuracy":
         """Merge function."""
         return dataclasses.replace(
             self,
-            tp=self.tp + other.tp,
-            fp=self.fp + other.fp,
-            tn=self.tn + other.tn,
-            fn=self.fn + other.fn,
+            stats=StatScores(
+                tp=self.stats["tp"] + other.stats["tp"],
+                fp=self.stats["fp"] + other.stats["fp"],
+                tn=self.stats["tn"] + other.stats["tn"],
+                fn=self.stats["fn"] + other.stats["fn"],
+            ),
         )
 
     @override
@@ -335,10 +330,10 @@ class Accuracy(_metric.Metric):
         #     raise RuntimeError("You have to have determined mode.")
 
         return jm.accuracy_compute(
-            self.tp,
-            self.fp,
-            self.tn,
-            self.fn,
+            self.stats["tp"],
+            self.stats["fp"],
+            self.stats["tn"],
+            self.stats["fn"],
             self.average,
             self.mdmc_average,
             self.mode,

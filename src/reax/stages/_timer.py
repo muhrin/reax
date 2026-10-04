@@ -19,7 +19,7 @@ __all__ = ("StageTimer",)
 
 
 class StageTimer(common.StageListener):
-    def __init__(self, max_time: str | datetime.timedelta | dict[str, int] = None):
+    def __init__(self, max_time: str | datetime.timedelta | dict[str, int] | None = None):
         # Params
         self._max_time: Final[float] = self._init_max_time(max_time)
 

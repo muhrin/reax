@@ -51,7 +51,7 @@ class EventGenerator(Generic[ListenerT]):
         # pylint: disable=redefined-builtin
         self,
         *,
-        type: type[T] = None,
+        type: type[T] | None = None,
     ) -> list[T]:
         """Find listeners matching the passed filter(s)."""
 
@@ -62,3 +62,7 @@ class EventGenerator(Generic[ListenerT]):
             return True
 
         return [listener for listener in self._event_listeners.values() if filtr(listener)]
+
+    def reset(self):
+        """Reset the event generator."""
+        self._event_listeners.clear()

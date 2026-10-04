@@ -60,7 +60,7 @@ class Engine:
         logger: "reax.Logger | Iterable[reax.Logger] | bool | None" = True,
         listeners: "list[reax.TrainerListener] | reax.TrainerListener | None" = None,
         deterministic: bool = False,
-        rngs: nnx.Rngs = None,
+        rngs: nnx.Rngs | None = None,
         default_root_dir: "reax.types.Path | None" = None,
         profiler: "reax.Profiler | str | None" = None,
         metric_evaluator: "reax.MetricEvaluator | None" = None,

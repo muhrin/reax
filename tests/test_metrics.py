@@ -467,9 +467,8 @@ def test_accuracy_multiclass():
     target = jnp.array([0, 1, 2, 1])
 
     acc = metrics.Accuracy()
-    # tp/fp/tn/fn are dataclass fields
-    for field in ("tp", "fp", "tn", "fn"):
-        assert hasattr(acc, field)
+    # tp/fp/tn/fn counters are stored on the stats bundle
+    assert set(acc.stats) == {"tp", "fp", "tn", "fn"}
 
     acc1 = acc.update(preds, target)
     acc2 = acc.update(preds, target)

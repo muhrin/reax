@@ -6,6 +6,7 @@ from . import (
     dataloaders,
     datamodules,
     datasets,
+    fetchers,
     kfold,
     samplers,
     utils,
@@ -32,5 +33,8 @@ __all__ = (
     + _types.__all__
     + utils.__all__
     + kfold.__all__
-    + ("samplers",)
+    + (
+        "fetchers",
+        "samplers",
+    )
 )

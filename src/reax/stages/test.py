@@ -27,7 +27,7 @@ class Test(stages.EpochStage):
         datamanager: "reax.data.DataSourceManager",
         engine: "reax.Engine",
         *,
-        rngs: nnx.Rngs = None,
+        rngs: nnx.Rngs | None = None,
         fast_dev_run: bool | int = False,
         limit_batches: int | float | None = None,
     ):

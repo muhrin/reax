@@ -54,7 +54,7 @@ class ParallelDataLoader(data_.DataLoader[_T_co, _U]):
         self,
         dataset: "reax.data.Dataset[_T_co]",
         sampler: data_.samplers.DistributedSampler,
-        fetcher: "fetchers._BaseFetcher[_T_co, _U]",
+        fetcher: "reax.data.fetchers.BaseFetcher[_T_co, _U]",
     ):
         self._dataset = dataset
         self._sampler = sampler

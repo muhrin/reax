@@ -76,7 +76,7 @@ class LeastSquaresEstimate(_metric.Metric[jax.Array]):
     values: jax.Array | None
     targets: jax.Array | None
 
-    def __init__(self, values: jax.Array = None, targets: jax.Array = None):
+    def __init__(self, values: jax.Array | None = None, targets: jax.Array | None = None):
         """Init function."""
         super().__init__()
         self.values = values
