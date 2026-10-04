@@ -9,6 +9,12 @@ import reax.data
 from reax.data import _datasource_manager, _loaders, datamodules
 
 
+def _identity_engine() -> MagicMock:
+    e = MagicMock()
+    e.setup_dataloaders.side_effect = lambda x: x
+    return e
+
+
 class CountingDataModule(datamodules.DataModule):
     def __init__(self, **kwargs):
         super().__init__()
@@ -19,10 +25,10 @@ class CountingDataModule(datamodules.DataModule):
     def prepare_data(self):
         self.events.append("prepare_data")
 
-    def setup(self, stage):
+    def setup(self, engine, /, *, stage=None):
         self.events.append(f"setup:{stage}")
 
-    def teardown(self, stage):
+    def teardown(self, engine, /, *, stage=None):
         self.events.append(f"teardown:{stage}")
 
     def on_exception(self, exception):
@@ -34,14 +40,6 @@ class CountingDataModule(datamodules.DataModule):
 
 def _loaders_test_data():
     return (jnp.ones((4, 2)),)
-
-
-def test_datamodule_rngs_getter_setter():
-    source = datamodules.DataModule()
-    assert isinstance(source.rngs, nnx.Rngs)
-    new = nnx.Rngs(7)
-    source.rngs = new
-    assert source.rngs is new
 
 
 def test_datamodule_from_datasets_returns_from_datasets():
@@ -86,7 +84,7 @@ def test_from_datasets_defaults_to_none():
 
 def test_manager_create_with_datamodule():
     source = CountingDataModule()
-    manager = _datasource_manager.create_manager(datamodule=source)
+    manager = _datasource_manager.create_manager(_identity_engine(), datamodule=source)
     assert manager.source is source
     assert manager.has_dataloader("train")
     assert not manager.has_dataloader("bogus_name")
@@ -100,7 +98,7 @@ def test_manager_create_with_module():
             return _loaders.ReaxDataLoader([1, 2], batch_size=2)
 
     module = MyModule()
-    manager = _datasource_manager.create_manager(module=module)
+    manager = _datasource_manager.create_manager(_identity_engine(), module=module)
     assert manager.source is module
     assert manager.has_dataloader("train")
 
@@ -109,14 +107,14 @@ def test_manager_source_base_type_raises_for_invalid_source():
     class InvalidSource:
         pass
 
-    manager = _datasource_manager.DataSourceManager(InvalidSource())
+    manager = _datasource_manager.DataSourceManager(InvalidSource(), _identity_engine())
     with pytest.raises(RuntimeError, match="expected datasource"):
         manager._source_base_type  # noqa: B018
 
 
 def test_manager_get_dataloader():
     source = CountingDataModule()
-    manager = _datasource_manager.create_manager(datamodule=source)
+    manager = _datasource_manager.create_manager(_identity_engine(), datamodule=source)
     loader = manager.get_dataloader("train")
     assert isinstance(loader, _loaders.ReaxDataLoader)
 
@@ -127,8 +125,10 @@ def test_manager_get_dataloader():
 def test_manager_has_dataloader_from_pre_supplied_loaders():
     source = CountingDataModule()
     loader = _loaders.ReaxDataLoader([1, 2], batch_size=2)
-    manager = _datasource_manager.create_manager(source, train=loader)
-    # Pre-supplied loaders are found in `_loaders`:
+    manager = _datasource_manager.create_manager(
+        _identity_engine(), datamodule=source, train=loader
+    )
+    # Pre-supplied loaders are found in `_loaders` (wrapped by identity engine):
     assert manager._loaders["train"] is loader
     assert manager.get_dataloader("train") is loader
     assert manager.has_dataloader("train")
@@ -136,7 +136,9 @@ def test_manager_has_dataloader_from_pre_supplied_loaders():
 
 def test_manager_create_filters_none_loaders():
     source = CountingDataModule()
-    manager = _datasource_manager.create_manager(source, val=None, train=[1, 2])
+    manager = _datasource_manager.create_manager(
+        _identity_engine(), datamodule=source, val=None, train=[1, 2]
+    )
     assert "val" not in manager._loaders
     assert "train" in manager._loaders
 
@@ -150,17 +152,19 @@ def test_manager_create_prefers_datamodule_over_module():
 
     datamodule = CountingDataModule()
     module = MyModule()
-    manager = _datasource_manager.create_manager(module=module, datamodule=datamodule)
+    manager = _datasource_manager.create_manager(
+        _identity_engine(), module=module, datamodule=datamodule
+    )
     assert manager.source is datamodule
 
 
 def test_manager_events():
     source = CountingDataModule()
-    manager = _datasource_manager.create_manager(datamodule=source)
+    manager = _datasource_manager.create_manager(_identity_engine(), datamodule=source)
 
     manager.prepare_data()
-    manager.setup("fit")
-    manager.teardown("fit")
+    manager.setup(stage="fit")
+    manager.teardown(stage="fit")
     manager.on_exception(ValueError("ouch"))
 
     assert source.events == [
@@ -172,17 +176,17 @@ def test_manager_events():
 
 
 def test_manager_events_no_source():
-    manager = _datasource_manager.DataSourceManager(None)
+    manager = _datasource_manager.DataSourceManager(None, _identity_engine())
     manager.prepare_data()
-    manager.setup("fit")
-    manager.teardown("fit")
+    manager.setup(stage="fit")
+    manager.teardown(stage="fit")
     manager.on_exception(Exception("boom"))
     assert manager.source is None
 
 
 def test_manager_reset_clears_cache():
     source = CountingDataModule()
-    manager = _datasource_manager.create_manager(datamodule=source)
+    manager = _datasource_manager.create_manager(_identity_engine(), datamodule=source)
     manager.get_dataloader("train")
     assert len(manager._from_datasource) == 1
 
@@ -195,16 +199,16 @@ def test_manager_setup_dataloader_with_engine():
     engine = MagicMock()
     wrapped = MagicMock()
     engine.setup_dataloaders.return_value = wrapped
-    manager = _datasource_manager.create_manager(datamodule=source, engine=engine)
+    manager = _datasource_manager.create_manager(engine, datamodule=source)
 
     loader = manager.get_dataloader("train")
     assert loader is wrapped
     engine.setup_dataloaders.assert_called_once()
 
 
-def test_manager_setup_dataloader_without_engine_passthrough():
+def test_manager_setup_dataloader_passthrough():
     source = CountingDataModule()
-    manager = _datasource_manager.create_manager(datamodule=source)
+    manager = _datasource_manager.create_manager(_identity_engine(), datamodule=source)
     loader = manager.get_dataloader("train")
     assert manager.source is source
     assert loader is not None

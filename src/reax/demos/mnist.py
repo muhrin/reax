@@ -144,32 +144,32 @@ class MnistDataModule(reax.DataModule):
     mass of the pixels, and translating the image so as to position this point at the center of the
     28x28 field.
 
-    A `reax.DataModule` implements 7 key methods:
+    A :class:`reax.DataModule` implements 7 key methods:
 
     ```python
         def prepare_data(self):
-        # Things to do on 1 GPU/TPU (not on every GPU/TPU in DDP).
-        # Download data, pre-process, split, save to disk, etc...
+            # Things to do on 1 node (not on every node in DDP).
+            # Download data, pre-process, split, save to disk, etc...
 
-        def setup(self, stage):
-        # Things to do on every process in DDP.
-        # Load data, set variables, etc...
+        def setup(self, engine, *, stage):
+            # Things to do on every process in DDP.
+            # Load data, set variables, etc...
 
         def train_dataloader(self):
-        # return train dataloader
+            # return train dataloader
 
         def val_dataloader(self):
-        # return validation dataloader
+            # return validation dataloader
 
         def test_dataloader(self):
-        # return test dataloader
+            # return test dataloader
 
         def predict_dataloader(self):
-        # return predict dataloader
+            # return predict dataloader
 
-        def teardown(self, stage):
-        # Called on every process in DDP.
-        # Clean up after fit or test.
+        def teardown(self, engine, *, stage):
+            # Called on every process in DDP.
+            # Clean up after fit or test.
     ```
 
     This allows you to share a full dataset without explaining how to download,
@@ -244,7 +244,7 @@ class MnistDataModule(reax.DataModule):
                 self._do_download(self.mirrors[0] + filename, filename)
 
     @override
-    def setup(self, stage: "reax.Stage", /) -> None:
+    def setup(self, engine: "reax.Engine", /, *, stage: str | None = None) -> None:
         """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
 
         This method is called by REAX before `trainer.fit()`, `trainer.validate()`,
@@ -253,8 +253,9 @@ class MnistDataModule(reax.DataModule):
         between which ensures that all the processes proceed to `self.setup()` once the data is
         prepared and available for use.
 
-        :param stage: The stage to setup. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`.
-        Defaults to ``None``.
+        Args:
+            engine: The :class:`reax.Engine` providing device, RNG and distributed primitives.
+            stage: Name of the stage being set up (e.g. ``"fit"``, ``"validate"``, ``"test"``).
         """
         # TODO: Divide batch size by the number of devices.
         # if self.trainer is not None:
@@ -279,7 +280,7 @@ class MnistDataModule(reax.DataModule):
 
             dataset = reax.data.ConcatDataset([trainset, testset])
             self.data_train, self.data_val, self.data_test = reax.data.random_split(
-                stage.rngs,
+                engine.rngs,
                 dataset=dataset,
                 lengths=self._train_val_test_split,
             )

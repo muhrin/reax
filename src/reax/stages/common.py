@@ -169,8 +169,13 @@ class DataSourceManager(Generic[_T_co]):
         ) -> "reax.data.DataLoader[_T_co, _U]":
             return self.dataloader.with_new_sampler(sampler)
 
-    def __init__(self, source: "reax.data.DataSource[_T_co, _U]"):
+    def __init__(
+        self,
+        source: "reax.data.DataSource[_T_co, _U]",
+        engine: "reax.Engine | None" = None,
+    ):
         self._source = source
+        self._engine = engine
         self._ready = False
 
     @property
@@ -189,24 +194,11 @@ class DataSourceManager(Generic[_T_co]):
             )
         return self._source
 
-    def prepare_and_setup(self, stage) -> None:
+    def prepare_and_setup(self, engine: "reax.Engine", /, *, stage: str | None = None) -> None:
         if self.ready:
             # Already done
             return
 
         self._source.prepare_data()
-        self._source.setup(stage)
+        self._source.setup(engine, stage=stage)
         self._ready = True
-
-
-def get_datasource(
-    datamodule: "reax.DataModule[_T_co, _U] | None" = None,
-    module: "reax.Module | None" = None,
-) -> DataSourceManager[_T_co] | None:
-    if datamodule is not None:
-        return DataSourceManager(datamodule)
-
-    if module is not None:
-        return DataSourceManager(module)
-
-    return None

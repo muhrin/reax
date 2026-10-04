@@ -323,8 +323,8 @@ def test_trainer_setup_call(tmp_path, stage):
     """Test setup call gets the correct stage."""
 
     class CurrentModel(demos.BoringModel):
-        def setup(self, stage):
-            super().setup(stage)
+        def setup(self, engine=None, /, *, stage=None):
+            super().setup(engine, stage=stage)
             self.stage = stage
 
     class CurrentListener(reax.TrainerListener):
@@ -347,6 +347,45 @@ def test_trainer_setup_call(tmp_path, stage):
 
     assert str(listener.stage) == stage
     assert str(model.stage) == stage
+
+
+@pytest.mark.parametrize("stage", ["fit", "validate", "test"])
+def test_trainer_teardown_calls_datamodule(tmp_path, stage):
+    """Teardown fires on the datasource exactly once with the root stage name."""
+
+    class RecordingDataModule(reax.DataModule):
+        def __init__(self):
+            super().__init__()
+            self.setup_calls = []
+            self.teardown_calls = []
+
+        def setup(self, engine, /, *, stage=None):
+            self.setup_calls.append(stage)
+
+        def teardown(self, engine, /, *, stage=None):
+            self.teardown_calls.append(stage)
+
+        def train_dataloader(self):
+            return demos.BoringModel().train_dataloader()
+
+        def val_dataloader(self):
+            return demos.BoringModel().val_dataloader()
+
+        def test_dataloader(self):
+            return demos.BoringModel().test_dataloader()
+
+    datamodule = RecordingDataModule()
+    trainer = reax.Trainer(default_root_dir=tmp_path, enable_checkpointing=False)
+
+    if stage == "fit":
+        trainer.fit(demos.BoringModel(), max_epochs=1, datamodule=datamodule)
+    elif stage == "validate":
+        trainer.validate(demos.BoringModel(), datamodule=datamodule)
+    else:
+        trainer.test(demos.BoringModel(), datamodule=datamodule)
+
+    assert datamodule.setup_calls == [stage]
+    assert datamodule.teardown_calls == [stage]
 
 
 @pytest.mark.parametrize("return_predictions", [None, False, True])

@@ -78,7 +78,7 @@ class DataSource(Generic[_T_co, U]):
 
             model.prepare_data()
             initialize_distributed()
-            model.setup(stage)
+            model.setup(engine, stage="fit")
             model.train_dataloader()
             model.val_dataloader()
             model.test_dataloader()
@@ -86,15 +86,23 @@ class DataSource(Generic[_T_co, U]):
 
         """
 
-    def setup(self, stage: "reax.Stage", /) -> None:
+    def setup(self, engine: "reax.Engine", /, *, stage: str | None = None) -> None:
         """Called at the beginning of a trainer stage. This is a good hook when you need to
         build models dynamically or adjust something about them. This hook is called on every
         process when using DDP.
 
+        Args:
+            engine: The :class:`reax.Engine` providing device, RNG and distributed primitives.
+                Use ``engine.rngs`` for reproducible splits or ``engine.default_device()`` for
+                device placement.
+            stage: Optional name of the stage being set up (e.g. ``"fit"``, ``"validate"``,
+                ``"test"``, ``"predict"``).
+
         Example::
 
-            class LitModel(...):
+            class MyDataModule(reax.DataModule):
                 def __init__(self):
+                    super().__init__()
                     self.l1 = None
 
                 def prepare_data(self):
@@ -104,14 +112,20 @@ class DataSource(Generic[_T_co, U]):
                     # don't do this
                     self.something = else
 
-                def setup(self, stage):
+                def setup(self, engine, *, stage):
                     data = load_data(...)
                     self.l1 = nn.Linear(28, data.num_classes)
 
         """
 
-    def teardown(self, stage: "reax.Stage", /) -> None:
-        """Called at the end of a trainer stage"""
+    def teardown(self, engine: "reax.Engine", /, *, stage: str | None = None) -> None:
+        """Called at the end of a trainer stage. Use this to free resources, delete temporary
+        files, or otherwise clean up any state created in :meth:`setup`.
+
+        Args:
+            engine: The :class:`reax.Engine` that was passed to :meth:`setup`.
+            stage: Optional name of the stage being torn down.
+        """
 
     def on_exception(self, exception: BaseException, /) -> None:
         """Called when the stage execution is interrupted by an exception."""

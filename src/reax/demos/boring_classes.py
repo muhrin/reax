@@ -154,18 +154,18 @@ class BoringDataModule(reax.DataModule):
         super().__init__()
         self.random_full = RandomDataset(32, 64 * 4)
 
-    def setup(self, stage: reax.Stage, /) -> None:
+    def setup(self, engine: "reax.Engine", /, *, stage: str | None = None) -> None:
         # pylint: disable=attribute-defined-outside-init
-        if stage.name == "fit":
+        if stage == "fit":
             self.random_train = reax.data.Subset(self.random_full, indices=range(64))
 
-        if stage.name in ("fit", "validate"):
+        if stage in ("fit", "validate"):
             self.random_val = reax.data.Subset(self.random_full, indices=range(64, 64 * 2))
 
-        if stage.name == "test":
+        if stage == "test":
             self.random_test = reax.data.Subset(self.random_full, indices=range(64 * 2, 64 * 3))
 
-        if stage.name == "predict":
+        if stage == "predict":
             self.random_predict = reax.data.Subset(self.random_full, indices=range(64 * 3, 64 * 4))
 
     def train_dataloader(self) -> reax.DataLoader:

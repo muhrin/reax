@@ -112,6 +112,22 @@ class Module(
         # Multiple optimisers
         return optimizers
 
+    def setup(
+        self,
+        engine: "reax.Engine" = None,
+        /,
+        *,
+        stage: str | None = None,
+        batch: BatchT | None = None,
+    ) -> None:
+        """Called at the beginning of a trainer stage.
+
+        Args:
+            engine: The :class:`reax.Engine` providing device, RNG and distributed primitives.
+            stage: Optional name of the stage being set up.
+            batch: Optional sample batch (used by the ``Fit`` stage to pass the first train batch).
+        """
+
     def configure_model(self, stage: "reax.Stage", batch: Any, /) -> None:
         """Called at the beginning of each stage.
 

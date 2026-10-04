@@ -308,6 +308,9 @@ class Stage(abc.ABC):
         if self._module is not None:
             self._module.on_stage_end(weakref.proxy(self))
 
+        if self.is_root:
+            self._teardown()
+
     def _done(self) -> bool:
         """Done function."""
         if self.max_iters is not None and self._iter >= self.max_iters:
@@ -333,12 +336,17 @@ class Stage(abc.ABC):
     def _prepare_data(self) -> None:
         self._datamanager.prepare_data()
 
+    def _teardown(self) -> None:
+        """Called at the end of a trainer stage. Mirrors :meth:`_setup`."""
+        if self._datamanager.source is not self._datamanager:
+            self._datamanager.teardown(stage=self.name)
+
     def _setup(self) -> None:
         if self._datamanager.source is not self._datamanager:
-            self._datamanager.setup(weakref.proxy(self))
+            self._datamanager.setup(stage=self.name)
 
         if self._module is not None:
-            self._module.setup(weakref.proxy(self))
+            self._module.setup(self._engine, stage=self.name)
 
     def _on_exception(self, exception: BaseException) -> None:  # noqa: B027
         """Hook to deal with an exception"""

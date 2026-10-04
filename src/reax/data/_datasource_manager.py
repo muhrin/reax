@@ -10,15 +10,40 @@ if TYPE_CHECKING:
     import reax
 
 
-___all__ = ("DataSourceManager", "create_manager")
+__all__ = ("DataSourceManager", "create_manager")
 
 
 class DataSourceManager(abc.ABC):  # noqa: B024
-    """Manager for coordinating getting data from a source"""
+    """Coordinator that fronts a :class:`~reax.data.DataSource` (a :class:`~reax.DataModule` or
+    :class:`~reax.Module`) and hands out ready-to-use dataloaders.
+
+    The manager is bound to a :class:`reax.Engine` once at construction time. It is responsible
+    for running the source's lifecycle hooks (:meth:`prepare_data`, :meth:`setup`,
+    :meth:`teardown`, :meth:`on_exception`) and for wrapping any dataloaders returned by the
+    source with the engine's device/distributed logic via
+    :meth:`~reax.Engine.setup_dataloaders`.
+
+    Attributes:
+        source: The wrapped :class:`~reax.data.DataSource` (or ``None`` if the manager was
+            created with pre-supplied loaders only).
+    """
 
     def __init__(
-        self, source: _datasources.DataSource | None, engine: "reax.Engine" = None, **loaders
-    ):
+        self,
+        source: _datasources.DataSource | None,
+        engine: "reax.Engine",
+        **loaders: "reax.data.DataLoader",
+    ) -> None:
+        """Create a manager.
+
+        Args:
+            source: A :class:`~reax.DataModule` or :class:`~reax.Module` providing the dataloaders
+                and lifecycle hooks, or ``None`` if dataloaders are passed directly.
+            engine: The :class:`reax.Engine` to use for device placement and distributed setup.
+                Bound once here and reused for every :meth:`setup`/:meth:`teardown` call.
+            **loaders: Optional pre-supplied dataloaders keyed by stage name (e.g.
+                ``train=..., val=...``). These bypass the source and are wrapped directly.
+        """
         self._datasource: _datasources.DataSource | None = source
         self._engine = engine
         self._loaders: dict[str, reax.data.DataLoader] = {
@@ -77,10 +102,17 @@ class DataSourceManager(abc.ABC):  # noqa: B024
         ):
             self._datasource.prepare_data()
 
-    def setup(self, stage) -> None:
-        """Tell the data source to set itself up"""
-        if self._datasource is not None:
-            self._datasource.setup(stage)
+    def setup(self, /, *, stage: str | None = None) -> None:
+        """Call ``setup`` on the wrapped source.
+
+        The :class:`reax.Engine` bound at construction is forwarded to the source.
+
+        Args:
+            stage: Name of the stage being set up (e.g. ``"fit"``, ``"validate"``, ``"test"``).
+        """
+        if self._datasource is None:
+            return
+        self._datasource.setup(self._engine, stage=stage)
 
     def on_exception(self, exception: BaseException) -> None:
         """Tell the data source that an exception has occurred"""
@@ -88,10 +120,15 @@ class DataSourceManager(abc.ABC):  # noqa: B024
         if self._datasource is not None:
             self._datasource.on_exception(exception)
 
-    def teardown(self, stage) -> None:
-        """Tell the data source to tear down"""
-        if self._datasource is not None:
-            self._datasource.teardown(stage)
+    def teardown(self, /, *, stage: str | None = None) -> None:
+        """Call ``teardown`` on the wrapped source.
+
+        Args:
+            stage: Name of the stage being torn down (e.g. ``"fit"``, ``"validate"``, ``"test"``).
+        """
+        if self._datasource is None:
+            return
+        self._datasource.teardown(self._engine, stage=stage)
 
     def reset(self):
         """Reset the cache so dataloaders get reloaded"""
@@ -105,18 +142,31 @@ class DataSourceManager(abc.ABC):  # noqa: B024
         return loader
 
     def _setup_dataloader(self, loader: "reax.DataLoader") -> "reax.DataLoader":
-        if self._engine is None:
-            return loader
-
+        """Wrap a dataloader with the bound engine's device/distributed logic."""
         return self._engine.setup_dataloaders(loader)
 
 
 def create_manager(
-    module: _datasources.DataSource = None,
-    datamodule: datamodules.DataModule = None,
-    engine: "reax.Engine" = None,
+    engine: "reax.Engine",
+    module: _datasources.DataSource | None = None,
+    datamodule: datamodules.DataModule | None = None,
     **loaders,
 ) -> DataSourceManager:
+    """Create a :class:`DataSourceManager` for a source and engine.
+
+    Args:
+        engine: The :class:`reax.Engine` to bind to the manager for device placement.
+            Required — the manager will call ``engine.setup_dataloaders`` for every
+            dataloader it hands out.
+        module: Optional :class:`~reax.Module` to source dataloaders from.
+        datamodule: Optional :class:`~reax.DataModule` to source dataloaders from.
+            Takes priority over ``module`` if both are provided.
+        **loaders: Pre-supplied dataloaders keyed by name (e.g. ``train=dl``) that
+            bypass the source and are wrapped directly by the engine.
+
+    Returns:
+        A :class:`DataSourceManager` ready to be used with the :class:`reax.Trainer`.
+    """
     # Filter out any loaders that are `None` as this makes calling this method easier
     passed_loaders = {name: loader for name, loader in loaders.items() if loader is not None}
 

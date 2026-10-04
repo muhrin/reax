@@ -20,12 +20,13 @@ projects.
 
 A DataModule is defined by the following steps:
 
-1.  **prepare_data**: Download, tokenise, etc. (runs only on 1 CPU in distributed settings).
+1.  **prepare_data**: Download, tokenise, etc. (runs only on 1 node in distributed settings).
 2.  **setup**: Split data, apply transforms (runs on every device).
 3.  **train_dataloader**: Returns the training dataloader.
 4.  **val_dataloader**: Returns the validation dataloader.
 5.  **test_dataloader**: Returns the test dataloader.
 6.  **predict_dataloader**: Returns the predict dataloader.
+7.  **teardown**: Clean up resources after a stage ends (runs on every device).
 
 Example
 -------
@@ -39,8 +40,10 @@ Example
             # Download MNIST
             ...
 
-        def setup(self, stage):
+        def setup(self, engine, *, stage):
             # Split dataset
+            rng = engine.rngs.default()
+            self.data_train, self.data_val = random_split(dataset, rng=rng)
             ...
 
         def train_dataloader(self):
@@ -48,6 +51,10 @@ Example
 
         def val_dataloader(self):
             return ReaxDataLoader(self.data_val, batch_size=64)
+
+        def teardown(self, engine, *, stage):
+            # Free resources
+            ...
 
 Using a DataModule
 ------------------

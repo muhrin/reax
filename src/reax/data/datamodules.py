@@ -1,7 +1,6 @@
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from flax import nnx
 from typing_extensions import override
 
 from . import _datasources, _loaders
@@ -18,17 +17,14 @@ U = TypeVar("U")
 
 
 class DataModule(Generic[_T_co, U], _datasources.DataSource[_T_co, U]):
-    def __init__(self):
-        super().__init__()
-        self._rngs = nnx.Rngs(0)
+    """Encapsulates all data-related logic: downloading, splitting, and batch construction.
 
-    @property
-    def rngs(self) -> nnx.Rngs:
-        return self._rngs
+    A :class:`DataModule` is the primary interface for providing data to a
+    :class:`reax.Module` via the :class:`reax.Trainer`.
 
-    @rngs.setter
-    def rngs(self, rngs: nnx.Rngs):
-        self._rngs = rngs
+    Attributes:
+        rngs: The :class:`flax.nnx.Rngs` shared with the engine for reproducible splits.
+    """
 
     @classmethod
     def from_datasets(
@@ -40,7 +36,15 @@ class DataModule(Generic[_T_co, U], _datasources.DataSource[_T_co, U]):
         *,
         batch_size: int = 1,
     ) -> "DataModule[_T_co, U]":
-        """From datasets."""
+        """Create a :class:`FromDatasets` data module from in-memory datasets.
+
+        Args:
+            train_dataset: Training data (array, ``array.array``, or list of them).
+            val_dataset: Validation data.
+            test_dataset: Test data.
+            predict_dataset: Prediction data.
+            batch_size: Global batch size.
+        """
         return FromDatasets(
             train_dataset, val_dataset, test_dataset, predict_dataset, batch_size=batch_size
         )
