@@ -60,7 +60,39 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         profiler: "reax.Profiler | None" = None,
         metric_evaluator: "reax.metrics.MetricEvaluator | None" = None,
     ):
-        """Init function."""
+        """Create a Trainer.
+
+        Args:
+            accelerator: Hardware accelerator to use (e.g. ``"auto"``, ``"cpu"``, ``"gpu"``).
+            strategy: Parallelism strategy to use (e.g. ``"auto"`` or a
+                :class:`reax.Strategy` instance).
+            devices: Number or list of devices to use (e.g. ``"auto"``, ``1``,
+                ``[0, 1]``).
+            precision: Numerical precision to use for training (e.g. ``"32"``).
+            logger: Logging backend configuration. ``True`` uses the default CSV logger,
+                ``False`` disables logging, or a :class:`reax.Logger` / list of loggers.
+            listeners: A :class:`reax.TrainerListener` or list of listeners to register
+                with the trainer for stage/lifecycle hooks.
+            log_every_n_steps: Number of training steps between metric logging calls.
+            enable_checkpointing: Whether to auto-configure a default checkpointing
+                listener when none is provided in ``listeners``.
+            enable_progress_bar: Whether to display a progress bar during stage execution.
+            enable_model_summary: Whether to print a model parameter summary at start.
+                Not yet supported; passing ``True`` emits a warning.
+            deterministic: If ``True``, enable deterministic training (reproducible
+                results, potentially slower).
+            rngs: Optional :class:`flax.nnx.Rngs` instance for controlling random
+                number generation. If ``None``, the engine's default RNGs are used.
+            default_root_dir: Default directory path used as the base for loggers,
+                checkpoints, and other artefacts. If ``None``, the current working
+                directory is used.
+            checkpointing: A custom :class:`reax.Checkpointing` implementation.
+                If ``None``, a default :class:`MsgpackCheckpointing` is used.
+            profiler: An optional :class:`reax.Profiler` for performance profiling
+                of stage execution.
+            metric_evaluator: An optional :class:`reax.metrics.MetricEvaluator` used
+                when evaluating metrics during stages.
+        """
         # Params
         self._log_every_n_steps: Final[int] = log_every_n_steps
         self._default_root_dir = (
@@ -294,7 +326,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         self._engine.loggers = loggers
 
     @property
-    def log_dir(self) -> str | None:
+    def log_dir(self) -> str:
         """The directory for the current experiment. Use this to save images to, etc...
 
         Note:
@@ -316,6 +348,9 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             dirpath = self.default_root_dir
 
         dirpath = self.engine.broadcast(dirpath)
+        if dirpath is None:
+            dirpath = "."
+
         return dirpath
 
     @property
@@ -395,7 +430,25 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         on_epoch=True,
         reduce_fn: "reax.types.ReduceFn" = "mean",
     ) -> None:
-        """Log function."""
+        """Log a metric value during a stage.
+
+        Args:
+            name: Name of the metric.
+            value: The scalar or array value to log.
+            prog_bar: If ``True``, the metric is also shown on the progress bar.
+            batch_size: Number of samples in the batch. If ``None``, it is inferred
+                from the batch.
+            logger: If ``True``, the metric is written to the configured logger(s).
+                If ``False``, it is only made available to listeners.
+            on_step: If ``True``, the metric is logged at every batch (step).
+            on_epoch: If ``True``, the metric is aggregated and logged once at the
+                end of the epoch.
+            reduce_fn: Aggregation function used to combine per-step values when
+                logging on epoch (e.g. ``"mean"``, ``"sum"``).
+
+        Raises:
+            RuntimeError: If no stage is currently running.
+        """
         if self._stage is None:
             raise RuntimeError(
                 "Logging is only supported during one of the train/validate/test stages. "
@@ -438,13 +491,52 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         num_sanity_val_steps: int | None = 2,
         reload_dataloaders_every_n_epochs: int = 0,
     ) -> "reax.stages.Fit":
-        """Fit function.
+        """Train the module.
 
         Args:
-            ckpt_path: Path/URL of the checkpoint from which training is
-                resumed. Could also be one of two special keywords
-                ``"last"`` and ``"hpc"``. If there is no checkpoint file
-                at the path, an exception is raised.
+            module: The :class:`reax.Module` to train.
+            train_dataloaders: A :class:`reax.DataLoader` for training data.
+                If ``None``, the dataloader is taken from ``datamodule``.
+            val_dataloaders: A :class:`reax.DataLoader` for validation data.
+                If ``None``, the dataloader is taken from ``datamodule``.
+            datamodule: A :class:`reax.DataModule` that provides all dataloaders.
+            ckpt_path: Path/URL of the checkpoint from which training is resumed.
+                Could also be one of two special keywords ``"last"`` and ``"hpc"``.
+                If there is no checkpoint file at the path, an exception is raised.
+            fast_dev_run: If ``True``, run only 1 batch of train and val steps for a
+                fast (unit) test. Can be set to an integer to run N batches.
+            max_epochs: Maximum number of epochs to train for. If ``0``, no
+                limit is applied. Defaults to 1000.
+            min_epochs: Minimum number of epochs to train for. If non-zero, training
+                will not stop before this many epochs are complete.
+            min_updates: Minimum number of optimizer updates to perform, regardless
+                of epoch count.
+            max_updates: Maximum number of optimizer updates to perform. If ``None``,
+                no limit based on update count is applied.
+            max_time: Stop after this wall-clock duration. Accepts a string in
+                ``"DD:HH:MM:SS"`` format, a :class:`datetime.timedelta`, or a
+                ``dict[str, int]`` passed to ``timedelta(**kwargs)``.
+            limit_train_batches: Maximum number of training batches per epoch. If
+                ``int``, limits the absolute batch count. If ``float`` in [0, 1],
+                limits a fraction of the available batches. ``1.0`` (default) uses all.
+            accumulate_grad_batches: Number of batches to accumulate before performing
+                one optimizer step. Defaults to 1.
+            limit_val_batches: Maximum number of validation batches per epoch. Uses
+                the same semantics as ``limit_train_batches``.
+            val_check_interval: How often to run validation within a training epoch.
+                If ``float`` in (0, 1), runs after that fraction of the epoch. If
+                ``int``, runs after that many batches.
+            check_val_every_n_epoch: Run validation only once every N epochs. If
+                ``None``, the check is decoupled from the epoch boundary and
+                ``val_check_interval`` is used globally.
+            num_sanity_val_steps: Number of validation steps to run as a sanity check
+                before the actual training starts. Defaults to ``2``. Set to ``0`` to
+                disable the sanity check.
+            reload_dataloaders_every_n_epochs: Reload dataloaders from scratch every
+                N epochs. ``0`` (default) means no reload.
+
+        Returns:
+            The completed :class:`reax.stages.Fit` stage.
         """
         if max_updates is not None and max_updates < 0:
             raise ValueError("`max_updates` must be a non-negative integer")
@@ -502,7 +594,22 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         ckpt_path: "reax.types.Path | None" = None,
         limit_batches: int | type(keys.NO_LIMIT) = keys.NO_LIMIT,
     ) -> "reax.stages.Validate":
-        """Validate function."""
+        """Run validation on the provided module.
+
+        Args:
+            module: The :class:`reax.Module` to evaluate.
+            dataloaders: A :class:`reax.DataLoader` of validation data. If ``None``,
+                the dataloader is obtained from ``datamodule``.
+            datamodule: A :class:`reax.DataModule` providing the validation dataloader.
+            ckpt_path: Path/URL of the checkpoint to load before validation. If set,
+                the module is loaded from this checkpoint.
+            limit_batches: Maximum number of validation batches to process. If ``int``,
+                limits the absolute count. If ``float`` in (0, 1], limits a fraction.
+                Defaults to :attr:`reax.keys.NO_LIMIT` (all batches).
+
+        Returns:
+            The completed :class:`reax.stages.Validate` stage.
+        """
         if ckpt_path:
             self._load_module_params(module, ckpt_path)
 
@@ -522,7 +629,24 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         fast_dev_run: bool | int = False,
         limit_batches: int | float | None = 1.0,
     ) -> "reax.stages.Test":
-        """Test function."""
+        """Run the test loop on the provided module.
+
+        Args:
+            module: The :class:`reax.Module` to test.
+            dataloaders: A :class:`reax.DataLoader` of test data. If ``None``, the
+                dataloader is obtained from ``datamodule``.
+            datamodule: A :class:`reax.DataModule` providing the test dataloader.
+            ckpt_path: Path/URL of the checkpoint to load before testing. If set, the
+                module is loaded from this checkpoint.
+            fast_dev_run: If ``True``, run only 1 batch for a fast (unit) test.
+                Can be set to an integer to run N batches.
+            limit_batches: Maximum number of test batches to process. If ``int``,
+                limits the absolute count. If ``float`` in (0, 1], limits a fraction.
+                ``1.0`` (default) uses all batches.
+
+        Returns:
+            The completed :class:`reax.stages.Test` stage.
+        """
         if ckpt_path:
             self._load_module_params(module, ckpt_path)
 
@@ -553,6 +677,25 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         r"""Run inference on the data.
 
         Logging is disabled in the predict hooks.
+
+        Args:
+            module: The :class:`reax.Module` to run predictions with.
+            dataloaders: A :class:`reax.DataLoader` of data to run predictions on.
+                If ``None``, the dataloader is obtained from ``datamodule``.
+            datamodule: A :class:`reax.DataModule` providing the predict dataloader.
+            ckpt_path: Path/URL of the checkpoint to load before prediction. If set,
+                the module is loaded from this checkpoint.
+            keep_predictions: If ``True``, store all batch outputs on the stage's
+                ``predictions`` attribute after the run. If ``None`` (default) this
+                is enabled; set to ``False`` to discard outputs.
+            fast_dev_run: If ``True``, run only 1 batch for a fast (unit) test.
+                Can be set to an integer to run N batches.
+            limit_batches: Maximum number of batches to process. If ``int``, limits
+                the absolute count. If ``float`` in (0, 1], limits a fraction.
+                Defaults to :attr:`reax.keys.NO_LIMIT` (all batches).
+
+        Returns:
+            The completed :class:`reax.stages.Predict` stage.
         """
         if ckpt_path:
             self._load_module_params(module, ckpt_path)
@@ -590,6 +733,25 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
         The calculated statistics will be stored on `stage.logged_metrics` where `stage` is the
         return value of this call.
+
+        Args:
+            stats: A single :class:`reax.Metric`, a :class:`Sequence` of metrics, or a
+                ``dict[str, reax.Metric]`` mapping names to metrics to evaluate.
+            dataloaders: A :class:`reax.DataLoader` providing the data to evaluate. If
+                ``None``, the dataloader is obtained from ``datamodule``.
+            datamodule: A :class:`reax.DataModule` providing the dataloader.
+            dataset_name: The name of the data loader to fetch from the datamodule
+                (e.g. ``"train"``, ``"val"``). Defaults to ``"train"``.
+            fast_dev_run: If ``True``, run only 1 batch for a fast (unit) test.
+                Can be set to an integer to run N batches.
+            limit_batches: Maximum number of batches to process. If ``int``, limits
+                the absolute count. If ``float`` in (0, 1], limits a fraction.
+                Defaults to :attr:`reax.keys.NO_LIMIT` (all batches).
+            metric_evaluator: Optional :class:`reax.metrics.MetricEvaluator` to use.
+                If ``None``, falls back to the trainer's engine-level evaluator.
+
+        Returns:
+            The completed :class:`reax.stages.EvaluateStats` stage.
         """
         if fast_dev_run:
             limit_batches = 1
@@ -805,6 +967,12 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         """For now, we just save the model weights.
 
         The user has to store the model definition themselves.
+
+        Args:
+            filepath: Destination path (local or remote URL) for the checkpoint file.
+            weights_only: If ``True``, only the module's parameter values are
+                serialised. If ``False``, additional state is included (not yet
+                implemented).
         """
         ckpt = _checkpointing.dump_checkpoint(self._module, weights_only=weights_only)
         self._checkpointing.save(ckpt, filepath)
