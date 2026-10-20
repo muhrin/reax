@@ -51,13 +51,13 @@ def test_train_step_no_return(tmp_path, single_cb: bool):
             assert "x" in outputs
 
     class TestModel(demos.boring_classes.BoringModel):
-        def on_train_batch_end(self, stage, outputs, *_):
+        def on_train_batch_end(self, stage, loop, outputs, /):
             assert "loss" in outputs
 
-        def on_validation_batch_end(self, loop, outputs, *_):
+        def on_validation_batch_end(self, stage, loop, outputs, /):
             assert "x" in outputs
 
-        def on_test_batch_end(self, stage, outputs, *_):
+        def on_test_batch_end(self, stage, loop, outputs, /):
             assert "x" in outputs
 
     model = TestModel()

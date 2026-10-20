@@ -98,13 +98,13 @@ class TestEpoch(_loops.LoopOverBatches[Test]):
     @override
     def _on_started(self):
         super()._on_started()
-        self._stage.module.on_test_epoch_start(weakref.proxy(self._stage))
+        self._stage.module.on_test_epoch_start(weakref.proxy(self._stage), weakref.proxy(self))
 
     @override
     def _on_iteration_starting(self):
         super()._on_iteration_starting()
         self._stage.module.on_test_batch_start(
-            weakref.proxy(self._stage), self.batch, self.batch_idx
+            weakref.proxy(self._stage), weakref.proxy(self), self.batch
         )
 
     @override
@@ -116,9 +116,9 @@ class TestEpoch(_loops.LoopOverBatches[Test]):
         """On iteration finishing."""
         super()._on_iteration_finishing(outputs)
         self._stage.module.on_test_batch_end(
-            weakref.proxy(self._stage), outputs, self.batch, self.batch_idx
+            weakref.proxy(self._stage), weakref.proxy(self), outputs
         )
 
     @override
     def _on_epoch_end(self) -> None:
-        self._stage.module.on_test_epoch_end(weakref.proxy(self._stage))
+        self._stage.module.on_test_epoch_end(weakref.proxy(self._stage), weakref.proxy(self))

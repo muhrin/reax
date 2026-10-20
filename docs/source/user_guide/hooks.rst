@@ -33,15 +33,17 @@ that does not depend on a specific model (e.g. checkpointing, early stopping,
 progress bars, custom logging).
 
 The two hook families share names (``on_train_start``, ``on_train_batch_start``,
-and so on) but have **different signatures**:
+and so on) and have the **same signatures**, except that module hooks don't
+receive the ``trainer`` (it is available as :attr:`reax.Module.trainer`):
 
-*   Trainer hooks always receive the ``trainer`` and the current ``stage``;
-    loop-level hooks additionally receive the driving ``loop`` (for example
+*   Stage-level hooks receive the current ``stage``.
+*   Loop-level hooks additionally receive the driving ``loop`` (for example
     :class:`~reax.stages.TrainEpoch`, :class:`~reax.stages.ValidationEpoch`,
     :class:`~reax.stages.TestEpoch`, or
     :class:`~reax.stages.PredictionEpoch`).
-*   Module hooks receive the current ``stage`` and, where useful, the
-    ``batch`` and its ``batch_idx``.
+*   Batch hooks additionally receive the ``batch`` (at the start) or the
+    ``outputs`` of the step (at the end). The batch index is available as
+    ``loop.batch_idx``.
 
 The ordered execution of hooks
 ------------------------------
@@ -53,42 +55,60 @@ lifecycle wraps the stage-specific hooks below:
 
     setup(trainer, stage)
     on_stage_start(trainer, stage)
-    ... stage-specific hooks ...
+    on_<stage>_start(trainer, stage)    # e.g. on_fit_start
+    ... loop hooks ...
     on_stage_end(trainer, stage)
+    on_<stage>_end(trainer, stage)      # e.g. on_fit_end
     teardown(trainer, stage)
+
+Every loop additionally fires the generic ``on_loop_start``,
+``on_loop_iter_start``, ``on_loop_iter_end`` and ``on_loop_end`` listener hooks.
+These are fired just before the corresponding loop-specific listener hook, and are
+omitted from the listings below for clarity, as are the per-iteration hooks of
+the loop over epochs.
+
+Module hooks are called directly by the stage, while listener hooks are
+dispatched by the trainer. For each event the module hook is called first.
 
 Training (``Trainer.fit(...)``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Hooks fired during :meth:`~reax.Trainer.fit`. ``T`` denotes a
 :class:`~reax.TrainerListener`; ``M`` denotes a :class:`~reax.Module` hook.
-Module hooks are called directly by the stage; listener hooks are dispatched by
-the trainer.
 
 .. code-block:: text
 
     T.setup(trainer, stage)
+    M.on_fit_start(stage)
     T.on_stage_start(trainer, stage)
     T.on_fit_start(trainer, stage)
+    # if enabled: the validation sanity check runs here
+    M.on_train_start(stage, loop)
     T.on_train_start(trainer, stage, loop)
-    for epoch in 1..max_epochs:
+    for epoch in range(max_epochs):
+        M.on_train_epoch_start(stage, loop)
         T.on_train_epoch_start(trainer, stage, loop)
-        M.on_train_epoch_start(stage)
-        for batch, batch_idx in dataloader:
-            M.on_train_batch_start(stage, batch, batch_idx)
+        for batch in dataloader:
+            M.on_train_batch_start(stage, loop, batch)
             T.on_train_batch_start(trainer, stage, loop, batch)
             M.training_step(batch, batch_idx)
             M.on_before_optimizer_step(optimizer, grad)
             optimizer.update_module(...)
+            M.on_train_batch_end(stage, loop, outputs)
+            # if due: the validation loop runs here (see below)
             T.on_train_batch_end(trainer, stage, loop, outputs)
-            M.on_train_batch_end(stage, outputs, batch, batch_idx)
-            # if enabled: validation loop runs here (see below)
+        M.on_train_epoch_end(stage, loop)
         T.on_train_epoch_end(trainer, stage, loop)
-        M.on_train_epoch_end(stage)
+    M.on_train_end(stage, loop)
     T.on_train_end(trainer, stage, loop)
-    T.on_fit_end(trainer, stage)
+    M.on_fit_end(stage)
     T.on_stage_end(trainer, stage)
+    T.on_fit_end(trainer, stage)
     T.teardown(trainer, stage)
+
+Validation during fitting runs the validation epoch hooks (from
+``on_validation_epoch_start`` to ``on_validation_epoch_end``) shown below, with
+the :class:`~reax.stages.Fit` stage as the ``stage``.
 
 Validation (``Trainer.validate(...)``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -96,20 +116,22 @@ Validation (``Trainer.validate(...)``)
 .. code-block:: text
 
     T.setup(trainer, stage)
+    M.on_validation_start(stage)
     T.on_stage_start(trainer, stage)
     T.on_validation_start(trainer, stage)
+    M.on_validation_epoch_start(stage, loop)
     T.on_validation_epoch_start(trainer, stage, loop)
-    M.on_validation_epoch_start(stage)
-    for batch, batch_idx in dataloader:
-        M.on_validation_batch_start(stage, batch, batch_idx)
+    for batch in dataloader:
+        M.on_validation_batch_start(stage, loop, batch)
         T.on_validation_batch_start(trainer, stage, loop, batch)
         M.validation_step(batch, batch_idx)
+        M.on_validation_batch_end(stage, loop, outputs)
         T.on_validation_batch_end(trainer, stage, loop, outputs)
-        M.on_validation_batch_end(stage, outputs, batch, batch_idx)
+    M.on_validation_epoch_end(stage, loop)
     T.on_validation_epoch_end(trainer, stage, loop)
-    M.on_validation_epoch_end(stage)
-    T.on_validation_end(trainer, stage)
+    M.on_validation_end(stage)
     T.on_stage_end(trainer, stage)
+    T.on_validation_end(trainer, stage)
     T.teardown(trainer, stage)
 
 Test (``Trainer.test(...)``)
@@ -118,20 +140,22 @@ Test (``Trainer.test(...)``)
 .. code-block:: text
 
     T.setup(trainer, stage)
+    M.on_test_start(stage)
     T.on_stage_start(trainer, stage)
     T.on_test_start(trainer, stage)
+    M.on_test_epoch_start(stage, loop)
     T.on_test_epoch_start(trainer, stage, loop)
-    M.on_test_epoch_start(stage)
-    for batch, batch_idx in dataloader:
-        M.on_test_batch_start(stage, batch, batch_idx)
+    for batch in dataloader:
+        M.on_test_batch_start(stage, loop, batch)
         T.on_test_batch_start(trainer, stage, loop, batch)
         M.test_step(batch, batch_idx)
+        M.on_test_batch_end(stage, loop, outputs)
         T.on_test_batch_end(trainer, stage, loop, outputs)
-        M.on_test_batch_end(stage, outputs, batch, batch_idx)
+    M.on_test_epoch_end(stage, loop)
     T.on_test_epoch_end(trainer, stage, loop)
-    M.on_test_epoch_end(stage)
-    T.on_test_end(trainer, stage)
+    M.on_test_end(stage)
     T.on_stage_end(trainer, stage)
+    T.on_test_end(trainer, stage)
     T.teardown(trainer, stage)
 
 Predict (``Trainer.predict(...)``)
@@ -140,20 +164,22 @@ Predict (``Trainer.predict(...)``)
 .. code-block:: text
 
     T.setup(trainer, stage)
+    M.on_predict_start(stage)
     T.on_stage_start(trainer, stage)
     T.on_predict_start(trainer, stage)
+    M.on_predict_epoch_start(stage, loop)
     T.on_predict_epoch_start(trainer, stage, loop)
-    M.on_predict_epoch_start(stage)
-    for batch, batch_idx in dataloader:
-        M.on_predict_batch_start(stage, batch, batch_idx)
+    for batch in dataloader:
+        M.on_predict_batch_start(stage, loop, batch)
         T.on_predict_batch_start(trainer, stage, loop, batch)
         M.predict_step(batch, batch_idx)
+        M.on_predict_batch_end(stage, loop, outputs)
         T.on_predict_batch_end(trainer, stage, loop, outputs)
-        M.on_predict_batch_end(stage, outputs, batch, batch_idx)
+    M.on_predict_epoch_end(stage, loop)
     T.on_predict_epoch_end(trainer, stage, loop)
-    M.on_predict_epoch_end(stage)
-    T.on_predict_end(trainer, stage)
+    M.on_predict_end(stage)
     T.on_stage_end(trainer, stage)
+    T.on_predict_end(trainer, stage)
     T.teardown(trainer, stage)
 
 Reference

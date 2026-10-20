@@ -80,7 +80,7 @@ def test_on_train_epoch_end_metrics_collection(tmp_path):
             )
             return output
 
-        def on_train_epoch_end(self, loop):
+        def on_train_epoch_end(self, stage, loop, /):
             epoch = loop.epoch
             # both scalar tensors and Python numbers are accepted
             self.log_dict(

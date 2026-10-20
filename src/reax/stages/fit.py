@@ -1,5 +1,6 @@
 import datetime
 from typing import TYPE_CHECKING, Any, Final, TypeVar
+import weakref
 
 import beartype
 import jaxtyping as jt
@@ -182,8 +183,18 @@ class Fit(stages.ModuleStage):
     def timer(self) -> _timer.StageTimer | None:
         return self._timer
 
+    @override
+    def _on_started(self):
+        super()._on_started()
+        self._module.on_fit_start(weakref.proxy(self))
+
     def _run(self) -> None:
         self.run_loop(self._train_loop)
+
+    @override
+    def _on_stopping(self) -> None:
+        super()._on_stopping()
+        self._module.on_fit_end(weakref.proxy(self))
 
 
 def _is_validation_possible(
@@ -424,6 +435,8 @@ class FitLoop(_loops.Loop[Fit]):
             finally:
                 self._sanity_checking = False
 
+        self._stage.module.on_train_start(weakref.proxy(self._stage), weakref.proxy(self))
+
     @override
     def _on_iteration_starting(self):
         super()._on_iteration_starting()
@@ -458,3 +471,8 @@ class FitLoop(_loops.Loop[Fit]):
             return True
 
         return False
+
+    @override
+    def _on_stopping(self):
+        super()._on_stopping()
+        self._stage.module.on_train_end(weakref.proxy(self._stage), weakref.proxy(self))

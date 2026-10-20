@@ -1235,7 +1235,9 @@ def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
             val_reload_epochs.append(self.current_epoch)
             return super().val_dataloader()
 
-        def on_validation_epoch_end(self, loop: "reax.stages.ValidationEpoch", /):
+        def on_validation_epoch_end(
+            self, stage: "reax.Stage", loop: "reax.stages.ValidationEpoch", /
+        ):
             val_check_epochs.append(self.current_epoch)
 
     model = TestModel()

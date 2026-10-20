@@ -141,7 +141,9 @@ def test_early_stopping_patience(
         validation_return_values = jnp.array(loss_values)
 
         @override
-        def on_validation_epoch_end(self, loop: "reax.stages.ValidationEpoch", /) -> None:
+        def on_validation_epoch_end(
+            self, stage: "reax.Stage", loop: "reax.stages.ValidationEpoch", /
+        ) -> None:
             loss = self.validation_return_values[self._trainer.current_epoch]
             self.log("test_val_loss", loss)
 
@@ -387,7 +389,7 @@ class EarlyStoppingModel(boring_classes.BoringModel):
         self.log("abc", jnp.array(loss))
         self.log("cba", jnp.array(0))
 
-    def on_train_epoch_end(self):
+    def on_train_epoch_end(self, *_):
         if not self.early_stop_on_train:
             return
         self._epoch_end()
@@ -398,8 +400,9 @@ class EarlyStoppingModel(boring_classes.BoringModel):
         self._epoch_end()
 
     @override
-    def on_fit_end(self, trainer: "reax.Trainer", _stage: "reax.stages.Fit") -> None:
-        assert trainer.current_epoch - 1 == self.expected_end_epoch, "Early Stopping Failed"
+    def on_fit_end(self, stage: "reax.stages.Fit", /) -> None:
+        # `current_epoch` is the index of the last epoch that was run
+        assert self.trainer.current_epoch == self.expected_end_epoch, "Early Stopping Failed"
 
 
 _ES_CHECK = {"check_on_train_epoch_end": True}
@@ -631,7 +634,9 @@ def test_early_stopping_check_start_epoch(tmp_path):
 
     class ModelOverrideValidationReturn(boring_classes.BoringModel):
         @override
-        def on_validation_epoch_end(self, loop: "reax.stages.ValidationEpoch", /) -> None:
+        def on_validation_epoch_end(
+            self, stage: "reax.Stage", loop: "reax.stages.ValidationEpoch", /
+        ) -> None:
             self.log("test_val_loss", jnp.array(1.0))
 
     model = ModelOverrideValidationReturn()

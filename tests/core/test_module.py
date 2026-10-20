@@ -18,8 +18,10 @@ def test_module_log(test_trainer, reduce_fn, batch_size_mode):
             self.losses = []
             self.batch_sizes = []
 
-        def on_train_epoch_start(self, stage: "reax.stages.TrainEpoch", /) -> None:
-            super().on_train_epoch_start(stage)
+        def on_train_epoch_start(
+            self, stage: "reax.Stage", loop: "reax.stages.TrainEpoch", /
+        ) -> None:
+            super().on_train_epoch_start(stage, loop)
             self.losses = []
             self.batch_sizes = []
 

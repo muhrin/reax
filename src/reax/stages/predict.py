@@ -119,13 +119,13 @@ class PredictionEpoch(_loops.LoopOverBatches[Predict]):
     @override
     def _on_started(self):
         super()._on_started()
-        self._stage.module.on_predict_epoch_start(weakref.proxy(self._stage))
+        self._stage.module.on_predict_epoch_start(weakref.proxy(self._stage), weakref.proxy(self))
 
     @override
     def _on_iteration_starting(self):
         super()._on_iteration_starting()
         self._stage.module.on_predict_batch_start(
-            weakref.proxy(self._stage), self.batch, self.batch_idx
+            weakref.proxy(self._stage), weakref.proxy(self), self.batch
         )
 
     @override
@@ -140,9 +140,9 @@ class PredictionEpoch(_loops.LoopOverBatches[Predict]):
             cpu = jax.devices("cpu")[0]
             self._all_outputs.append(jax.device_put(outputs, cpu))
         self._stage.module.on_predict_batch_end(
-            weakref.proxy(self._stage), outputs, self.batch, self.batch_idx
+            weakref.proxy(self._stage), weakref.proxy(self), outputs
         )
 
     @override
     def _on_epoch_end(self) -> None:
-        self._stage.module.on_predict_epoch_end(weakref.proxy(self._stage))
+        self._stage.module.on_predict_epoch_end(weakref.proxy(self._stage), weakref.proxy(self))
