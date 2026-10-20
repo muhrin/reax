@@ -10,14 +10,13 @@ import numpy as np
 import pandas as pd
 from typing_extensions import override
 
-from reax import saving
+from reax import saving, types
 
 from . import _utils, logger
 
 __all__ = ("PandasLogger",)
 
 DEFAULT_FORMAT = "json"
-Path = str | bytes | os.PathLike
 
 
 class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
@@ -27,7 +26,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
     def __init__(
         self,
-        save_dir: Path | None = None,
+        save_dir: types.Path | None = None,
         name: str | None = "reax_logs",
         *,
         fmt: str = DEFAULT_FORMAT,
@@ -36,7 +35,7 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
         flush_logs_every_n_steps: int = 100,
     ):
         super().__init__()
-        self._root_dir = None if save_dir is None else os.fspath(save_dir)
+        self._root_dir: str | None = None if save_dir is None else os.fspath(save_dir)
         self._name = name or ""
         self._fmt = fmt
         self._version = version
@@ -70,12 +69,13 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
     @override
     def log_dir(self) -> str | None:
         """Log dir."""
-        if self.root_dir is None:
+        root_dir = self._root_dir
+        if root_dir is None:
             return None
 
         # Use this scheme to generate some kind of standard logging path
         version = self.version if isinstance(self.version, str) else f"version_{self.version}"
-        return os.path.join(self._root_dir, self.name, version)
+        return os.path.join(root_dir, self.name, version)
 
     @property
     def dataframe(self) -> pd.DataFrame:
@@ -133,10 +133,11 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
     def _get_next_version(self) -> int:
         """Get next version."""
-        if self.root_dir is None:
+        root_dir = self._root_dir
+        if root_dir is None:
             return 0
 
-        version_root = os.path.join(self._root_dir, self.name)
+        version_root = os.path.join(root_dir, self.name)
 
         if not self._fs.isdir(version_root):
             # Doesn't exist yet

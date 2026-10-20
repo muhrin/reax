@@ -32,6 +32,11 @@ def dump_checkpoint(module: "reax.Module", weights_only: bool = False) -> Checkp
     import reax
 
     trainer = module.trainer
+    if trainer is None:
+        raise RuntimeError(
+            f"Module '{type(module).__name__}' does not have an attached trainer, "
+            "so a checkpoint cannot be created."
+        )
 
     checkpoint = {
         EPOCH: trainer.current_epoch,
@@ -47,24 +52,24 @@ def dump_checkpoint(module: "reax.Module", weights_only: bool = False) -> Checkp
 
 class Checkpointing(abc.ABC):
     @abc.abstractmethod
-    def save(self, checkpoint: CheckpointDict, filepath: str):
+    def save(self, checkpoint: CheckpointDict, filepath: "reax.types.Path"):
         """Save the checkpoint dictionary to the given path"""
 
     @abc.abstractmethod
-    def load(self, filepath: str) -> CheckpointDict:
+    def load(self, filepath: "reax.types.Path") -> CheckpointDict:
         """Load the checkpoint dictionary from the given path"""
 
 
 class MsgpackCheckpointing(Checkpointing):
     @override
-    def save(self, checkpoint: CheckpointDict, filepath: str):
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, "wb") as file:
+    def save(self, checkpoint: CheckpointDict, filepath: "reax.types.Path"):
+        os.makedirs(os.path.dirname(str(filepath)), exist_ok=True)
+        with open(str(filepath), "wb") as file:
             file.write(flax.serialization.msgpack_serialize(checkpoint))
 
     @override
-    def load(self, filepath: str) -> CheckpointDict:
-        with open(filepath, "rb") as file:
+    def load(self, filepath: "reax.types.Path") -> CheckpointDict:
+        with open(str(filepath), "rb") as file:
             return flax.serialization.msgpack_restore(file.read())
 
 

@@ -7,13 +7,19 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-from typing import Final
+from typing import Final, Protocol
 
 _LOGGER = logging.getLogger(__name__)
 
 # --- Error Marker Definitions ---
 ERROR_START_MARKER: Final[str] = "---SUBPROCESS_ERROR_START---"
 ERROR_END_MARKER: Final[str] = "---SUBPROCESS_ERROR_END---"
+
+
+class NamedCallable(Protocol):
+    __name__: str
+
+    def __call__(self, *args, **kwargs): ...
 
 
 class SubprocessFunctionError(Exception):
@@ -35,7 +41,7 @@ class SubprocessFunctionError(Exception):
         )
 
 
-def run_function_in_subprocess(target_func: Callable, *func_args, **func_kwargs):
+def run_function_in_subprocess(target_func: NamedCallable, *func_args, **func_kwargs):
     """Writes the source code of the file containing `target_func` to a
     temporary file, appends an execution block that handles exceptions
     by serializing them, and executes it in a new Python subprocess.
@@ -72,7 +78,8 @@ def run_function_in_subprocess(target_func: Callable, *func_args, **func_kwargs)
 
     # 3. Define the Argument and Exception-Handling Execution Block
     # The child will read the serialized arguments from sys.argv[1]
-    execution_block = textwrap.dedent(f"""
+    execution_block = textwrap.dedent(
+        f"""
 
     # --- Code injected by run_function_in_subprocess ---
     import sys
@@ -131,7 +138,8 @@ def run_function_in_subprocess(target_func: Callable, *func_args, **func_kwargs)
             sys.exit(1)
 
         print("--- Subprocess End ---")
-    """)
+    """
+    )
     # Combine the original code and the execution block
     combined_code = original_code + execution_block
 
@@ -183,7 +191,7 @@ def run_function_in_subprocess(target_func: Callable, *func_args, **func_kwargs)
     _LOGGER.debug("Cleaned up temporary file: %s", temp_file_path)
 
 
-def in_subprocess(fn: Callable):
+def in_subprocess(fn: NamedCallable) -> NamedCallable:
     """Run a test within a subprocess, necessary for certain strategies."""
 
     @functools.wraps(fn)

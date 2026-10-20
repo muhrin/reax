@@ -40,6 +40,7 @@ def _make_trainer(tmp_path, *, is_global_zero=True, loggers=()):
     trainer.default_root_dir = str(tmp_path)
     trainer.global_updates = 0
     trainer.current_epoch = 0
+    trainer.listener_metrics = {}
     trainer.loggers = list(loggers)
     trainer.save_checkpoint.side_effect = _save
     trainer.strategy.barrier = Mock()
@@ -159,18 +160,14 @@ def test_check_monitor_top_k_max_mode():
 def test_should_save_on_train_epoch_end():
     # explicit user preference is honoured
     ckpt = ModelCheckpoint(save_on_train_epoch_end=True)
-    trainer = Mock()
-    assert ckpt._should_save_on_train_epoch_end(trainer, Mock(spec=stages.Train)) is True
+    assert ckpt._should_save_on_train_epoch_end(Mock(spec=stages.Fit)) is True
 
     ckpt = ModelCheckpoint(save_on_train_epoch_end=False)
-    assert ckpt._should_save_on_train_epoch_end(trainer, Mock(spec=stages.Train)) is False
+    assert ckpt._should_save_on_train_epoch_end(Mock(spec=stages.Fit)) is False
 
-    # non-fit stage: defer unless we are on a Train stage
+    # non-fit stage: there is no training epoch, so defer to validation
     ckpt = ModelCheckpoint()
-    trainer = Mock()
-    trainer.stage = "not-a-fit"
-    assert ckpt._should_save_on_train_epoch_end(trainer, Mock(spec=stages.Train)) is True
-    assert ckpt._should_save_on_train_epoch_end(trainer, Mock(spec=stages.Validate)) is False
+    assert ckpt._should_save_on_train_epoch_end(Mock(spec=stages.Validate)) is False
 
 
 def test_should_remove_checkpoint(tmp_path):
@@ -349,10 +346,9 @@ def test_do_save_epochs_gating(tmp_path):
 
 def test_monitor_candidates_fallback(tmp_path):
     ckpt = ModelCheckpoint()
-    stage = Mock(spec=stages.EpochStage)
-    stage.listener_metrics = {}
     trainer = Mock(current_epoch=7, global_updates=42)
-    out = ckpt._monitor_candidates(stage, trainer)
+    trainer.listener_metrics = {}
+    out = ckpt._monitor_candidates(trainer)
     assert int(out["epoch"]) == 7
     assert int(out["step"]) == 42
 
@@ -413,7 +409,7 @@ def test_warn_if_dir_not_empty(tmp_path):
 
 
 def _train_stage(fast_dev_run=False, enable_checkpointing=True, listener_metrics=None):
-    stage = Mock(spec=stages.EpochStage)
+    stage = Mock(spec=stages.ModuleStage)
     stage.fast_dev_run = fast_dev_run
     stage.enable_checkpointing = enable_checkpointing
     stage.listener_metrics = listener_metrics or {}
@@ -459,11 +455,9 @@ def test_on_train_epoch_end_saves_when_validated(tmp_path):
     trainer.current_epoch = 0
 
     # explicit True short-circuits the stage-type validation-mode branch;
-    # stage must be a real Train for the isinstance check in _do_save
-    stage = Mock(spec=stages.Train)
-    stage.fast_dev_run = False
-    stage.listener_metrics = {"val_loss": jnp.array(0.5)}
-    ckpt.on_train_epoch_end(trainer, stage)
+    # stage must be a ModuleStage providing the listener metrics
+    stage = _train_stage(listener_metrics={"val_loss": jnp.array(0.5)})
+    ckpt.on_train_epoch_end(trainer, stage, Mock())
 
     assert any(p.endswith(".ckpt") for p in os.listdir(ckpt.dirpath))
 
@@ -478,11 +472,11 @@ def test_on_train_batch_end_every_n_train_steps(tmp_path):
 
     stage = _train_stage()
     trainer.global_updates = 1
-    ckpt.on_train_batch_end(trainer, stage)
+    ckpt.on_train_batch_end(trainer, stage, Mock())
     assert not [p for p in os.listdir(ckpt.dirpath) if p.endswith(".ckpt")]
 
     trainer.global_updates = 2
-    ckpt.on_train_batch_end(trainer, stage)
+    ckpt.on_train_batch_end(trainer, stage, Mock())
     assert [p for p in os.listdir(ckpt.dirpath) if p.endswith(".ckpt")]
 
 
@@ -503,5 +497,5 @@ def test_on_train_batch_end_time_interval(tmp_path):
 
     stage = _train_stage()
     trainer.global_updates = 1
-    ckpt.on_train_batch_end(trainer, stage)
+    ckpt.on_train_batch_end(trainer, stage, Mock())
     assert any(p.endswith(".ckpt") for p in os.listdir(ckpt.dirpath))

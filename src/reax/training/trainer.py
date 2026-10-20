@@ -1,7 +1,6 @@
 from collections.abc import Callable, Generator, Sequence
 import contextlib
 import datetime
-import functools
 import logging
 import os
 import signal
@@ -11,32 +10,31 @@ import weakref
 
 import beartype
 from flax import nnx
-import fsspec
-import fsspec.utils
 import jaxtyping as jt
 from lightning_utilities.core import rank_zero
 from typing_extensions import override
 
 from .. import _engine as engine_
-from .. import data, exceptions, hooks, keys, modules, stages, strategies
+from .. import data, exceptions, hooks, keys, stages, strategies
 from .. import listeners as listeners_
 from .. import loggers as loggers_
 from ..utils import events
-from . import _checkpointing, _deprecated, _logger_connector
+from . import _checkpointing, _hooks_map, _logger_connector, _utils
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     import reax
 
-StageT = TypeVar("StageT", bound=stages.Stage)
+_StageT = TypeVar("_StageT", bound=stages.Stage)
+_LoopT = TypeVar("_LoopT", bound=stages.Loop)
 
 _LOGGER = logging.getLogger(__name__)
 
 __all__ = ("Trainer",)
 
 
-class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
+class Trainer(stages.StageListener):
     # pylint: disable=too-many-public-methods
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -118,7 +116,8 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             metric_evaluator=metric_evaluator,
         )
 
-        self._current_epoch: int = 0
+        self._current_epoch: int = -1
+        self._epochs_completed: int = 0
         self._global_updates: int = 0
         self._checkpointing = (
             checkpointing if checkpointing is not None else _checkpointing.MsgpackCheckpointing()
@@ -137,7 +136,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             for listener in listeners:
                 self._events.add_listener(listener)
 
-        pbar = _init_progress_bar(self._events.find(), enable_progress_bar)
+        pbar = _utils.init_progress_bar(self._events.find(), enable_progress_bar)
         if pbar is not None:
             self._events.add_listener(pbar)
 
@@ -202,11 +201,20 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         return self._current_epoch
 
     @property
+    def epochs_completed(self) -> int:
+        """Get the number of training epochs that have completed.
+
+        Unlike :attr:`current_epoch`, which is the (zero-based) index of the epoch in progress,
+        this is a count, and the epoch in progress is only included once it has finished.
+        """
+        return self._epochs_completed
+
+    @property
     def global_updates(self) -> int:
         """Get the global number of optimizer updates."""
         if self._stage is not None and isinstance(self._stage, stages.Fit):
             # The stage is running, so count add the number of updates it has performed so far
-            return self._global_updates + self._stage.updates
+            return self._global_updates + self._stage.global_updates
 
         return self._global_updates
 
@@ -248,7 +256,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         """Get the fallback directory used for loggers and other components when not explicitly
         specified.
         """
-        if _is_local_file_protocol(self._default_root_dir):
+        if _utils.is_local_file_protocol(self._default_root_dir):
             return os.path.normpath(os.path.expanduser(self._default_root_dir))
 
         return self._default_root_dir
@@ -411,7 +419,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     def _module(self) -> "reax.Module":
         if self._stage is None:
             raise AttributeError("There is no stage running, so module is not available")
-        if self._stage.module is None:
+        if not isinstance(self._stage, stages.ModuleStage):
             raise AttributeError(
                 f"The running stage '{self._stage.__class__.__name__}', does not have a module"
             )
@@ -455,12 +463,13 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
                 "There is currently no stage running."
             )
 
-        # Let the stage take care of it
+        # Let the stage take care of it. ``None`` means "not specified", which
+        # downstream is treated the same as ``False``.
         self._stage.log(
             name,
             value,
             prog_bar=prog_bar,
-            logger=logger,
+            logger=logger if logger is not None else False,
             batch_size=batch_size,
             on_step=on_step,
             on_epoch=on_epoch,
@@ -468,10 +477,10 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         )
 
     # region Stages
-
+    @jt.jaxtyped(typechecker=beartype.beartype)
     def fit(
         self,
-        module: modules.Module,
+        module: "reax.Module",
         train_dataloaders: "reax.DataLoader | None" = None,
         val_dataloaders: "reax.DataLoader | None" = None,
         *,
@@ -486,7 +495,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         limit_train_batches: int | float | None = 1.0,
         accumulate_grad_batches: int = 1,
         limit_val_batches: int | float | None = 1.0,
-        val_check_interval: int | float | None = 1.0,
+        val_check_interval: int | float = 1.0,
         check_val_every_n_epoch: int = 1,
         num_sanity_val_steps: int | None = 2,
         reload_dataloaders_every_n_epochs: int = 0,
@@ -564,7 +573,6 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             datamanager,
             self.optimizers,
             self.engine,
-            rngs=self.rngs,
             fast_dev_run=fast_dev_run,
             max_epochs=max_epochs,
             min_epochs=min_epochs,
@@ -581,18 +589,18 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         )
         self._run_stage(fit)
         # Update state variables
-        self._global_updates += fit.updates
+        self._global_updates += fit.global_updates
 
         return fit
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def validate(
         self,
-        module: modules.Module,
+        module: "reax.Module",
         dataloaders=None,
         datamodule=None,
         ckpt_path: "reax.types.Path | None" = None,
-        limit_batches: int | type(keys.NO_LIMIT) = keys.NO_LIMIT,
+        limit_batches: int | float | None = keys.NO_LIMIT,
     ) -> "reax.stages.Validate":
         """Run validation on the provided module.
 
@@ -622,7 +630,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def test(
         self,
-        module: modules.Module,
+        module: "reax.Module",
         dataloaders=None,
         datamodule=None,
         ckpt_path: "reax.types.Path | None" = None,
@@ -655,7 +663,6 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             module,
             datamanager,
             self.engine,
-            rngs=self.rngs,
             fast_dev_run=fast_dev_run,
             limit_batches=limit_batches,
         )
@@ -666,7 +673,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def predict(
         self,
-        module: modules.Module,
+        module: "reax.Module",
         dataloaders: "reax.DataLoader | None" = None,
         datamodule: "reax.DataModule | None" = None,
         ckpt_path: "reax.types.Path | None" = None,
@@ -756,8 +763,13 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         if fast_dev_run:
             limit_batches = 1
 
+        # ``dataset_name`` is dynamic, so the loader is passed via ``**{name: loader}``.
+        # The checker cannot resolve a dynamically-keyed kwarg and conservatively
+        # checks it against every parameter (including ``module``), but the loader
+        # is never bound to ``module`` at runtime.
         datamanager = self._create_data_manager(
-            datamodule=datamodule, **{dataset_name: dataloaders}
+            datamodule=datamodule,
+            **{dataset_name: dataloaders},  # ty: ignore[invalid-argument-type]
         )
 
         evaluator = (
@@ -768,7 +780,6 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             stats,
             datamanager,
             self.engine,
-            rngs=self.rngs,
             dataset_name=dataset_name,
             limit_batches=limit_batches,
             evaluator=evaluator,
@@ -777,10 +788,10 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
         return eval_stats
 
-    def run(self, stage: StageT) -> StageT:
+    def run(self, stage: _StageT) -> _StageT:
         return self._run_stage(stage)
 
-    def _run_stage(self, stage: stages.Stage) -> stages.Stage:
+    def _run_stage(self, stage: _StageT) -> _StageT:
         """Run stage."""
         with self.engine.default_device():
             try:
@@ -819,12 +830,13 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
     def _attach(self, stage: stages.Stage):
         """Attach function."""
         self._stage = stage
-        if stage.module is not None:
+        # TODO: Analyse this
+        if isinstance(stage, stages.ModuleStage):
             listeners = stage.module.configure_listeners()
+            module_trainer_ctx = stage.module.attach
         else:
             listeners = []
-
-        module_trainer_ctx = contextlib.nullcontext if stage.module is None else stage.module.attach
+            module_trainer_ctx = contextlib.nullcontext
 
         try:
             with module_trainer_ctx(weakref.proxy(self)), self._attach_model_listeners(listeners):
@@ -867,7 +879,7 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
                 listener for listener in self.listeners if type(listener) not in override_types
             ]
             all_listeners.extend(listeners)
-            all_listeners = _reorder_listeners(all_listeners)
+            all_listeners = _utils.reorder_listeners(all_listeners)
         else:
             all_listeners = []
 
@@ -885,37 +897,42 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
             self._events = original_events
 
     @override
-    def on_stage_start(self, stage: "stages.Stage", /) -> None:
+    def on_stage_start(self, stage: _StageT, /) -> None:
         """The stage is starting."""
-        if not self._optimizers and isinstance(stage, stages.Train):
-            self._optimizers = stage.optimizers
+        self._logging.reset_metrics()
+        self._events.fire_event(hooks.TrainerListener.setup, stage)
 
-        if stage.is_root:
-            self._logging.reset_metrics()
-            self._events.fire_event(hooks.TrainerListener.setup, stage)
-
+    @override
+    def on_stage_started(self, stage: _StageT, /):
+        # Fire the generic event, and then the specific
         self._events.fire_event(hooks.TrainerListener.on_stage_start, stage)
-        self._fire_stage_event(stage, stages.StageListener.on_stage_start)
+        self._fire_stage_event(stage, stages.StageListener.on_stage_started, stage)
 
     @override
-    def on_stage_started(self, stage: "reax.Stage", /):
-        if isinstance(stage, stages.EpochStage):
-            self._events.fire_event(hooks.TrainerListener.on_epoch_start, stage)
-        self._fire_stage_event(stage, stages.StageListener.on_stage_started)
+    def on_loop_started(self, stage: _StageT, loop: _LoopT, _max_iters: int | float | None, /):
+        if not self._optimizers and isinstance(loop, stages.TrainEpoch):
+            self._optimizers = loop.optimizers
+        self._events.fire_event(hooks.TrainerListener.on_loop_start, stage, loop)
+        self._fire_stage_event(loop, stages.StageListener.on_loop_started, stage, loop)
+
+    def on_loop_iter_starting(self, stage: _StageT, loop: _LoopT, /):
+        if isinstance(stage, stages.Fit) and isinstance(loop, stages.FitLoop):
+            # Keep track of the number of completed training epochs
+            self._current_epoch += 1
 
     @override
-    def on_stage_iter_starting(self, stage: "stages.Stage", step: int, /):
-        """On stage iter starting."""
-        self._events.fire_event(hooks.TrainerListener.on_stage_iter_start, stage, step)
-        if isinstance(stage, stages.EpochStage):
+    def on_loop_iter_started(self, stage: _StageT, loop: _LoopT, /):
+        """On stage iter started."""
+        self._events.fire_event(hooks.TrainerListener.on_loop_iter_start, stage, loop)
+        if isinstance(loop, stages.LoopOverBatches):
             self._fire_stage_event(
-                stage, stages.StageListener.on_stage_iter_starting, stage.batch, step
+                loop, stages.StageListener.on_loop_iter_started, stage, loop, loop.batch
             )
 
     @override
-    def on_stage_iter_ended(self, stage: "stages.Stage", step: int, outputs: Any, /):
+    def on_loop_iter_finished(self, stage: _StageT, loop: _LoopT, outputs: Any, /):
         """On stage iter ending."""
-        if isinstance(stage, stages.EpochStage):
+        if isinstance(stage, stages.ModuleStage):
             self._logging.update(stage)
             if stage.logged_metrics:
                 logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
@@ -924,42 +941,39 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
                     logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
                     logger.save()
 
-            self._events.fire_event(hooks.TrainerListener.on_batch_end, stage, step, outputs)
-
+        self._events.fire_event(hooks.TrainerListener.on_loop_iter_end, stage, loop, outputs)
+        if isinstance(loop, stages.LoopOverBatches):
             self._fire_stage_event(
-                stage, stages.StageListener.on_stage_iter_ending, outputs, stage.batch, step
+                loop, stages.StageListener.on_loop_iter_finished, stage, loop, outputs
             )
-
-        self._events.fire_event(hooks.TrainerListener.on_stage_iter_end, stage, step, outputs)
-
-        if isinstance(stage, stages.Fit):
-            # Keep track of the number of completed training epochs
-            self._current_epoch += 1
 
     @override
-    def on_stage_end(self, stage: "reax.Stage", /):
-        if isinstance(stage, stages.EpochStage):
+    def on_loop_finishing(self, stage: _StageT, *_):
+        if isinstance(stage, stages.ModuleStage):
             self._logging.update(stage)
-            self._events.fire_event(
-                hooks.TrainerListener.on_epoch_end, stage, stage.listener_metrics
-            )
 
             metrics = stage.results
             if metrics[keys.LOG]:
                 logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
-                logging_metrics.update(stage.listener_metrics)
+                logging_metrics.update(metrics[keys.LOG])
                 for logger in self.loggers:
                     logger.log_metrics(metrics=logging_metrics, step=self.global_updates - 1)
 
-        self._fire_stage_event(stage, stages.StageListener.on_stage_end)
+    @override
+    def on_loop_finished(self, stage: _StageT, loop: _LoopT, /):
+        if isinstance(stage, stages.Fit) and isinstance(loop, stages.TrainEpoch):
+            # Count the epoch before firing the hooks, so that `on_train_epoch_end` sees it
+            self._epochs_completed += 1
+
+        self._events.fire_event(hooks.TrainerListener.on_loop_end, stage, loop, None)
+        self._fire_stage_event(loop, stages.StageListener.on_loop_finished, stage, loop)
 
     @override
-    def on_stage_ended(self, stage: "reax.Stage", /):
+    def on_stage_finished(self, stage: _StageT, /):
         self._events.fire_event(hooks.TrainerListener.on_stage_end, stage)
-        self._fire_stage_event(stage, stages.StageListener.on_stage_ended)
+        self._fire_stage_event(stage, stages.StageListener.on_stage_finished, stage)
         # Finally, call teardown
-        if stage.is_root:
-            self._events.fire_event(hooks.TrainerListener.teardown, stage)
+        self._events.fire_event(hooks.TrainerListener.teardown, stage)
 
     # region Checkpointing
 
@@ -995,12 +1009,12 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
 
     # endregion
 
-    def _fire_stage_event(self, stage, hook: Callable, *args):
-        event = hook_map(stage).get(hook)
+    def _fire_stage_event(self, sender: stages.Stage | _LoopT, hook: Callable, *args):
+        event = _hooks_map.hook_map(sender).get(hook)
         if event is not None:
-            self._events.fire_event(event, stage, *args)
+            self._events.fire_event(event, *args)
 
-    def _load_module_params(self, module: "reax.Module", filename: str):
+    def _load_module_params(self, module: "reax.Module", filename: "reax.types.Path"):
         ckpt = self._checkpointing.load(filename)
         module.set_parameters(ckpt[_checkpointing.PARAMS])
 
@@ -1011,152 +1025,3 @@ class Trainer(stages.StageListener, _deprecated.TrainerDeprecatedMixin):
         **loaders,
     ) -> data.DataSourceManager:
         return data.create_manager(self._engine, module=module, datamodule=datamodule, **loaders)
-
-
-@jt.jaxtyped(typechecker=beartype.beartype)
-def _init_loggers(
-    logger: "reax.Logger | Iterable[reax.Logger] | bool | None", default_root_dir: str
-) -> list["reax.Logger"]:
-    """Init loggers."""
-    if isinstance(logger, loggers_.Logger):
-        return [logger]
-
-    if isinstance(logger, (bool, type(None))):
-        if logger:
-            return [loggers_.CsvLogger(default_root_dir)]
-
-        return []
-
-    return list(logger)
-
-
-def _init_progress_bar(
-    listeners: list[hooks.TrainerListener], enable_progress_bar: bool = True
-) -> listeners_.ProgressBar | None:
-    progress_bars = [
-        listener for listener in listeners if isinstance(listener, listeners_.progress.ProgressBar)
-    ]
-    if len(progress_bars) > 1:
-        raise exceptions.MisconfigurationException(
-            "You added multiple progress bar listeners to the Trainer, but currently only one"
-            " progress bar is supported."
-        )
-    if len(progress_bars) == 1:
-        # the user specified the progress bar in the listeners list
-        # so the trainer doesn't need to provide a default one
-        if enable_progress_bar:
-            return None
-
-        # otherwise the user specified a progress bar listener but also
-        # elected to disable the progress bar with the trainer flag
-        progress_bar_listener = progress_bars[0]
-        raise exceptions.MisconfigurationException(
-            "Trainer was configured with `enable_progress_bar=False`"
-            f" but found `{progress_bar_listener.__class__.__name__}` in listeners list."
-        )
-
-    if enable_progress_bar:
-        return listeners_.progress.TqdmProgressBar()
-
-    return None
-
-
-def _is_local_file_protocol(path: "reax.types.Path") -> bool:
-    """Is local file protocol."""
-    return fsspec.utils.get_protocol(str(path)) == "file"
-
-
-@functools.singledispatch
-def hook_map(_stage) -> dict[Callable, Callable]:
-    """Hook map."""
-    return dict()
-
-
-@hook_map.register
-def _(_stage: stages.Train) -> dict[Callable, Callable]:
-    """Function."""
-    return {
-        stages.StageListener.on_stage_start: hooks.TrainerListener.on_train_start,
-        stages.StageListener.on_stage_started: hooks.TrainerListener.on_train_epoch_start,
-        stages.StageListener.on_stage_iter_starting: hooks.TrainerListener.on_train_batch_start,
-        stages.StageListener.on_stage_iter_ending: hooks.TrainerListener.on_train_batch_end,
-        stages.StageListener.on_stage_end: hooks.TrainerListener.on_train_epoch_end,
-        stages.StageListener.on_stage_ended: hooks.TrainerListener.on_train_end,
-    }
-
-
-@hook_map.register
-def _(_stage: stages.Validate) -> dict[Callable, Callable]:
-    """Function."""
-    return {
-        stages.StageListener.on_stage_start: hooks.TrainerListener.on_validation_start,
-        stages.StageListener.on_stage_started: hooks.TrainerListener.on_validation_epoch_start,
-        # pylint: disable=line-too-long
-        stages.StageListener.on_stage_iter_starting: hooks.TrainerListener.on_validation_batch_start,
-        stages.StageListener.on_stage_iter_ending: hooks.TrainerListener.on_validation_batch_end,
-        stages.StageListener.on_stage_end: hooks.TrainerListener.on_validation_epoch_end,
-        stages.StageListener.on_stage_ended: hooks.TrainerListener.on_validation_end,
-    }
-
-
-@hook_map.register
-def _(_stage: stages.Test) -> dict[Callable, Callable]:
-    """Function."""
-    return {
-        stages.StageListener.on_stage_start: hooks.TrainerListener.on_test_start,
-        stages.StageListener.on_stage_started: hooks.TrainerListener.on_test_epoch_start,
-        stages.StageListener.on_stage_iter_starting: hooks.TrainerListener.on_test_batch_start,
-        stages.StageListener.on_stage_iter_ending: hooks.TrainerListener.on_test_batch_end,
-        stages.StageListener.on_stage_end: hooks.TrainerListener.on_test_epoch_end,
-        stages.StageListener.on_stage_ended: hooks.TrainerListener.on_test_end,
-    }
-
-
-@hook_map.register
-def _(_stage: stages.Predict) -> dict[Callable, Callable]:
-    """Function."""
-    return {
-        stages.StageListener.on_stage_start: hooks.TrainerListener.on_predict_start,
-        stages.StageListener.on_stage_started: hooks.TrainerListener.on_predict_epoch_start,
-        stages.StageListener.on_stage_iter_starting: hooks.TrainerListener.on_predict_batch_start,
-        stages.StageListener.on_stage_iter_ending: hooks.TrainerListener.on_predict_batch_end,
-        stages.StageListener.on_stage_end: hooks.TrainerListener.on_predict_epoch_end,
-        stages.StageListener.on_stage_ended: hooks.TrainerListener.on_predict_end,
-    }
-
-
-@hook_map.register
-def _(_stage: stages.Fit) -> dict[Callable, Callable]:
-    """Function."""
-    return {
-        stages.StageListener.on_stage_start: hooks.TrainerListener.on_fit_start,
-        stages.StageListener.on_stage_end: hooks.TrainerListener.on_fit_end,
-    }
-
-
-def _reorder_listeners(listeners: list["reax.TrainerListener"]) -> list["reax.TrainerListener"]:
-    """Moves all the tuner specific listeners at the beginning of the list and all the
-    `ModelCheckpoint` listeners to the end of the list. The sequential order within the group of
-    checkpoint listeners is preserved, as well as the order of all other listeners.
-
-    Args:
-        listeners: A list of listeners.
-
-    Return:
-        A new list in which the first elements are tuner specific listeners and last elements are
-        ModelCheckpoints if there were any present in the input.
-
-    """
-    tuner_listeners: list[reax.TrainerListener] = []
-    other_listeners: list[reax.TrainerListener] = []
-    checkpoint_listeners: list[reax.TrainerListener] = []
-
-    for cb in listeners:
-        # if isinstance(cb, (BatchSizeFinder, LearningRateFinder)):
-        #     tuner_listeners.append(cb)
-        if isinstance(cb, listeners_.Checkpointer):
-            checkpoint_listeners.append(cb)
-        else:
-            other_listeners.append(cb)
-
-    return tuner_listeners + other_listeners + checkpoint_listeners

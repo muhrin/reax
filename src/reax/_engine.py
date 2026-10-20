@@ -63,7 +63,7 @@ class Engine:
         rngs: nnx.Rngs | None = None,
         default_root_dir: "reax.types.Path | None" = None,
         profiler: "reax.Profiler | str | None" = None,
-        metric_evaluator: "reax.MetricEvaluator | None" = None,
+        metric_evaluator: "reax.metrics.MetricEvaluator | None" = None,
     ):
         """
         Initializes the Engine with execution parameters and components.
@@ -132,9 +132,9 @@ class Engine:
         After this is called, this object should no longer be interacted with,
         as internal components (like event listeners and loggers) are cleared.
         """
-        self._events = None
-        self._loggers = None
-        self._profiler = None
+        self._events.reset()
+        self._loggers = []
+        self._profiler = profilers.DummyProfiler()
 
     @property
     def default_root_dir(self) -> str:
@@ -466,7 +466,7 @@ def _(arg: data_.DataLoader, engine: Engine) -> data_.DataLoader:
 def _init_loggers(
     logger: "reax.Logger | Iterable[reax.Logger] | bool | None",
     default_root_dir: str,
-) -> list["reax.Logger"]:
+) -> "list[reax.Logger]":
     """Init loggers."""
     if isinstance(logger, loggers_.Logger):
         return [logger]
@@ -481,7 +481,7 @@ def _init_loggers(
 
 
 def _init_profiler(profiler: "reax.Profiler | str | None" = None) -> "reax.Profiler":
-    profs: Final[dict[str, type(profilers.Profiler)]] = {
+    profs: Final[dict[str, type[profilers.Profiler]]] = {
         "dummy": profilers.DummyProfiler,
         "jax": profilers.JaxProfiler,
     }

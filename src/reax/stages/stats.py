@@ -1,15 +1,14 @@
 """Stage for evaluating dataset statistics"""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import beartype
-from flax import nnx
 import jaxtyping as jt
 from typing_extensions import override
 
 from reax import metrics
 
-from . import stages
+from . import _loops, stages
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -17,10 +16,10 @@ if TYPE_CHECKING:
     import reax
 
 
-__all__ = ("EvaluateStats",)
+__all__ = ("EvaluateStats", "StatsEpoch")
 
 
-class EvaluateStats(stages.EpochStage):
+class EvaluateStats(stages.Stage):
     """A stage that can be used to evaluate statistics (in the form of metrics) on a dataset"""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -30,7 +29,6 @@ class EvaluateStats(stages.EpochStage):
         datamanager: "reax.data.DataSourceManager",
         engine: "reax.Engine",
         *,
-        rngs: nnx.Rngs,
         dataset_name: str = "train",
         fast_dev_run: bool | int = False,
         limit_batches: int | float | None = None,
@@ -40,25 +38,59 @@ class EvaluateStats(stages.EpochStage):
         """Init function."""
         super().__init__(
             "stats",
-            None,
-            datamanager,
             engine,
-            rngs=rngs,
-            dataloader_name=dataset_name,
-            limit_batches=limit_batches,
+            datamanager=datamanager,
+            enable_checkpointing=False,
             fast_dev_run=fast_dev_run,
         )
 
-        # Params
-        self._evaluator = evaluator
-        self._stats = stats
-        self._ignore_missing = ignore_missing
+        self._loop = StatsEpoch(
+            self,
+            stats=stats,
+            fast_dev_run=fast_dev_run,
+            limit_batches=limit_batches,
+            dataloader_name=dataset_name,
+            ignore_missing=ignore_missing,
+            evaluator=evaluator,
+        )
+
+    @property
+    def batch_idx(self) -> int:
+        return self._loop.batch_idx
 
     @override
-    def _step(self) -> None:
-        """Step function."""
+    def _run(self) -> "reax.stages.MetricResults":
+        return self.run_loop(self._loop)
+
+
+class StatsEpoch(_loops.LoopOverBatches[EvaluateStats]):
+    def __init__(
+        self,
+        stage: "EvaluateStats",
+        *,
+        stats: "reax.Metric | Sequence[reax.Metric] | dict[str, reax.Metric]",
+        fast_dev_run: bool | int = False,
+        limit_batches: int | float | None = None,
+        dataloader_name: str | None = "train",
+        ignore_missing=False,
+        evaluator: "reax.metrics.MetricEvaluator | None" = None,
+    ):
+        super().__init__(
+            "stats",
+            stage,
+            fast_dev_run=fast_dev_run,
+            limit_batches=limit_batches,
+            dataloader_name=dataloader_name,
+        )
+
+        self._stats = stats
+        self._ignore_missing = ignore_missing
+        self._evaluator = evaluator
+
+    @override
+    def _step(self) -> Any:
         evaluator = (
-            self._evaluator if self._evaluator is not None else self._engine.metric_evaluator
+            self._evaluator if self._evaluator is not None else self._stage.engine.metric_evaluator
         )
         collection = metrics.MetricCollection(self._stats, evaluator)
 

@@ -80,8 +80,8 @@ def test_on_train_epoch_end_metrics_collection(tmp_path):
             )
             return output
 
-        def on_train_epoch_end(self, stage):
-            epoch = stage.epoch
+        def on_train_epoch_end(self, loop):
+            epoch = loop.epoch
             # both scalar tensors and Python numbers are accepted
             self.log_dict(
                 {f"epoch_metric_{epoch}": jnp.ndarray(epoch), "shared_metric": 111},
@@ -278,7 +278,7 @@ class HookedModel(boring_classes.BoringModel):
                     {"name": "on_before_batch_transfer", "args": (ANY, 0)},
                     {"name": "transfer_batch_to_device", "args": (ANY, device, 0)},
                     {"name": "on_after_batch_transfer", "args": (ANY, 0)},
-                    {"name": "Listener.on_train_batch_start", "args": (trainer, model, ANY, i)},
+                    {"name": "Listener.on_train_batch_start", "args": (trainer, model, ANY, ANY)},
                     {"name": "on_train_batch_start", "args": (ANY, i)},
                     {"name": "forward", "args": (ANY,)},
                     {"name": "training_step", "args": (ANY, i)},
@@ -317,7 +317,7 @@ class HookedModel(boring_classes.BoringModel):
                     ),
                     {
                         "name": "Listener.on_train_batch_end",
-                        "args": (trainer, model, {"loss": ANY}, ANY, i),
+                        "args": (trainer, model, ANY, {"loss": ANY}),
                     },
                     {"name": "on_train_batch_end", "args": ({"loss": ANY}, ANY, i)},
                 ]
@@ -334,7 +334,7 @@ class HookedModel(boring_classes.BoringModel):
                     {"name": "on_before_batch_transfer", "args": (ANY, 0)},
                     {"name": "transfer_batch_to_device", "args": (ANY, device, 0)},
                     {"name": "on_after_batch_transfer", "args": (ANY, 0)},
-                    {"name": "Listener.on_train_batch_start", "args": (trainer, model, ANY, i)},
+                    {"name": "Listener.on_train_batch_start", "args": (trainer, model, ANY, ANY)},
                     {"name": "on_train_batch_start", "args": (ANY, i)},
                     {"name": "forward", "args": (ANY,)},
                     {"name": "Listener.on_before_backward", "args": (trainer, model, ANY)},
@@ -351,7 +351,7 @@ class HookedModel(boring_classes.BoringModel):
                     {"name": "training_step", "args": (ANY, i)},
                     {
                         "name": "Listener.on_train_batch_end",
-                        "args": (trainer, model, {"loss": ANY}, ANY, i),
+                        "args": (trainer, model, ANY, {"loss": ANY}),
                     },
                     {"name": "on_train_batch_end", "args": ({"loss": ANY}, ANY, i)},
                 ]
@@ -378,13 +378,13 @@ class HookedModel(boring_classes.BoringModel):
                     {"name": "on_before_batch_transfer", "args": (ANY, 0)},
                     {"name": "transfer_batch_to_device", "args": (ANY, device, 0)},
                     {"name": "on_after_batch_transfer", "args": (ANY, 0)},
-                    {"name": f"Listener.on_{fn}_batch_start", "args": (trainer, model, ANY, i)},
+                    {"name": f"Listener.on_{fn}_batch_start", "args": (trainer, model, ANY, ANY)},
                     {"name": f"on_{fn}_batch_start", "args": (ANY, i)},
                     {"name": "forward", "args": (ANY,)},
                     {"name": f"{fn}_step", "args": (ANY, i)},
                     {
                         "name": f"Listener.on_{fn}_batch_end",
-                        "args": (trainer, model, outputs, ANY, i),
+                        "args": (trainer, model, ANY, outputs),
                     },
                     {"name": f"on_{fn}_batch_end", "args": (outputs, ANY, i)},
                 ]
@@ -403,10 +403,10 @@ class HookedModel(boring_classes.BoringModel):
                     {"name": "on_stage_iter_starting"},
                     {"name": "on_predict_batch_start"},
                     {"name": "Listener.on_stage_iter_start"},
-                    {"name": "Listener.on_predict_batch_start", "args": (trainer, model, ANY, i)},
+                    {"name": "Listener.on_predict_batch_start", "args": (trainer, model, ANY, ANY)},
                     {"name": "predict_step", "args": (ANY, i)},
                     {"name": "Listener.on_batch_end", "args": (ANY, i)},
-                    {"name": "Listener.on_predict_batch_end", "args": (ANY,)},
+                    {"name": "Listener.on_predict_batch_end", "args": (trainer, model, ANY, ANY)},
                     {"name": "Listener.on_stage_iter_end"},
                     {"name": "on_predict_batch_end", "args": (ANY, ANY, i)},
                 ]

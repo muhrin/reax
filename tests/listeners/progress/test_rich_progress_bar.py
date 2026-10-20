@@ -127,7 +127,7 @@ def test_rich_progress_bar_custom_theme():
         theme = rich_progress.RichProgressBarTheme()
 
         progress_bar = progress.RichProgressBar(theme=theme)
-        progress_bar.on_train_start(reax.Trainer(), None)
+        progress_bar.on_train_start(reax.Trainer(), None, None)
 
         assert progress_bar.theme == theme
         _, kwargs = mocks["CustomBarColumn"].call_args
@@ -242,7 +242,7 @@ def test_rich_progress_bar_with_refresh_rate(
         listeners=progress.RichProgressBar(refresh_rate=refresh_rate),
     )
 
-    trainer.progress_bar_listener.on_train_start(trainer, None)
+    trainer.progress_bar_listener.on_train_start(trainer, None, None)
     with mock.patch.object(
         trainer.progress_bar_listener.progress,
         "update",
@@ -436,10 +436,8 @@ def test_rich_progress_bar_padding():
     trainer = Mock()
     trainer.max_epochs = 1
     progress_bar._trainer = trainer
-    stage = Mock(spec=reax.stages.Train)
-    stage.parent.max_iters = 1
 
-    train_description = progress_bar._get_train_description(current_epoch=0, stage=stage)
+    train_description = progress_bar._get_train_description(current_epoch=0, max_epochs=1)
     assert "Epoch 0/0" in train_description
     assert len(progress_bar.validation_description) == len(train_description)
 
@@ -479,12 +477,17 @@ def test_rich_progress_bar_reset_bars():
         bar.test_progress_bar_id = 3
         bar.predict_progress_bar_id = 4
 
-    for stage in ("train", "validation", "test", "predict"):  # TODO: "sanity_check",
+    for stage in ("train", "validation", "test", "predict"):
         hook_name = f"on_{stage}_start"
         hook = getattr(bar, hook_name)
 
         _set_fake_bar_ids()  # pretend that bars are initialized from a previous run
-        hook(Mock(), Mock())
+        # `on_train_start` fires from the FitLoop (loop-level) rather than a stage,
+        # so it takes a `loop` argument in addition to the stage.
+        if stage == "train":
+            hook(Mock(), Mock(), Mock(spec=reax.stages.FitLoop))
+        else:
+            hook(Mock(), Mock())
         bar.teardown(Mock(), Mock(), Mock())
 
         # assert all bars are reset

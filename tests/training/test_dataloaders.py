@@ -33,8 +33,7 @@
 import os
 from unittest.mock import Mock, call, patch
 
-from lightning_utilities.test import warning
-import numpy
+import jaxtyping as jt
 import pytest
 
 import reax
@@ -553,14 +552,12 @@ def test_dataloaders_with_fast_dev_run(tmp_path, fast_dev_run):
 
         assert fit.enable_validation
         assert fit.num_training_batches == fast_dev_run
-        # TODO: assert fit.num_val_batches == [fast_dev_run] *
-        # len(fit.val_dataloaders)
+        # TODO: assert fit.num_val_batches == [fast_dev_run] * len(fit.val_dataloaders)
         assert fit.num_val_batches == fast_dev_run
 
         test = trainer.test(model, fast_dev_run=fast_dev_run)
         assert test.limit_batches == fast_dev_run
-        # TODO: assert test.num_batches == [fast_dev_run] *
-        # len(test.dataloaders)
+        # TODO: assert test.num_batches == [fast_dev_run] * len(test.dataloaders)
         assert test.num_batches == fast_dev_run
 
 
@@ -1238,7 +1235,7 @@ def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
             val_reload_epochs.append(self.current_epoch)
             return super().val_dataloader()
 
-        def on_validation_epoch_end(self, stage: "reax.stages.Validate", /):
+        def on_validation_epoch_end(self, loop: "reax.stages.ValidationEpoch", /):
             val_check_epochs.append(self.current_epoch)
 
     model = TestModel()
@@ -1259,16 +1256,16 @@ def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
 
     # Verify epoch of reloads
     assert train_reload_epochs == [0, 1, 2]
-    assert val_reload_epochs == [0, 1, 2]
+    assert val_reload_epochs == [-1, 0, 1, 2]
     model.test_dataloader.assert_called_once()
 
-    # Verify validation happens 3 times per epoch + 1 for sanity check
-    assert val_check_epochs == [0, 0, 0, 0, 1, 1, 1, 2, 2, 2]
+    # Verify validation happens 1 for sanity check + 3 times per epoch
+    assert val_check_epochs == [-1, 0, 0, 0, 1, 1, 1, 2, 2, 2]
 
 
 @pytest.mark.parametrize("n", ["test", -1])
 def test_dataloaders_load_every_n_epochs_exception(tmp_path, n):
-    with pytest.raises(reax.exceptions.MisconfigurationException, match="should be an int >"):
+    with pytest.raises((reax.exceptions.MisconfigurationException, jt.TypeCheckError)):
         trainer = reax.Trainer(default_root_dir=tmp_path)
         trainer.fit(boring_classes.BoringModel(), reload_dataloaders_every_n_epochs=n)
 

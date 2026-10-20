@@ -9,6 +9,7 @@ User Guide
    trainer
    engine
    data
+   hooks
    listeners
    checkpointing
    logging

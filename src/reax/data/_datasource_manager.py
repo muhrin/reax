@@ -116,7 +116,6 @@ class DataSourceManager(abc.ABC):  # noqa: B024
 
     def on_exception(self, exception: BaseException) -> None:
         """Tell the data source that an exception has occurred"""
-
         if self._datasource is not None:
             self._datasource.on_exception(exception)
 

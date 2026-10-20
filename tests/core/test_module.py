@@ -18,7 +18,7 @@ def test_module_log(test_trainer, reduce_fn, batch_size_mode):
             self.losses = []
             self.batch_sizes = []
 
-        def on_train_epoch_start(self, stage: "reax.stages.Train", /) -> None:
+        def on_train_epoch_start(self, stage: "reax.stages.TrainEpoch", /) -> None:
             super().on_train_epoch_start(stage)
             self.losses = []
             self.batch_sizes = []
@@ -48,7 +48,7 @@ def test_module_log(test_trainer, reduce_fn, batch_size_mode):
             return optax.losses.squared_error(preds, labels).mean() ** 0.5
 
     module = TestModule(reduce_fn, batch_size_mode)
-    stage = test_trainer.fit(module, max_epochs=1)
+    fit = test_trainer.fit(module, max_epochs=1)
 
     # Compute expected metric based on combination
     if reduce_fn == "sum":
@@ -58,4 +58,4 @@ def test_module_log(test_trainer, reduce_fn, batch_size_mode):
     else:  # reduce_fn == "mean" and batch_size_mode == "none"
         expected_metric = np.mean(module.losses)
 
-    assert np.isclose(expected_metric, stage._fit_epoch.callback_metrics["loss"])
+    assert np.isclose(expected_metric, fit.listener_metrics["loss"])

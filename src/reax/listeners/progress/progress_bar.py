@@ -60,10 +60,10 @@ class ProgressBar(hooks.TrainerListener):
             def disable(self):
                 self.enable = False
 
-            def on_train_batch_end(self, trainer, stage, outputs, batch, batch_idx):
+            def on_train_batch_end(self, trainer, stage, loop, outputs):
                 # don't forget this :)
-                super().on_train_batch_end(trainer, stage, outputs, batch, batch_idx)
-                percent = (batch_idx / self.total_train_batches) * 100
+                super().on_train_batch_end(trainer, stage, loop, outputs)
+                percent = ((loop.batch_idx + 1) / self.total_train_batches) * 100
                 sys.stdout.flush()
                 sys.stdout.write(f'{percent:.01f} percent complete \r')
 

@@ -1,4 +1,4 @@
-from collections.abc import Callable, Generator, Sequence
+from collections.abc import Callable, Generator
 import contextlib
 from typing import TYPE_CHECKING, Any, Generic, TypeAlias, TypedDict, TypeVar
 
@@ -6,6 +6,7 @@ import beartype
 from flax import nnx
 import jax
 import jaxtyping as jt
+from jaxtyping import Float
 from lightning_utilities.core import rank_zero
 import optax
 from typing_extensions import deprecated
@@ -14,6 +15,8 @@ from . import _module_hooks
 from .data import _datasources
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
     import reax
 
 __all__ = ("Module",)
@@ -25,11 +28,11 @@ OptimizerData = tuple[optax.GradientTransformation, Any]
 
 
 class LossAndGradDict(TypedDict, total=False):
-    loss: jax.Array
-    grad: jt.PyTree
+    loss: Float[jax.Array, ""]
+    grad: optax.Params
 
 
-LossAndGrad = tuple[jax.Array, jax.Array]
+LossAndGrad = tuple[Float[jax.Array, ""], optax.Params]
 TrainOutput = LossAndGrad | LossAndGradDict
 
 
@@ -56,7 +59,7 @@ class Module(
         self._automatic_optimization = automatic_optimization
 
     @property
-    def trainer(self) -> "reax.Trainer":
+    def trainer(self) -> "reax.Trainer | None":
         """Trainer function."""
         return self._trainer
 
@@ -84,11 +87,11 @@ class Module(
         """Get the current fitting epoch."""
         return self._trainer.current_epoch
 
-    def parameters(self) -> jt.PyTree | None:
+    def parameters(self) -> optax.Params | None:
         """Parameters function."""
         return self._parameters
 
-    def set_parameters(self, params: jt.PyTree):
+    def set_parameters(self, params: optax.Params):
         """Set parameters."""
         self._parameters = params
 
@@ -173,7 +176,7 @@ class Module(
     @jt.jaxtyped(typechecker=beartype.beartype)
     def configure_optimizers(
         self,
-    ) -> OptimizerData | Sequence[OptimizerData] | None:
+    ) -> OptimizerData | list[OptimizerData] | None:
         """Create the optimizer(s) to use during training."""
         return None
 

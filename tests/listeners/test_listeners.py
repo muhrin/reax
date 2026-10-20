@@ -38,6 +38,7 @@ import pytest
 
 import reax
 from reax import demos
+from tests import helpers
 
 
 def test_listeners_configured_in_model(tmp_path):
@@ -188,5 +189,5 @@ def test_resume_incomplete_listeners_list_warning(tmp_path):
         max_steps=1,
         listeners=[listener1, listener0],  # all listeners here, order switched
     )
-    with no_warning_call(UserWarning, match="Please add the following listeners:"):
+    with helpers.no_warning_call(UserWarning, match="Please add the following listeners:"):
         trainer.fit(model, ckpt_path=ckpt_path)

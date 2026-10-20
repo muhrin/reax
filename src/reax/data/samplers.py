@@ -60,7 +60,7 @@ class RandomSampler(_types.Sampler[int]):
         # Params
         self._length: Final[int] = length
         self._replacements: Final[bool] = replacements
-        self._num_samples: Final[bool | None] = num_samples
+        self._num_samples: Final[int | None] = num_samples
 
     @property
     def num_samples(self) -> int:

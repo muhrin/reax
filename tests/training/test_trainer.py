@@ -46,22 +46,20 @@ import reax
 from reax import demos, metrics, testing
 
 
-def test_trainer_error_when_input_not_reax_module():
+@pytest.mark.parametrize("method", ("fit", "validate", "test", "predict"))
+def test_trainer_error_when_input_not_reax_module(method):
     """Test that a useful error gets raised when the Trainer methods receive something other than a reax.Module."""
     trainer = reax.Trainer()
-
-    for method in ("fit", "validate", "test", "predict"):
-        with pytest.raises((jt.TypeCheckError, TypeError)):
-            run_method = getattr(trainer, method)
-            run_method(linen.Dense(2))
+    with pytest.raises((jt.TypeCheckError, TypeError)):
+        run_method = getattr(trainer, method)
+        run_method(linen.Dense(2))
 
 
-def test_trainer_max_steps_and_epochs(tmp_path):
+def test_trainer_max_steps(tmp_path):
     """Verify model trains according to specified max steps."""
     mod = demos.BoringModel()
     num_train_samples = math.floor(len(mod.train_dataloader()) * 0.125)
 
-    # define less train steps than epochs
     kwargs = dict(
         default_root_dir=tmp_path,
         logger=False,
@@ -69,32 +67,49 @@ def test_trainer_max_steps_and_epochs(tmp_path):
         enable_progress_bar=False,
     )
 
+    # define less train steps than epochs
     trainer = reax.Trainer(**kwargs)
     max_updates = num_train_samples + 2
-    trainer.fit(mod, max_epochs=3, max_updates=max_updates)
+    fit = trainer.fit(mod, max_epochs=3, max_updates=max_updates)
 
-    # todo: assert trainer.state.finished, f"Training failed with {trainer.state}"
+    assert fit.state.finished, f"Training failed with {fit.state}"
     assert trainer.global_updates == max_updates, "Model did not stop at max_steps"
-    trainer.finalize()
-
-    # define less train epochs than steps
-    trainer = reax.Trainer(**kwargs)
-    max_epochs = 2
-    trainer.fit(
-        mod, max_epochs=max_epochs, max_updates=3 * 2 * num_train_samples, limit_train_batches=0.125
-    )
-
-    # todo: assert trainer.state.finished, f"Training failed with {trainer.state}"
-    assert trainer.global_updates == num_train_samples * max_epochs
-    assert trainer.current_epoch == max_epochs, "Model did not stop at max_epochs"
     trainer.finalize()
 
     trainer = reax.Trainer(**kwargs)
     # if max_steps is positive and max_epochs is infinity, use max_steps
-    trainer.fit(mod, max_epochs=None, max_updates=3)
+    fit = trainer.fit(mod, max_epochs=None, max_updates=3)
 
-    # todo: assert trainer.state.finished, f"Training failed with {trainer.state}"
-    assert trainer.global_updates == 3
+    assert fit.state.finished, f"Training failed with {fit.state}"
+    assert fit.global_updates == 3
+
+
+def test_trainer_max_epochs(tmp_path):
+    """Verify model trains according to specified max epochs."""
+    mod = demos.BoringModel()
+    num_train_samples = math.floor(len(mod.train_dataloader()) * 0.125)
+
+    kwargs = dict(
+        default_root_dir=tmp_path,
+        logger=False,
+        enable_model_summary=False,
+        enable_progress_bar=False,
+    )
+
+    # define less train epochs than steps
+    trainer = reax.Trainer(**kwargs)
+    max_epochs = 2
+    fit = trainer.fit(
+        mod,
+        max_epochs=max_epochs,
+        max_updates=3 * 2 * num_train_samples,
+        limit_train_batches=0.125,
+    )
+
+    assert fit.state.finished, f"Training failed with {fit.state}"
+    assert trainer.global_updates == num_train_samples * max_epochs
+    assert fit.epoch == max_epochs - 1, "Model did not stop at max_epochs"
+    trainer.finalize()
 
 
 @pytest.mark.parametrize(
@@ -245,18 +260,19 @@ def test_disabled_validation(tmp_path):
 
     model = CurrentModel()
 
-    trainer_options = {
-        "default_root_dir": tmp_path,
-        "enable_progress_bar": False,
-    }
+    trainer_options = {"default_root_dir": tmp_path, "enable_progress_bar": False}
     trainer = reax.Trainer(**trainer_options)
     fit = trainer.fit(
-        model, fast_dev_run=False, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0
+        model,
+        fast_dev_run=False,
+        max_epochs=2,
+        limit_train_batches=0.4,
+        limit_val_batches=0.0,
     )
 
     # check that limit_val_batches=0 turns off validation
     assert fit.state.finished, f"Training failed with {fit.state}"
-    assert trainer.current_epoch == 2
+    assert trainer.epochs_completed == 2
     assert not model.validation_step_invoked, (
         "`validation_step` should not run when `limit_val_batches=0`"
     )
@@ -265,11 +281,15 @@ def test_disabled_validation(tmp_path):
     model = CurrentModel()
     trainer = reax.Trainer(**trainer_options)
     fit = trainer.fit(
-        model, fast_dev_run=True, max_epochs=2, limit_train_batches=0.4, limit_val_batches=0.0
+        model,
+        fast_dev_run=True,
+        max_epochs=2,
+        limit_train_batches=0.4,
+        limit_val_batches=0.0,
     )
 
     assert fit.state.finished, f"Training failed with {fit.state}"
-    assert trainer.current_epoch == 1
+    assert trainer.epochs_completed == 1
     assert model.validation_step_invoked, "did not run `validation_step` with `fast_dev_run=True`"
 
 

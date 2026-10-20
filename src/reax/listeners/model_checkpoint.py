@@ -383,7 +383,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
     @override
     def on_train_batch_end(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Train", /, *_
+        self, trainer: "reax.Trainer", stage: "reax.Stage", _loop: "reax.stages.TrainEpoch", /, *_
     ) -> None:
         """Save checkpoint on train batch end if we meet the criteria for `every_n_train_steps`"""
         if self._should_skip_saving_checkpoint(trainer, stage):
@@ -410,33 +410,38 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         if not skip_time:
             self._last_time_checked = now
 
-        monitor_candidates = self._monitor_candidates(stage, trainer)
+        monitor_candidates = self._monitor_candidates(trainer)
         self._save_topk_checkpoint(trainer, monitor_candidates)
         self._save_last_checkpoint(trainer, monitor_candidates)
 
     @override
-    def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
+    def on_train_epoch_end(
+        self, trainer: "reax.Trainer", stage: "reax.Stage", _loop: "reax.stages.TrainEpoch", /
+    ) -> None:
         """On train epoch end."""
         if not self._should_skip_saving_checkpoint(
             trainer, stage
-        ) and self._should_save_on_train_epoch_end(trainer, stage):
-            if isinstance(stage, stages.Train):
-                self._do_save(trainer, self._monitor_candidates(stage, trainer))
+        ) and self._should_save_on_train_epoch_end(stage):
+            self._do_save(trainer, self._monitor_candidates(trainer))
 
     @override
-    def on_validation_end(self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /) -> None:
+    def on_validation_epoch_end(
+        self, trainer: "reax.Trainer", stage: "reax.Stage", _loop: "reax.stages.ValidationEpoch", /
+    ) -> None:
         """On validation epoch end."""
         if not self._should_skip_saving_checkpoint(
             trainer, stage
-        ) and not self._should_save_on_train_epoch_end(trainer, stage):
-            if isinstance(stage, stages.Validate):
-                self._do_save(trainer, self._monitor_candidates(stage, trainer))
+        ) and not self._should_save_on_train_epoch_end(stage):
+            self._do_save(trainer, self._monitor_candidates(trainer))
 
-    def _monitor_candidates(
-        self, stage: "reax.stages.EpochStage", trainer: "reax.Trainer", /
-    ) -> dict[str, jax.Array]:
-        """Monitor candidates."""
-        monitor_candidates: dict = copy.deepcopy(stage.listener_metrics)
+    def _monitor_candidates(self, trainer: "reax.Trainer", /) -> dict[str, jax.Array]:
+        """Monitor candidates.
+
+        Read the metrics from the trainer rather than a single stage so that metrics logged during
+        training (e.g. an on-epoch training loss) are still visible after the nested validation loop
+        has overwritten the stage's own metric view.
+        """
+        monitor_candidates: dict = copy.deepcopy(trainer.listener_metrics)
 
         monitor_candidates["epoch"] = as_jax_int(
             monitor_candidates.get("epoch", trainer.current_epoch)
@@ -472,9 +477,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
         self._save_last_checkpoint(trainer, monitor_candidates)
 
-    def _should_skip_saving_checkpoint(
-        self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage"
-    ) -> bool:
+    def _should_skip_saving_checkpoint(self, trainer: "reax.Trainer", stage: "reax.Stage") -> bool:
         return (
             bool(stage.fast_dev_run)  # disable checkpointing with fast_dev_run
             # don't save anything during non-fit
@@ -485,7 +488,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         )
 
     def _should_save_on_train_epoch_end(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Train | reax.stages.Validate"
+        self, stage: "reax.stages.Fit | reax.stages.Validate", /
     ) -> bool:
         """
         Determines if we should trigger a checkpoint save at the end of a training epoch
@@ -495,11 +498,12 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             # Do whatever the user asked for
             return self._save_on_train_epoch_end
 
-        if not isinstance(trainer.stage, stages.Fit):
-            return isinstance(stage, stages.Train)
+        if not isinstance(stage, stages.Fit):
+            # Outside of fit there is no training epoch to save on, so defer to
+            # the end of validation.
+            return False
 
-        fit: stages.Fit = trainer.stage
-        validation_mode = fit.validation_mode
+        validation_mode = stage.validation_mode
 
         # 1. If validation is disabled, we must save on the training epoch end.
         if validation_mode == stages.ValidationMode.OFF:
@@ -517,7 +521,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         # 3. Handle infrequent validation (check_val_every_n_epoch > 1).
         # If the user only validates every 5 epochs, we don't want to enforce
         # saving on epochs 1, 2, 3, or 4 because the val metrics would be stale.
-        if (fit.check_val_every_n_epoch or 1) != 1:
+        if (stage.check_val_every_n_epoch or 1) != 1:
             return False
 
         # 4. Standard End-of-Epoch validation (Every 1 Epoch).
@@ -630,11 +634,13 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         if len(self._best_k_models) == k:
             # monitor dict has reached k elements
             _op = max if self._mode == "min" else min
-            self._kth_best_model_path = _op(self._best_k_models, key=self._best_k_models.get)
+            self._kth_best_model_path = _op(
+                self._best_k_models, key=self._best_k_models.__getitem__
+            )
             self._kth_value = self._best_k_models[self._kth_best_model_path]
 
         _op = min if self._mode == "min" else max
-        self._best_model_path = _op(self._best_k_models, key=self._best_k_models.get)
+        self._best_model_path = _op(self._best_k_models, key=self._best_k_models.__getitem__)
         self._best_model_score = self._best_k_models[self._best_model_path]
 
         if self._verbose:
@@ -835,8 +841,9 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             return self.dirpath
 
         if len(trainer.loggers) > 0:
-            if trainer.loggers[0].save_dir is not None:
-                save_dir = trainer.loggers[0].save_dir
+            logger_save_dir = trainer.loggers[0].save_dir
+            if logger_save_dir is not None:
+                save_dir = logger_save_dir
             else:
                 save_dir = trainer.default_root_dir
             name = trainer.loggers[0].name

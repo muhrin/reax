@@ -17,17 +17,25 @@ REAX comes with several built-in listeners:
 Custom Listeners
 ----------------
 
-You can create your own listener by inheriting from :class:`~reax.TrainerListener`.
+You can create your own listener by subclassing :class:`~reax.TrainerListener` and overriding any
+of its hooks.
+
+Each hook receives the ``Trainer`` instance and the ``Stage`` running. Loop-level hooks --
+``on_train_start``, ``on_train_end`` and the epoch/batch hooks such as
+``on_train_epoch_start``, ``on_train_batch_start`` and ``on_train_batch_end`` (and their
+validation/test/predict variants) -- also receive the ``Loop`` object driving that part of the run,
+e.g. a :class:`~reax.stages.FitLoop` or :class:`~reax.stages.TrainEpoch`. Use it to inspect or
+control the iteration, such as reading ``loop.iteration``.
 
 .. code-block:: python
 
     import reax
 
     class MyPrintingListener(reax.TrainerListener):
-        def on_train_start(self, trainer, module):
+        def on_train_start(self, trainer, stage, loop):
             print("Training is starting!")
 
-        def on_train_end(self, trainer, module):
+        def on_train_end(self, trainer, stage, loop):
             print("Training is ending!")
 
 Using Listeners

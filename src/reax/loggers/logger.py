@@ -182,7 +182,7 @@ class DummyLogger(Logger):
         """Return the experiment version."""
         return ""
 
-    def __getitem__(self, idx: int) -> "_DummyLogger":
+    def __getitem__(self, idx: int) -> "DummyLogger":
         # enables self.logger[0].experiment.add_image(...)
         return self
 

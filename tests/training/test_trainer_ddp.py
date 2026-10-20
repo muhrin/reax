@@ -23,7 +23,7 @@ def _run_trainer_fit(tmp_path):
     model = demos.BoringModel()
     fit = trainer.fit(model, max_epochs=1, limit_train_batches=0.5, limit_val_batches=0.0)
     assert fit.state.finished
-    assert trainer.current_epoch == 1
+    assert trainer.epochs_completed == 1
     assert trainer.global_updates > 0
     trainer.finalize()
 

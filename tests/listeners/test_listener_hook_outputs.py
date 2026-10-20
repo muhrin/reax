@@ -41,20 +41,20 @@ def test_train_step_no_return(tmp_path, single_cb: bool):
     """Tests that only training_step can be used."""
 
     class Listener(reax.TrainerListener):
-        def on_train_batch_end(self, trainer, stage, outputs, *_):
+        def on_train_batch_end(self, trainer, stage, loop, outputs, /):
             assert "loss" in outputs
 
-        def on_validation_batch_end(self, trainer, stage, outputs, *_):
+        def on_validation_batch_end(self, trainer, stage, loop, outputs, /):
             assert "x" in outputs
 
-        def on_test_batch_end(self, trainer, stage, outputs, *_):
+        def on_test_batch_end(self, trainer, stage, loop, outputs, /):
             assert "x" in outputs
 
     class TestModel(demos.boring_classes.BoringModel):
         def on_train_batch_end(self, stage, outputs, *_):
             assert "loss" in outputs
 
-        def on_validation_batch_end(self, stage, outputs, *_):
+        def on_validation_batch_end(self, loop, outputs, *_):
             assert "x" in outputs
 
         def on_test_batch_end(self, stage, outputs, *_):

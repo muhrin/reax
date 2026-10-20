@@ -150,7 +150,7 @@ class TqdmProgressBar(progress_bar.ProgressBar):
             bar_format=self.BAR_FORMAT,
         )
 
-    def init_predict_tqdm(self, stage: "reax.stages.Predict") -> tqdm.tqdm:
+    def init_predict_tqdm(self, stage: "reax.Stage") -> tqdm.tqdm:
         """Override this to customize the tqdm bar for predicting."""
         return tqdm.tqdm(
             desc=stage.name,
@@ -163,15 +163,13 @@ class TqdmProgressBar(progress_bar.ProgressBar):
             bar_format=self.BAR_FORMAT,
         )
 
-    def init_validation_tqdm(self, stage: "reax.stages.Validate") -> tqdm.tqdm:
+    def init_validation_tqdm(self, stage: "reax.Stage") -> tqdm.tqdm:
         """Override this to customize the tqdm bar for validation."""
         # Check if there is a 'parent' in which case it will have a progress bar
-        has_main_bar = stage.parent is not None
         return tqdm.tqdm(
             desc=stage.name,
-            position=(2 * self.process_position + has_main_bar),
+            position=(2 * self.process_position),
             disable=self.is_disabled,
-            leave=not has_main_bar,
             dynamic_ncols=True,
             file=sys.stdout,
             bar_format=self.BAR_FORMAT,
@@ -195,9 +193,11 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         self.train_progress_bar = self.init_train_tqdm(stage)
 
     @override
-    def on_train_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
+    def on_train_epoch_start(
+        self, trainer: "reax.Trainer", _stage: "reax.Stage", loop: "reax.stages.TrainEpoch", /
+    ) -> None:
         """On train epoch start."""
-        self.train_progress_bar.reset(total=utils.convert_inf(stage.max_batches))
+        self.train_progress_bar.reset(total=utils.convert_inf(loop.max_batches))
         self.train_progress_bar.initial = 0
         self.train_progress_bar.set_description(f"Epoch {trainer.current_epoch}")
 
@@ -205,20 +205,21 @@ class TqdmProgressBar(progress_bar.ProgressBar):
     def on_train_batch_end(
         self,
         trainer: "reax.Trainer",
-        _stage: "reax.stages.Train",
+        _stage: "reax.Stage",
+        loop: "reax.stages.TrainEpoch",
         _outputs: Any,
-        _batch: Any,
-        batch_idx: int,
         /,
     ) -> None:
         """On train batch end."""
-        n = batch_idx + 1
+        n = loop.batch_idx + 1
         if self._should_update(n, self.train_progress_bar.total):
             _update_n(self.train_progress_bar, n)
             self.train_progress_bar.set_postfix(trainer.progress_bar_metrics)
 
     @override
-    def on_train_epoch_end(self, trainer: "reax.Trainer", _stage: "reax.stages.Train", /) -> None:
+    def on_train_epoch_end(
+        self, trainer: "reax.Trainer", _stage: "reax.Stage", _loop: "reax.stages.TrainEpoch", /
+    ) -> None:
         """On train epoch end."""
         if not self.train_progress_bar.disable:
             self.train_progress_bar.set_postfix(trainer.progress_bar_metrics)
@@ -230,11 +231,15 @@ class TqdmProgressBar(progress_bar.ProgressBar):
 
     @override
     def on_validation_epoch_start(
-        self, _trainer: "reax.Trainer", stage: "reax.stages.Validate", /
+        self,
+        _trainer: "reax.Trainer",
+        stage: "reax.Stage",
+        loop: "reax.stages.ValidationEpoch",
+        /,
     ) -> None:
         """On validation epoch start."""
         self.val_progress_bar = self.init_validation_tqdm(stage)
-        self.val_progress_bar.reset(total=utils.convert_inf(stage.max_batches))
+        self.val_progress_bar.reset(total=utils.convert_inf(loop.max_batches))
         self.val_progress_bar.initial = 0
         self.val_progress_bar.set_description(stage.name)
 
@@ -243,19 +248,22 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         self,
         _trainer: "reax.Trainer",
         _stage: "reax.Stage",
+        loop: "reax.stages.ValidationEpoch",
         _outputs: Any,
-        _batch: Any,
-        batch_idx: int,
         /,
     ) -> None:
         """On validation batch end."""
-        n = batch_idx + 1
+        n = loop.batch_idx + 1
         if self._should_update(n, self.val_progress_bar.total):
             _update_n(self.val_progress_bar, n)
 
     @override
     def on_validation_epoch_end(
-        self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /
+        self,
+        trainer: "reax.Trainer",
+        stage: "reax.Stage",
+        _loop: "reax.stages.ValidationEpoch",
+        /,
     ) -> None:
         """On validation epoch end."""
         self.val_progress_bar.close()
@@ -263,16 +271,23 @@ class TqdmProgressBar(progress_bar.ProgressBar):
             self.train_progress_bar.set_postfix(trainer.progress_bar_metrics)
 
     @override
-    def on_test_epoch_start(self, _trainer: "reax.Trainer", _stage: "reax.Stage", /) -> None:
+    def on_test_epoch_start(
+        self, _trainer: "reax.Trainer", _stage: "reax.Stage", _loop: "reax.stages.TestEpoch", /
+    ) -> None:
         """On test epoch start."""
         self.test_progress_bar = self.init_test_tqdm()
 
     @override
     def on_test_batch_start(
-        self, _trainer: "reax.Trainer", stage: "reax.stages.Test", _batch: Any, _batch_idx: int, /
+        self,
+        _trainer: "reax.Trainer",
+        stage: "reax.Stage",
+        loop: "reax.stages.TestEpoch",
+        _batch: Any,
+        /,
     ) -> None:
         """On test batch start."""
-        self.test_progress_bar.reset(total=utils.convert_inf(stage.max_batches))
+        self.test_progress_bar.reset(total=utils.convert_inf(loop.max_batches))
         self.test_progress_bar.initial = 0
         self.test_progress_bar.set_description(f"{stage.name}")
 
@@ -281,28 +296,33 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         self,
         _trainer: "reax.Trainer",
         _stage: "reax.Stage",
+        loop: "reax.stages.TestEpoch",
         _outputs: Any,
-        _batch: Any,
-        batch_idx: int,
         /,
     ) -> None:
         """On test batch end."""
-        n = batch_idx + 1
+        n = loop.batch_idx + 1
         if self._should_update(n, self.test_progress_bar.total):
             _update_n(self.test_progress_bar, n)
 
     @override
-    def on_test_epoch_end(self, _trainer: "reax.Trainer", _stage: "reax.Stage", /) -> None:
+    def on_test_epoch_end(
+        self, _trainer: "reax.Trainer", _stage: "reax.Stage", _loop: "reax.stages.TestEpoch", /
+    ) -> None:
         """On test epoch end."""
         self.test_progress_bar.close()
 
     @override
     def on_predict_epoch_start(
-        self, _trainer: "reax.Trainer", stage: "reax.stages.Predict", /
+        self,
+        _trainer: "reax.Trainer",
+        stage: "reax.Stage",
+        loop: "reax.stages.PredictionEpoch",
+        /,
     ) -> None:
         """On predict epoch start."""
         self.predict_progress_bar = self.init_predict_tqdm(stage)
-        self.predict_progress_bar.reset(total=utils.convert_inf(stage.max_batches))
+        self.predict_progress_bar.reset(total=utils.convert_inf(loop.max_batches))
         self.predict_progress_bar.initial = 0
         self.predict_progress_bar.set_description(stage.name)
 
@@ -311,18 +331,23 @@ class TqdmProgressBar(progress_bar.ProgressBar):
         self,
         _trainer: "reax.Trainer",
         _stage: "reax.Stage",
+        loop: "reax.stages.PredictionEpoch",
         _outputs: Any,
-        _batch: Any,
-        batch_idx: int,
         /,
     ) -> None:
         """On predict batch end."""
-        n = batch_idx + 1
+        n = loop.batch_idx + 1
         if self._should_update(n, self.predict_progress_bar.total):
             _update_n(self.predict_progress_bar, n)
 
     @override
-    def on_predict_epoch_end(self, _trainer: "reax.Trainer", _stage: "reax.Stage", /) -> None:
+    def on_predict_epoch_end(
+        self,
+        _trainer: "reax.Trainer",
+        _stage: "reax.Stage",
+        _loop: "reax.stages.PredictionEpoch",
+        /,
+    ) -> None:
         """On predict epoch end."""
         self.predict_progress_bar.close()
 

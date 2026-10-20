@@ -8,14 +8,15 @@ from typing import TYPE_CHECKING, Any, Final, TypeVar
 import weakref
 
 import beartype
-from flax import nnx
 import jaxtyping as jt
 from lightning_utilities.core import enums
-from typing_extensions import deprecated, override
+from typing_extensions import override
 
-from .. import data, keys, modules, results
+import reax.modules
+
+from .. import keys
 from ..lightning import rank_zero
-from . import common
+from . import _loops, common
 
 # Note: We do not import the trainer here, the relationship is deliberately one way i.e. `Trainer`
 # knows about stages, but stages don't know about the trainer.  This helps to reduce coupling.
@@ -23,7 +24,7 @@ from . import common
 if TYPE_CHECKING:
     import reax
 
-__all__ = "Stage", "StageState", "EpochStage"
+__all__ = "Stage", "StageState", "ModuleStage"
 
 _LOGGER = logging.getLogger(__name__)
 _T_co = TypeVar("_T_co", covariant=True)
@@ -60,40 +61,27 @@ class Stage(abc.ABC):
     def __init__(
         self,
         name: str,
-        module: "reax.Module | None",
         engine: "reax.Engine",
         *,
-        rngs: nnx.Rngs | None = None,
         datamanager: "reax.data.DataSourceManager | None" = None,
-        max_iters: int | None = None,
-        min_iters: int = 0,
         enable_checkpointing: bool = False,
+        fast_dev_run: bool | int = False,
     ):
-        if module is not None and not isinstance(module, modules.Module):
-            raise TypeError("module must be a reax.Module")
-
         # Params
         self._name: Final[str] = name
-        self._min_iters: Final[int] = min_iters
-        self._max_iters: Final[int | None] = max_iters
         self._enable_checkpointing: Final[bool] = enable_checkpointing
+        self._fast_dev_run: Final[bool | int] = fast_dev_run
 
         # State
         self._engine = engine
         self._state: StageState = StageState.INITIALIZING
-        self._module: reax.Module | None = module
         self._datamanager = datamanager
-        self._rngs = rngs if rngs is not None else engine.rngs
         self._warning_cache = rank_zero.WarningCache()
-        self._iter = -1
-        self._total_iters = 0
         self._stopper = common.Stopper()
-        self._stopper.add_condition(lambda: self._iter >= self._min_iters)
         self._stop_reason: str = ""
-        self._run_count = 0
-        self._events = common.StageEvents()
-        self._parent: reax.Stage | None = None
-        self._child: reax.Stage | None = None
+        self._events = common.StageEvents([weakref.proxy(self)])
+        self._loop_stack: list[reax.stages.Loop] = []
+        self._metric_results: common.MetricResults = common.empty_metric_results()
 
     def __str__(self) -> str:
         """Str function."""
@@ -109,38 +97,14 @@ class Stage(abc.ABC):
         return self._name
 
     @property
-    def is_root(self) -> bool:
-        """Returns ``True`` if this is the root stage, ``False`` otherwise."""
-        return self.parent is None
-
-    @property
-    def module(self) -> "reax.Module | None":
-        """Module function."""
-        return self._module
-
-    @property
     def engine(self) -> "reax.Engine":
         """The engine executing this stage."""
         return self._engine
 
     @property
-    def rngs(self) -> nnx.Rngs | None:
-        return self._rngs
-
-    @property
-    def iteration(self) -> int:
-        """Get the current stage iteration."""
-        return self._iter
-
-    @property
-    def min_iters(self) -> int:
-        """Minimum number of iterations."""
-        return self._min_iters
-
-    @property
-    def max_iters(self) -> int | None:
-        """Max iters."""
-        return self._max_iters
+    def data_manager(self) -> "reax.data.DataSourceManager | None":
+        """Data manager function."""
+        return self._datamanager
 
     @property
     def enable_checkpointing(self) -> bool:
@@ -148,101 +112,114 @@ class Stage(abc.ABC):
         return self._enable_checkpointing
 
     @property
-    def run_count(self) -> int:
-        """Run count."""
-        return self._run_count
+    def fast_dev_run(self) -> bool | int:
+        """Whether the stage is running in fast development mode."""
+        return self._fast_dev_run
 
     @property
     def events(self) -> common.StageEvents:
         """Events function."""
-        if self.parent is not None:
-            return self.parent.events
-
         return self._events
 
     @property
-    def should_stop(self) -> bool:
-        """Should stop."""
+    def stop_requested(self) -> bool:
+        """True once a stop has been requested, regardless of whether the loops
+        currently executing can honour it yet.
+        """
         return self._stopper.get()
 
     @property
-    def parent(self) -> "reax.Stage | None":
-        """Get the parent stage (if exists)."""
-        return self._parent
+    def can_stop(self) -> bool:
+        """True iff a stop can be honoured right now.
 
-    @parent.setter
-    def parent(self, parent: "reax.Stage | None"):
-        self._parent = parent
+        This requires the stage's own conditions (held by its stopper) to be
+        met *and* every loop currently on the loop stack to report that its
+        own conditions are satisfied.  Because :meth:`run_loop` pushes nested
+        loops onto the stack, this single check covers loops at every depth.
+        """
+        return self._stopper.can_stop and all(loop.can_stop for loop in self._loop_stack)
+
+    @property
+    def should_stop(self) -> bool:
+        """True once a stop has been requested, regardless of whether the running
+        loops can honour it yet.
+        """
+        return self.stop_requested
 
     def stop(self, reason: str):
-        """Stop this stage."""
+        """Request that this stage stop.
+
+        The request is recorded immediately and is visible via
+        :attr:`stop_requested`.  The stage will only actually stop once
+        :attr:`can_stop` is true, i.e. once every loop currently on the loop
+        stack has satisfied its own minimum conditions (``min_iters``,
+        ``min_epochs``, ...).
+
+        The first reason supplied wins, so an outer, user-visible reason is
+        not overwritten by a later, more local request.
+        """
+        if not self._stopper.get():
+            self._stop_reason = reason
         self._stopper.set()
-        self._stop_reason = reason
 
     @property
     def stop_reason(self) -> str:
         """Stop reason."""
         return self._stop_reason
 
+    # region metrics
+
+    @property
+    def results(self) -> "reax.stages.common.MetricResults":
+        # todo: decide if this is a good name for this
+        return self._metric_results
+
+    def publish_metrics(self, results: common.MetricResults):
+        self._metric_results = results
+
+    @property
+    def listener_metrics(self) -> "reax.types.MetricsDict":
+        """Get the metrics available to listeners."""
+        return self._metric_results[keys.LISTENER]
+
+    @property
+    def logged_metrics(self) -> "reax.types.MetricsDict":
+        """Get the metrics available to loggers."""
+        return self._metric_results[keys.LOG]
+
+    @property
+    def progress_bar_metrics(self) -> dict[str, float]:
+        """Get the metrics available to progress indicators."""
+        return self._metric_results[keys.PBAR]
+
+    # endregion
+
     def run(self) -> None:
         """Run the loop until the end or ``max_iters``."""
-        while True:
-            try:
-                self.step()
-            except StopIteration:
-                break
-
-    def step(self) -> None:
-        """Advance the loop by one iteration."""
         try:
-            if self.state != StageState.RUNNING:
-                # Starting
-                self._on_starting()
-                self.events.fire_event(common.StageListener.on_stage_start, weakref.proxy(self))
+            self._on_starting()
+            self.events.fire_event(common.StageListener.on_stage_start)
 
-                # Started
-                self._on_started()
-                self.events.fire_event(common.StageListener.on_stage_started, weakref.proxy(self))
+            # Started
+            self._on_started()
+            self.events.fire_event(common.StageListener.on_stage_started)
 
-            if self._done():
-                raise StopIteration
-
-            # Iteration
-            self._on_iteration_starting()
-            self.events.fire_event(
-                common.StageListener.on_stage_iter_starting, weakref.proxy(self), self._iter
-            )
-
-            res = self._step()
-
-            # Iteration finishing
-            self._on_iteration_finishing(res)
-            self.events.fire_event(
-                common.StageListener.on_stage_iter_ending, weakref.proxy(self), self._iter, res
-            )
-
-            # Iteration finished
-            self._on_iteration_finished(res)
-            self.events.fire_event(
-                common.StageListener.on_stage_iter_ended, weakref.proxy(self), self._iter - 1, res
-            )
-
-        except StopIteration as exc:
-            self._stop_reason = str(exc)
-            # Stopping
-            self._on_stopping()
-            self.events.fire_event(common.StageListener.on_stage_end, weakref.proxy(self))
-
-            # Stopped
-            self._on_stopped()
-            self.events.fire_event(common.StageListener.on_stage_ended, weakref.proxy(self))
-
-            raise
-        except BaseException:
+            res = self._run()
+        except BaseException as exc:
+            self._on_exception(exc)
             self._state = StageState.INTERRUPTED
             raise
 
-    @abc.abstractmethod
+        # Stopping
+        self._on_stopping()
+        self.events.fire_event(common.StageListener.on_stage_finishing)
+
+        # Stopped
+        self._on_stopped()
+        self.events.fire_event(common.StageListener.on_stage_finished)
+
+        return res
+
     def log(
         self,
         name: str,
@@ -255,238 +232,91 @@ class Stage(abc.ABC):
         reduce_fn: "reax.types.ReduceFn" = "mean",
     ) -> None:
         """Log a result while the stage is running."""
+        if self._loop_stack:
+            loop = self._loop_stack[-1]
+            if isinstance(loop, _loops.LoopOverBatches):
+                loop.log(
+                    name,
+                    value,
+                    batch_size,
+                    prog_bar,
+                    logger,
+                    on_step,
+                    on_epoch,
+                    reduce_fn,
+                )
+
+    def run_loop(self, loop: "reax.stages.Loop") -> Any:
+        self._loop_stack.append(loop)
+        try:
+            return loop.run()
+        finally:
+            assert self._loop_stack[-1] is loop
+            self._loop_stack.pop()
 
     def _on_starting(self):
         """Stage is starting."""
         self._state = StageState.RUNNING
-        self._iter = 0
-        if self._module is not None:
-            self._module.on_stage_start(weakref.proxy(self))
-
-        if self.is_root:
-            self._prepare_data()
-            self._setup()
+        if self._datamanager is not None:
+            self._datamanager.prepare_data()
+            if self._datamanager.source is not self._datamanager:
+                self._datamanager.setup(stage=self.name)
 
     def _on_started(self):  # noqa: B027
         """On started."""
-
-    def _on_iteration_starting(self):
-        """On iteration starting."""
-        if self._module is not None:
-            self._module.on_stage_iter_starting(weakref.proxy(self), self._iter)
+        return None
 
     @abc.abstractmethod
-    def _step(self) -> Any:
+    def _run(self) -> Any:
         """The advance logic that should be implemented by subclasses."""
-
-    def _on_iteration_finishing(self, outputs: Any, /):
-        """The iteration is about to finish."""
-        if self._module is not None:
-            self._module.on_stage_iter_ending(weakref.proxy(self), self._iter, outputs)
-
-    def _on_iteration_finished(self, _outputs: Any, /):
-        """The iteration has finished.
-
-        Set ourselves up for the next iteration (if there is one).
-        """
-        # Set ourselves up for the next iteration
-        self._iter += 1
-        # Keep track of the total number of iterations, even across multiple executions of this loop
-        self._total_iters += 1
-        # if self.should_stop and self._min_iters is not None and self._iter < self._min_iters:
-        #     message = "%s `min_iters=%i` has not been met. Stage will continue"
-        #     _LOGGER.info(message, self.name, self._min_iters)
-        #     self.cancel_stop()
 
     def _on_stopping(self):
         """The stage is stopping."""
         self._state = StageState.FINISHED
-        self._run_count += 1
 
     def _on_stopped(self):
         """The stage has stopped."""
-        if self._module is not None:
-            self._module.on_stage_end(weakref.proxy(self))
-
-        if self.is_root:
-            self._teardown()
-
-    def _done(self) -> bool:
-        """Done function."""
-        if self.max_iters is not None and self._iter >= self.max_iters:
-            return True
-
-        if self._stopper.do_stop():
-            return True
-
-        return False
-
-    def _run_child(self, stage: _StageT) -> _StageT:
-        """Run a child stage."""
-        self._child = stage
-        stage.parent = weakref.proxy(self)
-        try:
-            self._child.run()
-        finally:
-            self._child = None
-            stage.parent = None
-
-        return stage
-
-    def _prepare_data(self) -> None:
-        self._datamanager.prepare_data()
-
-    def _teardown(self) -> None:
-        """Called at the end of a trainer stage. Mirrors :meth:`_setup`."""
-        if self._datamanager.source is not self._datamanager:
+        if self._datamanager is not None and self._datamanager.source is not self._datamanager:
             self._datamanager.teardown(stage=self.name)
 
-    def _setup(self) -> None:
-        if self._datamanager.source is not self._datamanager:
-            self._datamanager.setup(stage=self.name)
-
-        if self._module is not None:
-            self._module.setup(self._engine, stage=self.name)
-
-    def _on_exception(self, exception: BaseException) -> None:  # noqa: B027
+    def _on_exception(self, exception: BaseException) -> None:
         """Hook to deal with an exception"""
+        if self._datamanager is not None:
+            self._datamanager.on_exception(exception)
 
 
-class EpochStage(Stage, abc.ABC):
+class ModuleStage(Stage, abc.ABC):
     """Stage that represents a loop over batches i.e. a single epoch."""
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
         name: str,
-        module: "reax.Module | None",
+        module: reax.modules.Module,
         datamanager: "reax.data.DataSourceManager",
         engine: "reax.Engine",
         *,
-        rngs: nnx.Rngs | None = None,
-        dataloader_name: str | None = None,
-        fast_dev_run: bool | int = False,
-        min_batches: int = 0,
-        limit_batches: int | float | None = None,
-        reload_dataloaders_every_n_epochs: int = 0,
         enable_checkpointing: bool = False,
+        fast_dev_run: bool | int = False,
     ):
-        if fast_dev_run:
-            limit_batches = 1 if fast_dev_run is True else fast_dev_run
-
         super().__init__(
             name,
-            module,
             engine,
-            rngs=rngs,
             datamanager=datamanager,
-            min_iters=min_batches,
-            max_iters=limit_batches if isinstance(limit_batches, int) else None,
             enable_checkpointing=enable_checkpointing,
+            fast_dev_run=fast_dev_run,
         )
 
         # Params
-        self._fast_dev_run = fast_dev_run
-        self._limit_batches: Final[int | float] = limit_batches
-        self._dataloader_name: Final[str] = dataloader_name or self.name
-        self._reload_dataloaders_every_n_epochs = reload_dataloaders_every_n_epochs
+        self._module: Final[reax.Module] = module
 
         # State
-        self._iterator = None
-        self._batch: Any | None = None
-        self._next_batch: Any | None = None
-        self._metrics: reax.results.ResultCollection | None = None
-        self._metrics_results: reax.stages.MetricResults | None = None
         self._outputs = None
 
     @property
-    def dataloader(self) -> "reax.DataLoader":
-        """Dataloader function."""
-        return self._datamanager.get_dataloader(self._dataloader_name)
-
-    @property
-    def dataloaders(self) -> "reax.DataLoader":
-        """Dataloader function."""
-        return self.dataloader
-
-    @property
-    def fast_dev_run(self) -> bool | int:
-        return self._fast_dev_run
-
-    @property
-    def batch(self) -> Any | None:
-        """Get the current batch."""
-        return self._batch
-
-    @property
-    def batch_idx(self) -> int:
-        """Get the current batch index."""
-        return self._iter
-
-    @property
-    def total_batch_idx(self) -> int:
-        """Get the current batch index when counting over all executions of this loop."""
-        return self._total_iters
-
-    @property
-    def epoch(self) -> int:
-        """Get the current epoch."""
-        return self._run_count
-
-    @property
-    def limit_batches(self) -> int | float | None:
-        """The limit on the number of batches specified by the user"""
-        return self._limit_batches
-
-    @property
-    def max_batches(self) -> int | float | None:
-        """Get the current maximum number of batches."""
-        return common.batches_limit(self._limit_batches, self.dataloader)
-
-    @property
-    def num_batches(self) -> int | float | None:
-        """The number of batches that will be used in this epoch"""
-        return self.max_batches
-
-    @property
-    def metrics(self) -> "reax.results.ResultCollection":
-        """Metrics function."""
-        return self._metrics
-
-    @property
-    def results(self) -> dict | None:
-        """The results for this epoch (if any)."""
-        return self._metrics_results
-
-    @property
-    def listener_metrics(self) -> "reax.types.MetricsDict":
-        """Get the metrics available to listeners."""
-        if self._parent is not None:
-            metrics = getattr(self._parent, "listener_metrics", {})
-        else:
-            metrics = {}
-
-        if self.metrics:
-            # Note: any identical keys will be overwritten by the child (i.e. us)
-            metrics.update(self.results[keys.LISTENER])
-
-        return metrics
-
-    @property
-    def logged_metrics(self) -> "reax.types.MetricsDict":
-        """Get the metrics available to loggers."""
-        if not self._metrics_results:
-            return dict()
-
-        return self.results[keys.LOG]
-
-    @property
-    def progress_bar_metrics(self) -> "reax.types.MetricsDict":
-        """Get the metrics available to progress indicators."""
-        if not self._metrics_results:
-            return dict()
-
-        return self.results[keys.PBAR]
+    def module(self) -> "reax.Module":
+        """Module function."""
+        return self._module
 
     @property
     def outputs(self) -> Any:
@@ -494,171 +324,26 @@ class EpochStage(Stage, abc.ABC):
         return self._outputs
 
     @override
-    def step(self) -> None:
-        try:
-            super().step()
-        except StopIteration:
-            raise
-        except BaseException as exception:
-            self._on_exception(exception)
-            raise
-
-    def log(
-        self,
-        name: str,
-        value: "jt.ArrayLike | reax.types.MetricInstance",
-        batch_size: int | None = None,
-        prog_bar: bool = False,
-        logger: bool = False,
-        on_step=False,
-        on_epoch=True,
-        reduce_fn: "reax.types.ReduceFn" = "mean",
-    ) -> None:
-        """Log metrics during the current epoch."""
-        assert self._batch is not None
-        if batch_size is None:
-            batch_size = data.extract_batch_size(self._batch)
-
-        self._metrics.log(
-            self._name,
-            name,
-            value,
-            prog_bar=prog_bar,
-            logger=logger,
-            batch_size=batch_size,
-            batch_idx=self._iter,
-            on_step=on_step,
-            on_epoch=on_epoch,
-            reduce_fn=reduce_fn,
-        )
-
-    @override
     def _on_starting(self):
-        """On starting."""
+        """Stage is starting."""
         super()._on_starting()
-        # Get the next bach ready for starting the stage
-        self._fetch_next_batch()
-
-        if self._module is not None:
-            was_uninitialised = self._module.parameters() is None
-            self._next_batch = self._engine.to_device(self._next_batch)
-            self._module.configure_model(self, self._next_batch)
-
-            # Only the root stage does setup as this only needs to be done once per stage tree
-            if was_uninitialised and self._module.parameters() is not None:
-                params = self._engine.to_device(self._module.parameters())
-                self._module.set_parameters(params)
-
-        self._metrics = results.ResultCollection()
-        self._metrics_results = None
-
-    def _on_started(self):
-        super()._on_started()
-        self._on_epoch_start()
-
-    def _on_epoch_start(self):
-        """The epoch is starting"""
-
-    @override
-    def _on_iteration_starting(self):
-        """On iteration starting."""
-        if self._next_batch is None:
-            # Exhausted all the data
-            raise StopIteration
-
-        # Move the next into the current
-        self._batch = self._engine.to_device(self._next_batch)
-        self._next_batch = None
-        super()._on_iteration_starting()
-
-    @override
-    def _on_iteration_finished(self, outputs: Any, /) -> None:
-        """On iteration finished."""
-        super()._on_iteration_finished(outputs)
-
-        # If this is not the last batch then get the next bach ready for starting the stage
-        if (
-            self.max_batches is not None
-            and self.batch_idx < self.max_batches
-            and not self._stopper.do_stop()
-        ):
-            # Prefetch the next batch (if there is one).  This allows for pipelining i.e. the GPU
-            # keeps  working on the model, while we (the CPU), fetch and process the next batch
-            # We then process the metrics and other things that may require a synchronisation
-            self._fetch_next_batch()
-        else:
-            self._next_batch = None  # Done
-
-        metrics = {keys.PBAR: {}, keys.LOG: {}, keys.LISTENER: {}}
-        for _name, entry in self.metrics.items():
-            if entry.meta.on_step:  # Here we are stepping
-                value = entry.last_value
-                metrics[keys.LISTENER][entry.meta.name] = value
-                if entry.meta.logger:
-                    metrics[keys.LOG][entry.meta.name] = value
-                if entry.meta.prog_bar:
-                    metrics[keys.PBAR][entry.meta.name] = value
-
-        # Convert tensors to python scalars
-        self._metrics_results = metrics
-
-    @override
-    def _on_stopping(self) -> None:
-        """Look through the logged metrics and extract those where a user logged a results during
-        this step and used the `on_epoch=True` option.
-        """
-        super()._on_stopping()
-        self._on_epoch_end()
-
-        # Gather the metrics
-        metrics = {keys.PBAR: {}, keys.LOG: {}, keys.LISTENER: {}}
-        for _name, entry in self.metrics.items():
-            if entry.meta.on_epoch:  # Here we are completing an epoch
-                # Ask the metric to compute itself using results accumulated during the epoch
-                value = self._engine.compute(entry.metric)
-                metrics[keys.LISTENER][entry.meta.name] = value
-                if entry.meta.logger:
-                    metrics[keys.LOG][entry.meta.name] = value
-                if entry.meta.prog_bar:
-                    metrics[keys.PBAR][entry.meta.name] = value
-
-        # Convert tensors to python scalars
-        self._metrics_results = metrics
+        self._module.setup(self._engine, stage=self.name)
 
     @override
     def _on_stopped(self):
         super()._on_stopped()
-        # Reset 'loop' variables in case we run again
-        self._iterator = None
-        self._batch = None
-        self._next_batch = None
+        self._module.teardown(self._engine, stage=self.name)
 
-    def _on_epoch_end(self) -> None:
-        """The epoch is ending."""
+    def configure_module(self, example_batch: Any):
+        """Configure the module with the example batch."""
+        was_uninitialised = self._module.parameters() is None
+        self._module.configure_model(self, example_batch)
 
-    @override
-    def _on_exception(self, exception: BaseException) -> None:
-        self._datamanager.on_exception(exception)
-
-    @property
-    @deprecated(
-        "REAX uses the term 'listener' instead of 'callback, please use `.callback_metrics`"
-    )
-    def callback_metrics(self) -> "reax.types.MetricsDict":
-        """Get the metrics available to listeners."""
-        if not self._metrics_results:
-            return dict()
-
-        return self._metrics_results[keys.LISTENER]
-
-    def _fetch_next_batch(self) -> None:
-        if self._iterator is None:
-            self._iterator = iter(self.dataloader)
-
-        try:
-            batch = next(self._iterator)
-        except StopIteration:
-            self._iterator = None
-            batch = None
-
-        self._next_batch = batch
+        if was_uninitialised and self._module.parameters() is not None:
+            _LOGGER.debug(
+                "Module '%s' has been configured with the example batch from the '%s' stage.",
+                type(self._module).__name__,
+                self.name,
+            )
+            params = self._engine.to_device(self._module.parameters())
+            self._module.set_parameters(params)

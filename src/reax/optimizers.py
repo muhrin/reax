@@ -38,8 +38,8 @@ class Optimizer(equinox.Module):
 
     @equinox.filter_jit
     def update(
-        self, params: optax.Params, grad: jt.PyTree, value: float | None = None
-    ) -> tuple[Any, "Optimizer"]:
+        self, params: optax.Params, grad: optax.Params, value: float | None = None
+    ) -> "tuple[Any, reax.Optimizer]":
         """Return an updated version of the passed parameters using the passed gradients.
 
         Returns:
@@ -51,7 +51,7 @@ class Optimizer(equinox.Module):
             grad,
             self.state,
             params=params,
-            extra_args={"value": value} if value is not None else {},
+            **({"value": value} if value is not None else {}),
         )
 
         params = optax.apply_updates(params, updates)
@@ -60,7 +60,10 @@ class Optimizer(equinox.Module):
         return params, type(self)(self.optimizer, new_state, count=count)
 
     def update_module(
-        self, module: "reax.Module", grad: jt.PyTree, value: float | None = None
+        self,
+        module: "reax.Module",
+        grad: optax.Params,
+        value: jt.Float[jax.Array, ""] | None = None,
     ) -> "Optimizer":
         """Perform an inplace update of the module parameters given the passed gradients.
 
@@ -89,8 +92,8 @@ class DistributedOptimizer(Optimizer):
 
     @equinox.filter_jit
     def update(
-        self, params: optax.Params, grad: jt.PyTree, value: float | None = None
-    ) -> tuple[Any, "Optimizer"]:
+        self, params: optax.Params, grad: optax.Params, value: float | None = None
+    ) -> "tuple[Any, reax.Optimizer]":
         """Return an updated version of the passed parameters using the passed gradients.
 
         Returns:
@@ -103,8 +106,11 @@ class DistributedOptimizer(Optimizer):
         return super().update(params, grad, value=value)
 
     def update_module(
-        self, module: "reax.Module", grad: jt.PyTree, value: float | None = None
-    ) -> "Optimizer":
+        self,
+        module: "reax.Module",
+        grad: optax.Params,
+        value: jt.Float[jax.Array, ""] | None = None,
+    ) -> "reax.Optimizer":
         """Perform an inplace update of the module parameters given the passed gradients.
 
         Returns:
@@ -121,7 +127,11 @@ class DistributedOptimizer(Optimizer):
 
 @functools.partial(jax.jit, static_argnames=("optimizer",), donate_argnames="params")
 def _update(
-    optimizer: optax.GradientTransformation, state, grad: dict, params, value: float | None = None
+    optimizer: optax.GradientTransformation,
+    state,
+    grad: optax.Params,
+    params,
+    value: jt.Float[jax.Array, ""] | None = None,
 ):
     """Jax jitted function that performs an optimizer update based on the passed gradients and
     parameters.

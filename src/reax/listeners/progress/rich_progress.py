@@ -397,7 +397,9 @@ class RichProgressBar(progress_bar.ProgressBar):
             self.progress.refresh()
 
     @override
-    def on_train_start(self, trainer: "reax.Trainer", /, *_) -> None:
+    def on_train_start(
+        self, trainer: "reax.Trainer", _stage: "reax.Stage", _loop: "reax.stages.FitLoop", /
+    ) -> None:
         self._init_progress(trainer)
 
     @override
@@ -413,16 +415,19 @@ class RichProgressBar(progress_bar.ProgressBar):
         self._init_progress(trainer)
 
     @override
-    def on_sanity_check_start(self, trainer: "reax.Trainer", *_) -> None:
-        self._init_progress(trainer)
-
-    @override
-    def on_train_epoch_start(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
+    def on_train_epoch_start(
+        self,
+        trainer: "reax.Trainer",
+        stage: "reax.Stage",
+        loop: "reax.stages.TrainEpoch",
+        /,
+    ) -> None:
         if self.is_disabled:
             return
 
-        total_batches = stage.max_batches
-        train_description = self._get_train_description(trainer.current_epoch, stage)
+        total_batches = loop.max_batches
+        max_epochs = stage.max_epochs if isinstance(stage, stages.Fit) else None
+        train_description = self._get_train_description(trainer.current_epoch, max_epochs)
 
         if self.train_progress_bar_id is not None and self._leave:
             self._stop_progress()
@@ -444,34 +449,33 @@ class RichProgressBar(progress_bar.ProgressBar):
     def on_train_batch_end(
         self,
         trainer: "reax.Trainer",
-        stage: "reax.stages.Train",
+        stage: "reax.Stage",
+        loop: "reax.stages.TrainEpoch",
         _outputs: Any,
-        _batch: Any,
-        batch_idx: int,
         /,
     ) -> None:
-        self._update(self.train_progress_bar_id, batch_idx + 1)
+        self._update(self.train_progress_bar_id, loop.batch_idx + 1)
         self._update_metrics(trainer, stage)
         self.refresh()
 
     @override
-    def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
+    def on_train_epoch_end(
+        self, trainer: "reax.Trainer", stage: "reax.Stage", _loop: "reax.stages.TrainEpoch", /
+    ) -> None:
         self._update_metrics(trainer, stage)
-
-    @override
-    def on_sanity_check_end(self, *_) -> None:
-        if self.progress is not None:
-            assert self.val_sanity_progress_bar_id is not None
-            self.progress.update(self.val_sanity_progress_bar_id, advance=0, visible=False)
-        self.refresh()
 
     @override
     def on_validation_epoch_start(
-        self, _trainer: "reax.Trainer", stage: "reax.stages.Validate", /
+        self,
+        trainer: "reax.Trainer",
+        _stage: "reax.Stage",
+        loop: "reax.stages.ValidationEpoch",
+        /,
     ) -> None:
         if self.is_disabled:  # TODO or not self.has_dataloader_changed(dataloader_idx):
             return
 
+        self._init_progress(trainer)
         assert self.progress is not None
 
         # TODO:
@@ -480,7 +484,7 @@ class RichProgressBar(progress_bar.ProgressBar):
         #         self.progress.update(self.val_sanity_progress_bar_id, advance=0, visible=False)
         #
         #     self.val_sanity_progress_bar_id = self._add_task(
-        #         stage.max_batches, self.sanity_check_description, visible=False
+        #         loop.max_batches, self.sanity_check_description, visible=False
         #     )
         # else:
         if self.val_progress_bar_id is not None:
@@ -488,13 +492,16 @@ class RichProgressBar(progress_bar.ProgressBar):
 
         # TODO: remove old tasks when new ones are created
         self.val_progress_bar_id = self._add_task(
-            stage.max_batches, self.validation_description, visible=False
+            loop.max_batches, self.validation_description, visible=False
         )
 
         self.refresh()
 
     def _add_task(
-        self, total_batches: int | float, description: str, visible: bool = True
+        self,
+        total_batches: int | float | None,
+        description: str,
+        visible: bool = True,
     ) -> rich.progress.TaskID:
         assert self.progress is not None
         return self.progress.add_task(
@@ -504,7 +511,10 @@ class RichProgressBar(progress_bar.ProgressBar):
         )
 
     def _update(
-        self, progress_bar_id: rich.progress.TaskID | None, current: int, visible: bool = True
+        self,
+        progress_bar_id: rich.progress.TaskID | None,
+        current: int,
+        visible: bool = True,
     ) -> None:
         if self.progress is not None and self.is_enabled:
             assert progress_bar_id is not None
@@ -523,7 +533,7 @@ class RichProgressBar(progress_bar.ProgressBar):
 
     @override
     def on_validation_epoch_end(
-        self, trainer: "reax.Trainer", _stage: "reax.stages.Validate", /
+        self, trainer: "reax.Trainer", _stage: "reax.Stage", _loop: "reax.stages.ValidationEpoch", /
     ) -> None:
         if (
             self.is_enabled
@@ -550,19 +560,29 @@ class RichProgressBar(progress_bar.ProgressBar):
     #     self.reset_dataloader_idx_tracker()
 
     @override
-    def on_test_epoch_start(self, _trainer: "reax.Trainer", stage: "reax.stages.Test", /) -> None:
+    def on_test_epoch_start(
+        self,
+        _trainer: "reax.Trainer",
+        _stage: "reax.Stage",
+        loop: "reax.stages.TestEpoch",
+        /,
+    ) -> None:
         if self.is_disabled:  # or not self.has_dataloader_changed(dataloader_idx):
             return
 
         if self.test_progress_bar_id is not None:
             assert self.progress is not None
             self.progress.update(self.test_progress_bar_id, advance=0, visible=False)
-        self.test_progress_bar_id = self._add_task(stage.max_batches, self.test_description)
+        self.test_progress_bar_id = self._add_task(loop.max_batches, self.test_description)
         self.refresh()
 
     @override
     def on_predict_epoch_start(
-        self, _trainer: "reax.Trainer", stage: "reax.stages.Predict", /
+        self,
+        _trainer: "reax.Trainer",
+        _stage: "reax.Stage",
+        loop: "reax.stages.PredictionEpoch",
+        /,
     ) -> None:
         if self.is_disabled:  # or not self.has_dataloader_changed(dataloader_idx):
             return
@@ -570,26 +590,25 @@ class RichProgressBar(progress_bar.ProgressBar):
         if self.predict_progress_bar_id is not None:
             assert self.progress is not None
             self.progress.update(self.predict_progress_bar_id, advance=0, visible=False)
-        self.predict_progress_bar_id = self._add_task(stage.max_batches, self.predict_description)
+        self.predict_progress_bar_id = self._add_task(loop.max_batches, self.predict_description)
         self.refresh()
 
     @override
     def on_validation_batch_end(
         self,
         _trainer: "reax.Trainer",
-        _stage: "reax.stages.Validate",
+        _stage: "reax.Stage",
+        loop: "reax.stages.ValidationEpoch",
         _outputs: Any,
-        _batch: Any,
-        batch_idx: int,
         /,
     ) -> None:
         if self.is_disabled:
             return
 
         # TODO: if trainer.sanity_checking:
-        #     self._update(self.val_sanity_progress_bar_id, batch_idx + 1)
+        #     self._update(self.val_sanity_progress_bar_id, loop.batch_idx + 1)
         if self.val_progress_bar_id is not None:
-            self._update(self.val_progress_bar_id, batch_idx + 1)
+            self._update(self.val_progress_bar_id, loop.batch_idx + 1)
 
         self.refresh()
 
@@ -597,39 +616,35 @@ class RichProgressBar(progress_bar.ProgressBar):
     def on_test_batch_end(
         self,
         _trainer: "reax.Trainer",
-        _stage: "reax.stages.Test",
+        _stage: "reax.Stage",
+        loop: "reax.stages.TestEpoch",
         _outputs: Any,
-        _batch: Any,
-        batch_idx: int,
-        # dataloader_idx: int = 0,
         /,
     ) -> None:
         if self.is_disabled:
             return
         assert self.test_progress_bar_id is not None
-        self._update(self.test_progress_bar_id, batch_idx + 1)
+        self._update(self.test_progress_bar_id, loop.batch_idx + 1)
         self.refresh()
 
     @override
     def on_predict_batch_end(
         self,
         _trainer: "reax.Trainer",
-        _stage: "reax.stages.Predict",
+        _stage: "reax.Stage",
+        loop: "reax.stages.PredictionEpoch",
         _outputs: Any,
-        _batch: Any,
-        batch_idx: int,
         /,
     ) -> None:
         if self.is_disabled:
             return
         assert self.predict_progress_bar_id is not None
-        self._update(self.predict_progress_bar_id, batch_idx + 1)
+        self._update(self.predict_progress_bar_id, loop.batch_idx + 1)
         self.refresh()
 
-    def _get_train_description(self, current_epoch: int, stage: "reax.stages.Train") -> str:
+    def _get_train_description(self, current_epoch: int, max_epochs: int | float | None) -> str:
         train_description = f"Epoch {current_epoch}"
-        if stage.parent is not None and stage.parent.max_iters is not None:
-            max_epochs = stage.parent.max_iters
+        if max_epochs is not None:
             train_description += f"/{max_epochs - 1}"
         if len(self.validation_description) > len(train_description):
             # Padding is required to avoid flickering due of uneven lengths of "Epoch X"
@@ -650,7 +665,7 @@ class RichProgressBar(progress_bar.ProgressBar):
         self.test_progress_bar_id = None
         self.predict_progress_bar_id = None
 
-    def _update_metrics(self, trainer: "reax.Trainer", stage: "reax.stages.Stage") -> None:
+    def _update_metrics(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
         metrics = self.get_metrics(trainer, stage)
         if self._metric_component:
             self._metric_component.update(metrics)

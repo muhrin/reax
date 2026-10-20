@@ -141,7 +141,7 @@ def test_early_stopping_patience(
         validation_return_values = jnp.array(loss_values)
 
         @override
-        def on_validation_epoch_end(self, stage: "reax.stages.Train", *_) -> None:
+        def on_validation_epoch_end(self, loop: "reax.stages.ValidationEpoch", /) -> None:
             loss = self.validation_return_values[self._trainer.current_epoch]
             self.log("test_val_loss", loss)
 
@@ -153,7 +153,7 @@ def test_early_stopping_patience(
         default_root_dir=tmp_path, listeners=[early_stop_listener], enable_progress_bar=False
     )
     trainer.fit(model, num_sanity_val_steps=0, max_epochs=10)
-    assert trainer.current_epoch - 1 == expected_stop_epoch
+    assert trainer.current_epoch == expected_stop_epoch
 
 
 @pytest.mark.parametrize("validation_step_none", [True, False])
@@ -191,7 +191,7 @@ def test_early_stopping_patience_train(
         num_sanity_val_steps=0,
         max_epochs=10,
     )
-    assert trainer.current_epoch - 1 == expected_stop_epoch
+    assert trainer.current_epoch == expected_stop_epoch
 
 
 def test_pickling():
@@ -222,7 +222,7 @@ def test_early_stopping_no_val_step(tmp_path):
         monitor="train_loss", min_delta=0.1, patience=0, check_on_train_epoch_end=True
     )
     trainer = reax.Trainer(default_root_dir=tmp_path, listeners=[stopping])
-    trainer.fit(
+    fit = trainer.fit(
         model,
         datamodule=dm,
         # overfit_batches=0.20, # todo: add back
@@ -230,7 +230,7 @@ def test_early_stopping_no_val_step(tmp_path):
     )
 
     assert trainer.current_epoch < max_epochs - 1
-    # todo: add back assert trainer.state.finished, f"Training failed with {trainer.state}"
+    assert fit.state.finished, f"Training failed with {fit.state}"
 
 
 @pytest.mark.parametrize(
@@ -265,7 +265,7 @@ def test_early_stopping_thresholds(
         limit_val_batches=0.2,
         max_epochs=20,
     )
-    assert trainer.current_epoch - 1 == expected_epoch, "early_stopping failed"
+    assert trainer.current_epoch == expected_epoch, "early_stopping failed"
 
 
 @pytest.mark.parametrize("stop_value", [jnp.array(jnp.inf), jnp.array(jnp.nan)])
@@ -290,7 +290,7 @@ def test_early_stopping_on_non_finite_monitor(tmp_path, stop_value):
         limit_val_batches=0.2,
         max_epochs=10,
     )
-    assert trainer.current_epoch - 1 == expected_stop_epoch
+    assert trainer.current_epoch == expected_stop_epoch
     assert early_stopping.stopped_epoch == expected_stop_epoch
 
 
@@ -351,7 +351,7 @@ def test_min_epochs_min_steps_global_step(
         )
 
     # epochs continue until min steps are reached
-    assert trainer.current_epoch == expected_epochs
+    assert trainer.epochs_completed == expected_epochs
     # steps continue until min steps are reached AND the epoch is exhausted
     assert trainer.global_updates == stop_step
 
@@ -593,7 +593,7 @@ def test_early_stopping_squeezes():
         "reax.listeners.EarlyStopping._evaluate_stopping_criteria",
         return_value=(False, ""),
     ) as es_mock:
-        stage = mock.Mock(spec=reax.stages.EpochStage, fast_dev_run=False)
+        stage = mock.Mock(spec=reax.stages.ModuleStage, fast_dev_run=False)
         early_stopping._run_early_stopping_check(trainer, stage)
 
     es_mock.assert_called_once_with(jnp.array(0))
@@ -631,7 +631,7 @@ def test_early_stopping_check_start_epoch(tmp_path):
 
     class ModelOverrideValidationReturn(boring_classes.BoringModel):
         @override
-        def on_validation_epoch_end(self, stage: "reax.stages.Train", *_) -> None:
+        def on_validation_epoch_end(self, loop: "reax.stages.ValidationEpoch", /) -> None:
             self.log("test_val_loss", jnp.array(1.0))
 
     model = ModelOverrideValidationReturn()
@@ -645,6 +645,6 @@ def test_early_stopping_check_start_epoch(tmp_path):
     )
     fit = trainer.fit(model, num_sanity_val_steps=0, min_epochs=3, max_epochs=5)
 
-    # Epochs starts at zero so early stopping should stop after 3 (min) + 1 (patience) epochs
-    # i.e. epoch number 3
-    assert fit.epoch == 3
+    # Early stopping requests a stop after epoch 1 (patience=1), but min_epochs=3 defers it,
+    # so the last epoch run is index 2
+    assert fit.epoch == 2

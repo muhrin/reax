@@ -174,7 +174,7 @@ class CachingLoader(_types.DataLoader[_T_co, _U]):
     This means you need to have enough memory to accommodate all the data.
     """
 
-    def __init__(self, loader: "reax.data.DataLoader[_T_co]", reset_every: int):
+    def __init__(self, loader: "reax.data.DataLoader[_T_co, _U]", reset_every: int):
         self._loader = loader
         self._reset_every = reset_every
         self._time_since_reset = 0
@@ -231,7 +231,7 @@ class DeviceDataLoader(_types.DataLoader[_T_co, _U]):
 
     @override
     @property
-    def dataset(self) -> "reax.data.Dataset[_T_co, _U]":
+    def dataset(self) -> "reax.data.Dataset[_T_co]":
         return self._loader.dataset
 
     @override

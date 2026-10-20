@@ -7,6 +7,7 @@ Training
    :template: autosummary/class.rst
 
    reax.Trainer
+   reax.TrainerListener
    reax.Optimizer
    reax.Strategy
    reax.JaxDdpStrategy

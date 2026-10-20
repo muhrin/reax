@@ -1,7 +1,10 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 import contextlib
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 import uuid
+
+import beartype
+import jaxtyping as jt
 
 ListenerT = TypeVar("ListenerT")
 
@@ -11,8 +14,9 @@ HANDLE = uuid.UUID
 class EventGenerator(Generic[ListenerT]):
     """Manage listeners and fire events."""
 
-    def __init__(self, default_args=tuple()):
-        self._default_args = default_args
+    @jt.jaxtyped(typechecker=beartype.beartype)
+    def __init__(self, default_args: Sequence[Any] = tuple()):
+        self._default_args = tuple(default_args)
         self._event_listeners: dict[HANDLE, ListenerT] = {}
 
     def add_listener(self, listener: ListenerT) -> uuid.UUID:

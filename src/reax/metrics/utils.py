@@ -1,6 +1,6 @@
 from collections.abc import Callable
 import math
-from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeVar, overload
 
 import beartype
 import equinox
@@ -49,6 +49,20 @@ def _prepare_mask(
     return mask.reshape(mask.shape[0], *(1,) * (len(array.shape) - 1))
 
 
+@overload
+def prepare_mask(
+    values: jt.Shaped[ArrayLike, "N ..."],
+    mask: OptionalMask = None,
+    *,
+    return_count: Literal[False] = False,
+) -> OptionalMask: ...
+@overload
+def prepare_mask(
+    values: jt.Shaped[ArrayLike, "N ..."],
+    mask: OptionalMask = None,
+    *,
+    return_count: Literal[True],
+) -> "tuple[OptionalMask, int | jt.Int[ArrayLike, '']]": ...
 @jt.jaxtyped(typechecker=beartype.beartype)
 def prepare_mask(
     values: jt.Shaped[ArrayLike, "N ..."], mask: OptionalMask = None, *, return_count: bool = False

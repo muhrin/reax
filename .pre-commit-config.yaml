@@ -13,6 +13,17 @@ repos:
         args: [ '--fix' ]
       - id: ruff-format
 
+  - repo: local
+    hooks:
+      # Run from the project environment (rather than an isolated hook environment) so that ty
+      # can resolve reax's dependencies
+      - id: ty
+        name: ty
+        entry: ty check
+        language: system
+        types: [ python ]
+        pass_filenames: false
+
   - repo: https://github.com/PyCQA/pylint
     # Configuration help can be found here:
     # https://pylint.pycqa.org/en/latest/user_guide/installation/pre-commit-integration.html

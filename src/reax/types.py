@@ -3,13 +3,15 @@ from typing import Literal, Protocol, TypeVar, runtime_checkable
 
 import jax.typing
 import jaxtyping as jt
+import numpy as np
 
 _OutT = TypeVar("_OutT")
 
 
-Path = str | bytes | pathlib.Path
+Path = str | pathlib.Path
 ArrayMask = jt.Int[jt.ArrayLike, "..."] | jt.Bool[jt.ArrayLike, "..."]
-MetricsDict = dict[str, jax.typing.ArrayLike]
+ScalarLike = jax.Array | np.ndarray | np.bool_ | np.number | complex
+MetricsDict = dict[str, ScalarLike]
 
 #: How the raw (i.e. non-metric) values logged over the batches of an epoch should be reduced to a
 #: single value at the end of it: either their mean, or their total.

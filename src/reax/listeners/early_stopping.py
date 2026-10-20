@@ -188,7 +188,9 @@ class EarlyStopping(hooks.TrainerListener):
             )
 
     @override
-    def on_train_epoch_end(self, trainer: "reax.Trainer", stage: "reax.stages.Train", /) -> None:
+    def on_train_epoch_end(
+        self, trainer: "reax.Trainer", stage: "reax.Stage", _loop: "reax.stages.TrainEpoch", /
+    ) -> None:
         """On train epoch end."""
         if not self._check_on_train_epoch_end or self._should_skip_check(trainer):
             return
@@ -201,9 +203,7 @@ class EarlyStopping(hooks.TrainerListener):
             return
         self._run_early_stopping_check(trainer, stage)
 
-    def _run_early_stopping_check(
-        self, trainer: "reax.Trainer", stage: "reax.stages.EpochStage"
-    ) -> None:
+    def _run_early_stopping_check(self, trainer: "reax.Trainer", stage: "reax.Stage") -> None:
         """Check the early stopping condition and tell the Trainer to stop if needed."""
         logs = trainer.listener_metrics
 

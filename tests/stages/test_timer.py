@@ -115,7 +115,7 @@ def test_timer_zero_duration_stop(tmp_path):
     trainer = reax.Trainer(default_root_dir=tmp_path)
     trainer.fit(model, max_time=duration)
     assert trainer.global_updates == 0
-    assert trainer.current_epoch == 0
+    assert trainer.epochs_completed == 0
 
 
 @pytest.mark.parametrize(("min_steps", "min_epochs"), [(0, 2), (3, 0), (3, 2)])
@@ -125,7 +125,7 @@ def test_timer_duration_min_steps_override(tmp_path, min_steps, min_epochs):
     trainer = reax.Trainer(default_root_dir=tmp_path)
     fit = trainer.fit(model, min_updates=min_steps, min_epochs=min_epochs, max_time=duration)
     if min_epochs:
-        assert trainer.current_epoch >= min_epochs
+        assert trainer.epochs_completed >= min_epochs
     if min_steps:
         assert trainer.global_updates >= min_steps - 1
     assert fit.timer.time_elapsed() > duration.total_seconds()

@@ -71,12 +71,11 @@ class StageTimer(common.StageListener):
         super().on_stage_started(stage)
         if self._start_time is None:
             self._start_time = time.monotonic()
-        self._stop_check(stage)
 
     @override
-    def on_stage_iter_ended(self, stage: "reax.Stage", step: int, outputs: Any, /):
+    def on_loop_iter_finished(self, stage: "reax.Stage", loop: "reax.stages.Loop", outputs: Any, /):
         """Called when the stage iteration ended."""
-        super().on_stage_iter_ended(stage, step, outputs)
+        super().on_loop_iter_finished(stage, loop, outputs)
         self._stop_check(stage)
 
     def _stop_check(self, stage: "reax.Stage"):

@@ -121,12 +121,13 @@ class ResultEntry(Generic[_OutT]):
         self,
         meta: Metadata,
         metric: "reax.types.MetricInstance[_OutT]",
-        last_value: "reax.types.MetricInstance[_OutT] | None" = None,
+        *,
+        last_value: "reax.types.MetricInstance[_OutT] | None",
     ):
         """Init function."""
         self._meta = meta  # Readonly
         self.metric = metric
-        self._last_value: reax.types.MetricInstance[_OutT] | _OutT | None = last_value
+        self._last_value: reax.types.MetricInstance[_OutT] | _OutT = last_value
 
     @property
     def meta(self) -> Metadata:
@@ -134,7 +135,7 @@ class ResultEntry(Generic[_OutT]):
         return self._meta
 
     @property
-    def last_value(self) -> _OutT | None:
+    def last_value(self) -> _OutT:
         """Last value."""
         if isinstance(self._last_value, types.MetricInstance):
             # Lazily compute the metric as it has now been requested

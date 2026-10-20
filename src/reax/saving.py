@@ -3,6 +3,7 @@ import contextlib
 import copy
 import enum
 import os
+from typing import TYPE_CHECKING
 import warnings
 
 import fsspec
@@ -19,6 +20,9 @@ except ImportError:
 from reax.lightning import rank_zero
 
 from . import types
+
+if TYPE_CHECKING:
+    from typing import Any
 
 __all__ = "save_hparams_to_yaml", "load_hparams_from_yaml"
 
