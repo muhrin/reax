@@ -349,7 +349,7 @@ def _input_format_classification(
 
             preds = jax.nn.one_hot(preds, max(2, num_classes))
 
-        target = jax.nn.one_hot(target, max(2, num_classes))  # type: ignore
+        target = jax.nn.one_hot(target, max(2, num_classes))
 
         if multiclass is False:
             preds, target = preds[..., 1], target[..., 1]
@@ -464,7 +464,7 @@ def _check_classification_inputs(
             _check_num_classes_binary(num_classes, multiclass, implied_classes)
         elif mode == DataType.MULTICLASS:
             _check_num_classes_mc(preds, target, num_classes, multiclass, implied_classes)
-        elif mode.MULTILABEL:
+        elif mode == DataType.MULTILABEL:
             assert implied_classes is not None
             _check_num_classes_ml(num_classes, multiclass, implied_classes)
 

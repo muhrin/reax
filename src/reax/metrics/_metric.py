@@ -1,16 +1,32 @@
 import abc
 from collections.abc import Callable
 import functools
-from typing import ClassVar, Generic, TypeVar, cast
+import types
+from typing import Any, ClassVar, Generic, TypeVar, cast
 
 import equinox
 import jax
 import jax.numpy as jnp
-from typing_extensions import override
+from typing_extensions import Self, override
 
 __all__ = ("Metric", "FromFun")
 
 _OutT = TypeVar("_OutT")
+_R = TypeVar("_R")
+
+
+class hybrid_method(Generic[_R]):  # pylint: disable=invalid-name
+    """A decorator that binds the function to the instance if called on an instance, or the class
+    if called on the class."""
+
+    def __init__(self, func: Callable[..., _R]):
+        self.__func__ = func
+        # Copy the function's metadata (name, docstring, etc.).  The descriptor itself isn't
+        # callable, hence the cast.
+        functools.update_wrapper(cast(Callable, self), func)
+
+    def __get__(self, obj: Any, objtype: type | None = None) -> Callable[..., _R]:
+        return types.MethodType(self.__func__, objtype if obj is None else obj)
 
 
 class Metric(equinox.Module, Generic[_OutT], metaclass=abc.ABCMeta):
@@ -59,24 +75,32 @@ class Metric(equinox.Module, Generic[_OutT], metaclass=abc.ABCMeta):
 
         return FromFunction
 
-    def empty(self) -> "Metric[_OutT]":
+    @hybrid_method
+    def empty(self_or_cls) -> "Metric[_OutT]":  # pylint: disable=no-self-argument
         """Create a new empty instance.
 
-        By default, this will call the constructor with no arguments, if needed, subclasses can
-        overwrite this with custom behaviour.
+        This can be called on the class or an instance. By default, this will call the constructor
+        with no arguments, if needed, subclasses can overwrite this with custom behaviour.
         """
-        return type(self)()
+        cls = self_or_cls if isinstance(self_or_cls, type) else type(self_or_cls)
+        return cls()
 
+    @hybrid_method
     @abc.abstractmethod
-    def create(self, *args, **kwargs) -> "Metric[_OutT]":
-        """Create a new metric instance from data."""
+    def create(self_or_cls, *args, **kwargs) -> Self:  # pylint: disable=no-self-argument
+        """Create a new metric instance from data.
 
-    def update(self, *args, **kwargs) -> "Metric[_OutT]":
+        This can be called on the class or an instance, subclasses can implement it as either a
+        ``classmethod`` or a regular method (e.g. if the instance holds configuration that is
+        needed to create the new instance).
+        """
+
+    def update(self, *args, **kwargs) -> Self:
         """Update the metric from new data and return a new instance."""
         return self.merge(self.create(*args, **kwargs))
 
     @abc.abstractmethod
-    def merge(self, other: "Metric") -> "Metric[_OutT]":
+    def merge(self, other: Self) -> Self:
         """Merge the metric with data from another metric instance of the same type."""
 
     @abc.abstractmethod
@@ -102,39 +126,14 @@ class Metric(equinox.Module, Generic[_OutT], metaclass=abc.ABCMeta):
         return jax.tree_util.tree_map(_apply, self)
 
     @staticmethod
-    def reduce_fn(x: _OutT, axis: int = 0) -> _OutT:
+    def reduce_fn(x: jax.Array, axis: int = 0) -> jax.Array:
         return jnp.sum(x, axis=axis)
-
-
-def hybrid_method(func: Callable):
-    """
-    A decorator that binds the function to the instance if called on an instance,
-    or the class if called on the class.
-
-    Implemented as a function returning a descriptor object.
-    """
-
-    class HybridDescriptor:
-        def __get__(self, obj, objtype=None):
-            if obj is None:
-                # Called on the class -> bind to class
-                return func.__get__(objtype, objtype)
-            # Called on an instance -> bind to instance
-            return func.__get__(obj, objtype)
-
-    # Create the descriptor instance
-    descriptor = HybridDescriptor()
-
-    # Copy metadata (name, docstring) from the original function to the descriptor
-    functools.update_wrapper(descriptor, func)
-
-    return descriptor
 
 
 class FromFun(Metric[_OutT]):
     """Helper class apply a function before passing the result to an existing metric."""
 
-    metric: ClassVar[type[Metric[_OutT]]]
+    metric: type[Metric[_OutT]]
     func: ClassVar[Callable]
     _state: Metric[_OutT]
 
@@ -160,7 +159,7 @@ class FromFun(Metric[_OutT]):
     ) -> "FromFun[_OutT]":
         """Empty function."""
         if isinstance(self_or_cls, type):
-            cls: type[FromFun[_OutT]] = cast(type(FromFun), self_or_cls)
+            cls = cast("type[FromFun[_OutT]]", self_or_cls)
             return cls(state=cls.metric.empty())  # pylint: disable=not-callable
 
         self = cast(FromFun, self_or_cls)
@@ -181,7 +180,7 @@ class FromFun(Metric[_OutT]):
             cls = type(self_or_cls)
             metric = self_or_cls._state
 
-        cls = cast(type(FromFun), cls)
+        cls = cast("type[FromFun]", cls)
         return cls(state=metric.create(*val))  # pylint: disable=not-callable
 
     @override

@@ -22,17 +22,21 @@ else:
 __all__ = tuple()
 
 M = TypeVar("M", bound=Metric)
+_WithAccT = TypeVar("_WithAccT", bound="WithAccumulator")
+_WithAccCountT = TypeVar("_WithAccCountT", bound="WithAccumulatorAndCount")
 
 
 class ReduceFn(Protocol):
-    def __call__(self, values: ArrayLike, where: ArrayLike | None = None) -> ArrayLike:
-        """Perform reduction on the passed values."""
+    def __call__(
+        self, values: ArrayLike, /, axis: Any = None, *, where: ArrayLike | None = None
+    ) -> jax.Array:
+        """Perform reduction on the passed values (e.g. :func:`jax.numpy.sum`)."""
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)
 def _prepare_mask(
     mask: jt.Bool[ArrayLike, "N"], array: jt.Shaped[ArrayLike, "N ..."]
-) -> jt.Bool[ArrayLike, "N ..."]:
+) -> jt.Bool[jax.Array, "N ..."]:
     """Prepare a 1D entity mask by expanding its dimensions to broadcast against `array`.
 
     This relies on zero-copy reshaping. Appending size-1 dimensions allows JAX/NumPy
@@ -46,7 +50,7 @@ def _prepare_mask(
     Returns:
         The prepared mask, padded with extra trailing dimensions of size 1.
     """
-    return mask.reshape(mask.shape[0], *(1,) * (len(array.shape) - 1))
+    return jnp.reshape(mask, (jnp.shape(mask)[0], *(1,) * (jnp.ndim(array) - 1)))
 
 
 @overload
@@ -84,20 +88,21 @@ def prepare_mask(
     Returns:
         the prepared mask, and optionally the count of masked elements.
     """
+    values_shape = jnp.shape(values)
     if mask is None:
         if return_count:
-            return None, values.size
+            return None, math.prod(values_shape)
         return None
 
     # Cast early to ensure boolean sums and properties are well-behaved downstream
-    mask = mask.astype(bool)
+    mask = jnp.asarray(mask, dtype=bool)
 
     if mask.ndim == 1:
         # 1. Entity Mask Behavior: Shape must be [N]
-        if mask.shape[0] != values.shape[0]:
+        if mask.shape[0] != values_shape[0]:
             raise ValueError(
                 f"1D entity mask must have the same leading dimension as `values`. "
-                f"Received mask shape {mask.shape} and values shape {values.shape}."
+                f"Received mask shape {mask.shape} and values shape {values_shape}."
             )
 
         mask = _prepare_mask(mask, values)
@@ -105,16 +110,16 @@ def prepare_mask(
         if return_count:
             # math.prod computes at trace-time natively. This avoids the overhead
             # of allocating an intermediate JAX/NumPy array just to compute the product.
-            feature_size = math.prod(values.shape[1:])
+            feature_size = math.prod(values_shape[1:])
             count = mask.sum() * feature_size
             return mask, count
 
     else:
         # 2. Data-Specific Mask Behavior: Shape must be [N, *shape]
-        if mask.shape != values.shape:
+        if mask.shape != values_shape:
             raise ValueError(
                 f"Multidimensional mask must exactly match `values` shape. "
-                f"Received mask shape {mask.shape} and values shape {values.shape}."
+                f"Received mask shape {mask.shape} and values shape {values_shape}."
             )
 
         if return_count:
@@ -131,8 +136,6 @@ def concat(tensors: tuple[jax.Array]) -> jax.Array:
 class WithAccumulator(equinox.Module):
     """Abstract aggregation metric."""
 
-    Self = TypeVar("Self", bound="WithAccumulator")
-
     reduce_fn: ClassVar[ReduceFn]
     merge_fn: ClassVar[Callable] = concat
 
@@ -144,29 +147,31 @@ class WithAccumulator(equinox.Module):
 
     @classmethod
     def create(
-        cls,
+        cls: type[_WithAccT],
         values: jax.typing.ArrayLike,
         mask: OptionalMask = None,
-    ) -> Self:
+    ) -> _WithAccT:
         """Create function."""
         mask = prepare_mask(values, mask)
         return cls(accumulator=cls.reduce_fn(values, where=mask))
 
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def merge(self, other: Self) -> Self:
+    def merge(self: _WithAccT, other: _WithAccT) -> _WithAccT:
         """Merge function."""
         if self.accumulator is None:
             return other
+        if other.accumulator is None:
+            return self
 
         cls = type(self)
         return cls(accumulator=cls.reduce_fn(cls.merge_fn((self.accumulator, other.accumulator))))
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def update(
-        self,
+        self: _WithAccT,
         values: jax.typing.ArrayLike,
         mask: jax.typing.ArrayLike | None = None,
-    ) -> Self:
+    ) -> _WithAccT:
         """Update function."""
         cls = type(self)
         if self.accumulator is None:
@@ -179,6 +184,8 @@ class WithAccumulator(equinox.Module):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def compute(self) -> jax.Array:
         """Compute function."""
+        if self.accumulator is None:
+            raise RuntimeError("Nothing to compute, metric is empty!")
         return self.accumulator
 
 
@@ -187,17 +194,15 @@ class WithAccumulatorAndCount(WithAccumulator):
     count accumulators.
     """
 
-    Self = TypeVar("Self", bound="WithAccumulator")
-
-    count: jax.Array = 0
+    count: jax.typing.ArrayLike = 0
 
     @override
     @classmethod
     def create(
-        cls,
+        cls: type[_WithAccCountT],
         values: jt.ArrayLike,
         mask: OptionalMask = None,
-    ) -> Self:
+    ) -> _WithAccCountT:
         """Create function."""
         values = jnp.atleast_1d(values)
         mask, num_elements = prepare_mask(values, mask, return_count=True)
@@ -205,8 +210,13 @@ class WithAccumulatorAndCount(WithAccumulator):
 
     @override
     @jt.jaxtyped(typechecker=beartype.beartype)
-    def merge(self, other: Self) -> Self:
+    def merge(self: _WithAccCountT, other: _WithAccCountT) -> _WithAccCountT:
         """Merge function."""
+        if self.accumulator is None:
+            return other
+        if other.accumulator is None:
+            return self
+
         cls = type(self)
         return cls(
             accumulator=cls.reduce_fn(cls.merge_fn((self.accumulator, other.accumulator))),
@@ -216,10 +226,10 @@ class WithAccumulatorAndCount(WithAccumulator):
     @override
     @jt.jaxtyped(typechecker=beartype.beartype)
     def update(
-        self,
+        self: _WithAccCountT,
         values: jax.typing.ArrayLike,
         mask: jax.typing.ArrayLike | None = None,
-    ) -> Self:
+    ) -> _WithAccCountT:
         """Update function."""
         cls = type(self)
         if self.accumulator is None:
@@ -237,4 +247,6 @@ class WithAccumulatorAndCount(WithAccumulator):
     @jt.jaxtyped(typechecker=beartype.beartype)
     def compute(self) -> jax.Array:
         """Compute function."""
+        if self.accumulator is None:
+            raise RuntimeError("Nothing to compute, metric is empty!")
         return self.accumulator / self.count

@@ -4,7 +4,7 @@ from typing import Any, TypeVar
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from typing_extensions import override
+from typing_extensions import Self, override
 
 from reax.utils import arrays
 
@@ -19,35 +19,28 @@ class Aggregation(Metric[jax.Array], abc.ABC):
     optional mask.
     """
 
-    Self = TypeVar("Self", bound="Aggregation")
-
+    @classmethod
     @abc.abstractmethod
-    def create(  # pylint: disable=arguments-differ
-        self,
-        values: jax.typing.ArrayLike,
-        mask: jax.typing.ArrayLike | None = None,
-    ) -> Self:
+    def create(cls, values: jax.typing.ArrayLike, mask: jax.typing.ArrayLike | None = None) -> Self:
         """Create the metric from data."""
 
     @abc.abstractmethod
-    def update(  # pylint: disable=arguments-differ
-        self,
-        values: jax.typing.ArrayLike,
-        mask: jax.typing.ArrayLike | None = None,
+    def update(
+        self, values: jax.typing.ArrayLike, mask: jax.typing.ArrayLike | None = None
     ) -> Self:
         """Update this metric and return an updated instance."""
 
 
 class Sum(utils.WithAccumulator, Aggregation):
-    reduce_fn = jnp.sum
+    reduce_fn = staticmethod(jnp.sum)
 
 
 class Min(utils.WithAccumulator, Aggregation):
-    reduce_fn = jnp.min
+    reduce_fn = staticmethod(jnp.min)
 
 
 class Max(utils.WithAccumulator, Aggregation):
-    reduce_fn = jnp.max
+    reduce_fn = staticmethod(jnp.max)
 
 
 SET_ACCUMULATION_MAX_SIZE = 512
@@ -219,7 +212,7 @@ class NumUnique(SetAccumulation):
 class Average(utils.WithAccumulatorAndCount, Aggregation):
     """Compute an average"""
 
-    reduce_fn = jnp.sum
+    reduce_fn = staticmethod(jnp.sum)
 
 
 class Std(Aggregation):
@@ -251,43 +244,36 @@ class Std(Aggregation):
 
     @override
     @classmethod
-    def create(  # pylint: disable=arguments-differ
-        cls,
-        values: jax.typing.ArrayLike,
-        mask: jax.typing.ArrayLike | None = None,
+    def create(
+        cls, values: jax.typing.ArrayLike, mask: jax.typing.ArrayLike | None = None
     ) -> "Std":
         """Create the metric from data."""
-        if values.ndim == 0:
-            values = values[None]
-        if mask is None:
-            mask = jnp.ones(values.shape[0], dtype=jnp.bool)
+        total, sum_of_squares, count = cls._accumulate(values, mask)
+        return cls(total=total, sum_of_squares=sum_of_squares, count=count)
 
-        mask, num_elements = utils.prepare_mask(values, mask, return_count=True)
-        return cls(
-            total=values.sum(),
-            sum_of_squares=jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
-            count=num_elements,
-        )
-
+    @override
     def update(
-        # pylint: disable=arguments-differ
-        self,
-        values: jax.Array,
-        mask: jax.Array | None = None,
+        self, values: jax.typing.ArrayLike, mask: jax.typing.ArrayLike | None = None
     ) -> "Std":
         """Update function."""
-        if values.ndim == 0:
-            values = values[None]
-        if mask is None:
-            mask = jnp.ones(values.shape[0], dtype=jnp.bool)
-
-        mask, num_elements = utils.prepare_mask(values, mask, return_count=True)
+        total, sum_of_squares, count = self._accumulate(values, mask)
         return type(self)(
-            total=self.total + values.sum(),
-            sum_of_squares=self.sum_of_squares
-            + jnp.where(mask, values**2, jnp.zeros_like(values)).sum(),
-            count=self.count + num_elements,
+            total=self.total + total,
+            sum_of_squares=self.sum_of_squares + sum_of_squares,
+            count=self.count + count,
         )
+
+    @staticmethod
+    def _accumulate(
+        values: jax.typing.ArrayLike, mask: jax.typing.ArrayLike | None
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        """Get the total, sum of squares and count of the (unmasked) values."""
+        values = jnp.atleast_1d(values)
+        mask, count = utils.prepare_mask(values, mask, return_count=True)
+        if mask is not None:
+            values = jnp.where(mask, values, jnp.zeros_like(values))
+
+        return values.sum(), (values**2).sum(), jnp.asarray(count)
 
     def merge(self, other: "Std") -> "Std":
         """Merge function."""

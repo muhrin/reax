@@ -18,10 +18,11 @@ MeanAbsoluteError = aggregation.Average.from_fun(
 )
 
 
-class RootMeanSquareError(_metric.Metric):
-    mse: MeanSquaredError
+class RootMeanSquareError(_metric.Metric[jax.Array]):
+    # A `MeanSquaredError` instance, or `None` if empty
+    mse: _metric.Metric[jax.Array] | None
 
-    def __init__(self, mse: MeanSquaredError = None):
+    def __init__(self, mse: _metric.Metric[jax.Array] | None = None):
         """Init function."""
         super().__init__()
         # State
@@ -34,41 +35,43 @@ class RootMeanSquareError(_metric.Metric):
 
     @classmethod
     @override
-    def create(  # pylint: disable=arguments-differ
+    def create(
         cls,
-        values: jax.Array,
-        targets: jax.Array,
-        mask: jax.Array | None = None,
+        values: jax.typing.ArrayLike,
+        targets: jax.typing.ArrayLike,
+        mask: jax.typing.ArrayLike | None = None,
     ) -> "RootMeanSquareError":
         """Create function."""
-        return cls(mse=MeanSquaredError().create(values, targets, mask))
+        return cls(mse=MeanSquaredError.create(values, targets, mask))
 
-    @classmethod
     @override
-    def empty(cls) -> "RootMeanSquareError":  # pylint: disable=arguments-differ
-        """Create function."""
-        return cls(mse=MeanSquaredError.empty())
-
-    def update(  # pylint: disable=arguments-differ
-        self, values: jax.Array, targets: jax.Array, mask: jax.Array | None = None
+    def update(
+        self,
+        values: jax.typing.ArrayLike,
+        targets: jax.typing.ArrayLike,
+        mask: jax.typing.ArrayLike | None = None,
     ) -> "RootMeanSquareError":
         """Update function."""
-        if self.is_empty:
+        if self.mse is None:
             return self.create(values, targets, mask)
 
         return type(self)(mse=self.mse.update(values, targets, mask=mask))
 
+    @override
     def merge(self, other: "RootMeanSquareError") -> "RootMeanSquareError":
         """Merge function."""
-        if self.is_empty:
+        if self.mse is None:
             return other
-        if other.is_empty:
+        if other.mse is None:
             return self
 
         return type(self)(mse=self.mse.merge(other.mse))
 
+    @override
     def compute(self) -> jax.Array:
         """Compute function."""
+        if self.mse is None:
+            raise RuntimeError("Nothing to compute, metric is empty!")
         return jnp.sqrt(self.mse.compute())
 
 
@@ -89,23 +92,14 @@ class LeastSquaresEstimate(_metric.Metric[jax.Array]):
 
     @classmethod
     @override
-    def empty(cls) -> "LeastSquaresEstimate":
-        return cls()
-
-    @classmethod
-    @override
-    def create(  # pylint: disable=arguments-differ
-        cls, inputs: jax.Array, outputs: jax.Array
-    ) -> "LeastSquaresEstimate":
+    def create(cls, inputs: jax.Array, outputs: jax.Array) -> "LeastSquaresEstimate":
         """Create function."""
         return cls(inputs, outputs)
 
     @override
-    def update(  # pylint: disable=arguments-differ
-        self, inputs: jax.Array, outputs: jax.Array
-    ) -> "LeastSquaresEstimate":
+    def update(self, inputs: jax.Array, outputs: jax.Array) -> "LeastSquaresEstimate":
         """Update function."""
-        if self.is_empty:
+        if self.values is None or self.targets is None:
             return self.create(inputs, outputs)
 
         return type(self)(
@@ -116,12 +110,12 @@ class LeastSquaresEstimate(_metric.Metric[jax.Array]):
     @override
     def merge(self, other: "LeastSquaresEstimate") -> "LeastSquaresEstimate":
         """Merge function."""
-        if self.is_empty:
+        if self.values is None or self.targets is None:
             return other
-        if other.is_empty:
+        if other.values is None or other.targets is None:
             return self
 
-        return LeastSquaresEstimate(
+        return type(self)(
             values=jnp.concatenate((self.values, other.values)),
             targets=jnp.concatenate((self.targets, other.targets)),
         )
@@ -129,6 +123,8 @@ class LeastSquaresEstimate(_metric.Metric[jax.Array]):
     @override
     def compute(self) -> jax.Array:
         """Compute function."""
+        if self.values is None or self.targets is None:
+            raise RuntimeError("Nothing to compute, metric is empty!")
         return jnp.linalg.lstsq(self.values, self.targets)[0]
 
     @staticmethod

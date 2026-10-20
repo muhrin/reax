@@ -576,9 +576,12 @@ def test_std():
     assert s.count == 0
     s = metrics.Std.create(vals)
     assert jnp.isclose(s.compute(), vals.std())
-    # Masked version only averages the first element
+    # Masked version only includes the first two elements
     masked = metrics.Std.create(vals, mask=jnp.array([True, True, False, False]))
-    assert jnp.isclose(masked.compute(), 0.0)  # single value -> no variance
+    assert jnp.isclose(masked.compute(), vals[:2].std())
+    # Updating with a masked batch only includes the unmasked values
+    updated = metrics.Std.create(vals[:2]).update(vals[2:], mask=jnp.array([True, False]))
+    assert jnp.isclose(updated.compute(), vals[:3].std())
 
 
 # ---------------------------------------------------------------------------
