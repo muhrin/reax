@@ -132,9 +132,10 @@ class Engine:
         After this is called, this object should no longer be interacted with,
         as internal components (like event listeners and loggers) are cleared.
         """
+        # Note: avoid referencing module globals here, as this can be called from `Trainer.__del__`
+        # during interpreter shutdown, when they may already have been cleared
         self._events.reset()
         self._loggers = []
-        self._profiler = profilers.DummyProfiler()
 
     @property
     def default_root_dir(self) -> str:
