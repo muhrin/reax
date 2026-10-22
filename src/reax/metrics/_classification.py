@@ -256,7 +256,7 @@ class Accuracy(_metric.Metric):
         )
 
     @override
-    def empty(self) -> "Accuracy":
+    def empty(self, /) -> "Accuracy":
         """Empty function."""
         return Accuracy(
             threshold=self.threshold,

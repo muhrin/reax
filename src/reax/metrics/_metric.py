@@ -76,7 +76,7 @@ class Metric(equinox.Module, Generic[_OutT], metaclass=abc.ABCMeta):
         return FromFunction
 
     @hybrid_method
-    def empty(self_or_cls) -> "Metric[_OutT]":  # pylint: disable=no-self-argument
+    def empty(self_or_cls, /) -> "Metric[_OutT]":  # pylint: disable=no-self-argument
         """Create a new empty instance.
 
         This can be called on the class or an instance. By default, this will call the constructor
@@ -87,7 +87,7 @@ class Metric(equinox.Module, Generic[_OutT], metaclass=abc.ABCMeta):
 
     @hybrid_method
     @abc.abstractmethod
-    def create(self_or_cls, *args, **kwargs) -> Self:  # pylint: disable=no-self-argument
+    def create(self, *args, **kwargs) -> Self:
         """Create a new metric instance from data.
 
         This can be called on the class or an instance, subclasses can implement it as either a
@@ -154,31 +154,27 @@ class FromFun(Metric[_OutT]):
 
     @override
     @hybrid_method
-    def empty(  # pylint: disable=no-self-argument, arguments-renamed
-        self_or_cls,
-    ) -> "FromFun[_OutT]":
+    def empty(self, /) -> "FromFun[_OutT]":
         """Empty function."""
-        if isinstance(self_or_cls, type):
-            cls = cast("type[FromFun[_OutT]]", self_or_cls)
+        if isinstance(self, type):
+            cls = cast("type[FromFun[_OutT]]", self)
             return cls(state=cls.metric.empty())  # pylint: disable=not-callable
 
-        self = cast(FromFun, self_or_cls)
-        return type(self)(state=self._state.empty())  # pylint: disable=protected-access
+        instance = cast(FromFun, self)
+        return type(instance)(state=self._state.empty())  # pylint: disable=protected-access
 
     @override
     @hybrid_method
-    def create(  # pylint: disable=no-self-argument, arguments-differ
-        self_or_cls, *args, **kwargs
-    ) -> "FromFun":
+    def create(self, *args, **kwargs) -> "FromFun":
         """Create function."""
-        val = self_or_cls._call_fn(*args, **kwargs)
+        val = self._call_fn(*args, **kwargs)
 
-        if isinstance(self_or_cls, type):
-            cls = self_or_cls
+        if isinstance(self, type):
+            cls = self
             metric = cls.metric
         else:
-            cls = type(self_or_cls)
-            metric = self_or_cls._state
+            cls = type(self)
+            metric = self._state
 
         cls = cast("type[FromFun]", cls)
         return cls(state=metric.create(*val))  # pylint: disable=not-callable
