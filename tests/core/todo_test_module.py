@@ -32,7 +32,6 @@
 # limitations under the License.
 import sys
 from unittest.mock import Mock
-import weakref
 
 from flax import linen as nn
 import optax

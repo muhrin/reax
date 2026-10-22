@@ -18,7 +18,6 @@
 #
 import os
 import re
-import sys
 
 init_file_path = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "reax", "__init__.py"
@@ -122,7 +121,9 @@ html_theme_options = {}
 # For Alabster:
 # html_theme_options = {
 #     "codecov_button": True,
-#     "description": "Scalable, flexible training for JAX, inspired by the simplicity of PyTorch Lightning",
+#     "description": (
+#         "Scalable, flexible training for JAX, inspired by the simplicity of PyTorch Lightning"
+#     ),
 #     "github_button": True,
 #     "github_repo": "reax",
 #     "github_type": "star",

@@ -48,7 +48,8 @@ from reax import demos, metrics, testing
 
 @pytest.mark.parametrize("method", ("fit", "validate", "test", "predict"))
 def test_trainer_error_when_input_not_reax_module(method):
-    """Test that a useful error gets raised when the Trainer methods receive something other than a reax.Module."""
+    """Test that a useful error gets raised when the Trainer methods receive something other than
+    a reax.Module."""
     trainer = reax.Trainer()
     with pytest.raises((jt.TypeCheckError, TypeError)):
         run_method = getattr(trainer, method)

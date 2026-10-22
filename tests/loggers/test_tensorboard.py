@@ -212,7 +212,8 @@ def test_tensorboard_log_omegaconf_hparams_and_metrics(tmp_path):
 
 @pytest.mark.parametrize("example_input_array", [None, np.random.rand(2, 32)])
 def test_tensorboard_log_graph(tmp_path, example_input_array):
-    """Test that log graph works with both model.example_input_array and if array is passed externally."""
+    """Test that log graph works with both model.example_input_array and if array is passed
+    externally."""
     model = demos.BoringModel()
     if example_input_array is not None:
         model.example_input_array = None
@@ -229,7 +230,10 @@ def test_tensorboard_log_graph_warning_no_example_input_array(tmp_path):
     logger = loggers.tensorboard.TensorBoardLogger(tmp_path, log_graph=True)
     with pytest.warns(
         UserWarning,
-        match="Could not log computational graph to TensorBoard: The `model.example_input_array` .* was not given",
+        match=(
+            "Could not log computational graph to TensorBoard: "
+            "The `model.example_input_array` .* was not given"
+        ),
     ):
         logger.log_graph(model)
 

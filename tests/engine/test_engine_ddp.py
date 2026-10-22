@@ -90,7 +90,8 @@ def _run_engine_setup_dataloaders():
     engine = _make_engine()
     ds = RandomDataset(size=4, length=10)
     loader = engine.setup_dataloaders(reax.ReaxDataLoader(ds, batch_size=2))
-    # With 2 ranks each shard must cover half the (padded) dataset: 5 samples => batches of 2 => 3 batches
+    # With 2 ranks each shard must cover half the (padded) dataset:
+    # 5 samples => batches of 2 => 3 batches
     batches = list(loader)
     assert len(batches) == 3
     # The two shards must be disjoint over the dataset items (each rank gets distinct half)

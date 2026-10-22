@@ -33,8 +33,7 @@
 from functools import partial, update_wrapper
 from inspect import getmembers, isfunction
 from typing import Any
-from unittest import mock
-from unittest.mock import ANY, PropertyMock
+from unittest.mock import ANY
 
 import jax.numpy as jnp
 import pytest
@@ -149,7 +148,8 @@ def test_on_train_epoch_end_metrics_collection(tmp_path):
 #     batch = CustomBatch((torch.zeros(5, 32), torch.ones(5, 1, dtype=torch.long)))
 #
 #     trainer = Trainer(accelerator=accelerator, devices=1)
-#     # running .fit() would require us to implement custom data loaders, we mock the model reference instead
+#     # running .fit() would require us to implement custom data loaders, we mock the model
+#     # reference instead
 #
 #     model_getter_mock.return_value = model
 #     batch_gpu = trainer.strategy.batch_to_device(batch, expected_device)
@@ -304,8 +304,8 @@ class HookedModel(boring_classes.BoringModel):
                         "args": (ANY,),
                         "kwargs": {"gradient_clip_val": None, "gradient_clip_algorithm": None},
                     },
-                    # this is after because it refers to the `LightningModule.optimizer_step` hook which encapsulates
-                    # the actual call to `Precision.optimizer_step`
+                    # this is after because it refers to the `LightningModule.optimizer_step`
+                    # hook which encapsulates the actual call to `Precision.optimizer_step`
                     {
                         "name": "optimizer_step",
                         "args": (current_epoch, i, ANY, ANY),
@@ -437,7 +437,12 @@ class HookedModel(boring_classes.BoringModel):
 #             marks=RunIf(min_cuda_gpus=1),
 #         ),
 #         pytest.param(
-#             {"accelerator": "gpu", "devices": 1, "precision": "16-mixed", "strategy": "deepspeed"},
+#             {
+#                 "accelerator": "gpu",
+#                 "devices": 1,
+#                 "precision": "16-mixed",
+#                 "strategy": "deepspeed",
+#             },
 #             marks=RunIf(min_cuda_gpus=1, standalone=True, deepspeed=True),
 #         ),
 #     ],
@@ -992,7 +997,8 @@ def test_trainer_datamodule_hook_system(tmp_path):
 #
 #
 # def test_train_eval_mode_restored(tmp_path):
-#     """Test that the trainer restores the `training` mode of all submodules to what it was before entering the loop."""
+#     """Test that the trainer restores the `training` mode of all submodules to what it was
+#     before entering the loop."""
 #
 #     class MixedTrainModeModule(BoringModel):
 #         def __init__(self):

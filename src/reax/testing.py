@@ -1,4 +1,3 @@
-from collections.abc import Callable
 import functools
 import inspect
 import json

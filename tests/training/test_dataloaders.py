@@ -30,7 +30,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 from unittest.mock import Mock, call, patch
 
 import jaxtyping as jt
@@ -288,7 +287,8 @@ class Counter(reax.TrainerListener):
 #
 #
 # def test_inf_dataloaders_with_limit_percent_batches(tmp_path):
-#     """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit in percent."""
+#     """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit
+#     in percent."""
 #     epoch_cb = Counter()
 #     trainer = Trainer(
 #         default_root_dir=tmp_path,
@@ -337,7 +337,8 @@ class Counter(reax.TrainerListener):
     ],
 )
 def test_dataloaders_with_limit_train_batches(tmp_path, dataset, limit_train_batches):
-    """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit as number."""
+    """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit as
+    number."""
     epoch_listener = Counter()
     max_epochs = 2
     trainer = reax.Trainer(default_root_dir=tmp_path, listeners=[epoch_listener])
@@ -371,7 +372,8 @@ def test_dataloaders_with_limit_train_batches(tmp_path, dataset, limit_train_bat
     ],
 )
 def test_dataloaders_with_limit_val_batches(tmp_path, dataset):
-    """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit as number."""
+    """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit as
+    number."""
     epoch_listener = Counter()
     listeners = [epoch_listener]
     enable_checkpointing = False
@@ -410,7 +412,8 @@ def test_dataloaders_with_limit_val_batches(tmp_path, dataset):
     ],
 )
 def test_datasets_dataloaders_with_limit_num_batches(tmp_path, dataset):
-    """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit as number."""
+    """Verify inf train, val & test dataloaders (e.g. IterableDataset) passed with batch limit as
+    number."""
     epoch_cb = Counter()
     max_epochs = 2
     limit_batches = 10
@@ -708,7 +711,8 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #
 #
 # def test_auto_add_worker_init_fn():
-#     """Test Trainer adds a default worker_init_fn to the dataloader when seed_everything() is used."""
+#     """Test Trainer adds a default worker_init_fn to the dataloader when seed_everything() is
+#     used."""
 #     dataset = Mock()
 #     dataloader = DataLoader(dataset)
 #
@@ -756,7 +760,8 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #
 # @RunIf(min_cuda_gpus=2)
 # def test_auto_add_worker_init_fn_distributed(tmp_path, monkeypatch):
-#     """Test that the lightning worker_init_fn takes care of dataloaders in multi-gpu/multi-node training."""
+#     """Test that the lightning worker_init_fn takes care of dataloaders in multi-gpu/multi-node
+#     training."""
 #     dataset = NumpyRandomDataset()
 #     num_workers = 2
 #     batch_size = 2
@@ -764,7 +769,11 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers)
 #     seed_everything(0, workers=True)
 #     trainer = Trainer(
-#         default_root_dir=tmp_path, max_epochs=1, accelerator="gpu", devices=2, strategy="ddp_spawn"
+#         default_root_dir=tmp_path,
+#         max_epochs=1,
+#         accelerator="gpu",
+#         devices=2,
+#         strategy="ddp_spawn",
 #     )
 #     model = MultiProcessModel()
 #     model.val_dataloader = None
@@ -773,7 +782,8 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 
 
 # def test_warning_with_small_dataloader_and_logging_interval(tmp_path):
-#     """Test that a warning message is shown if the dataloader length is too short for the chosen logging interval."""
+#     """Test that a warning message is shown if the dataloader length is too short for the chosen
+#     logging interval."""
 #     model = boring_classes.BoringModel()
 #     dataloader = reax.ReaxDataLoader(boring_classes.RandomDataset(32, length=10))
 #     model.train_dataloader = lambda: dataloader
@@ -935,9 +945,10 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #
 # @RunIf(standalone=True)
 # def test_distributed_sampler_without_global_seed(tmp_path):
-#     """Test that the samples are non-overlapping in DDP when shuffling is enabled and no global seed is set."""
-#     # This test must run without a global seed set (e.g. through `seed_everything`), to ensure that each process
-#     # starts with a different initial state.
+#     """Test that the samples are non-overlapping in DDP when shuffling is enabled and no global
+#     seed is set."""
+#     # This test must run without a global seed set (e.g. through `seed_everything`), to ensure
+#     # that each process starts with a different initial state.
 #     assert "PL_GLOBAL_SEED" not in os.environ
 #     train_dataloader = DataLoader(range(32), shuffle=True, batch_size=4)
 #     trainer = Trainer(
@@ -958,13 +969,18 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 #         dataloader = super().train_dataloader()
 #         dist_sampler = DistributedSampler(dataloader.dataset, shuffle=True, seed=11)
 #         return DataLoader(
-#             dataloader.dataset, batch_size=32, drop_last=False, sampler=dist_sampler, shuffle=False
+#             dataloader.dataset,
+#             batch_size=32,
+#             drop_last=False,
+#             sampler=dist_sampler,
+#             shuffle=False,
 #         )
 #
 #
 # @RunIf(min_cuda_gpus=2, skip_windows=True)
 # def test_dataloader_distributed_sampler_already_attached(tmp_path):
-#     """Test DistributedSampler and it's arguments for DDP backend when DistSampler already included on dataloader."""
+#     """Test DistributedSampler and it's arguments for DDP backend when DistSampler already
+#     included on dataloader."""
 #     seed_everything(123)
 #     model = ModelWithDataLoaderDistributedSampler()
 #     trainer = Trainer(
@@ -1042,12 +1058,19 @@ def test_mixing_of_dataloader_options(tmp_path, ckpt_path):
 
 # @pytest.mark.parametrize(
 #     "stage",
-#     [RunningStage.TRAINING, RunningStage.VALIDATING, RunningStage.TESTING, RunningStage.PREDICTING],
+#     [
+#         RunningStage.TRAINING,
+#         RunningStage.VALIDATING,
+#         RunningStage.TESTING,
+#         RunningStage.PREDICTING,
+#     ],
 # )
 # @pytest.mark.parametrize(
 #     "dataloader_wrapper", [CustomNotImplementedErrorDataloader, CustomInfDataloader]
 # )
-# def test_inf_dataloader_raise_error_with_partial_batch_limits(tmp_path, stage, dataloader_wrapper):
+# def test_inf_dataloader_raise_error_with_partial_batch_limits(
+#     tmp_path, stage, dataloader_wrapper
+# ):
 #     """Test limit_batch error with inf dataloader (e.g. IterableDataset)"""
 #     model = BoringModel()
 #     setattr(
@@ -1148,22 +1171,22 @@ def test_dataloaders_load_only_once_no_sanity_check(tmp_path):
             [1, 2, 3, 4, 5, 6, 7, 8, 9],
             [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         ),
-        # case where check_val_every_n_epoch < reload_dataloaders_every_n_epochs so expected val_reload_epoch
-        # and val_step_epoch will be different
+        # case where check_val_every_n_epoch < reload_dataloaders_every_n_epochs so expected
+        # val_reload_epoch and val_step_epoch will be different
         (0, 1, 2, [0, 2, 4, 6, 8], [0, 2, 4, 6, 8], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
         (1, 1, 2, [0, 2, 4, 6, 8], [2, 4, 6, 8], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
         (0, 3, 4, [0, 4, 8], [2, 8], [2, 5, 8]),
         (1, 3, 4, [0, 4, 8], [2, 8], [2, 5, 8]),
-        # case where check_val_every_n_epoch > reload_dataloaders_every_n_epochs so expected val_reload_epoch
-        # and val_step_epoch will be same
+        # case where check_val_every_n_epoch > reload_dataloaders_every_n_epochs so expected
+        # val_reload_epoch and val_step_epoch will be same
         (0, 2, 1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
         (1, 2, 1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
         (0, 3, 2, [0, 2, 4, 6, 8], [2, 5, 8], [2, 5, 8]),
         (1, 3, 2, [0, 2, 4, 6, 8], [2, 5, 8], [2, 5, 8]),
         (0, 5, 2, [0, 2, 4, 6, 8], [4, 9], [4, 9]),
         (1, 5, 2, [0, 2, 4, 6, 8], [4, 9], [4, 9]),
-        # case where check_val_every_n_epoch = reload_dataloaders_every_n_epochs so expected val_reload_epoch
-        # and val_step_epoch will be same
+        # case where check_val_every_n_epoch = reload_dataloaders_every_n_epochs so expected
+        # val_reload_epoch and val_step_epoch will be same
         (0, 2, 2, [0, 2, 4, 6, 8], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
         (1, 2, 2, [0, 2, 4, 6, 8], [1, 3, 5, 7, 9], [1, 3, 5, 7, 9]),
     ],
@@ -1177,7 +1200,8 @@ def test_dataloaders_load_every_n_epochs_infrequent_val(
     val_reload_epochs_expect,
     val_step_epochs_expect,
 ):
-    """Test dataloader reload behavior when infrequently checking validation set (via check_val_every_n_epoch)"""
+    """Test dataloader reload behavior when infrequently checking validation set (via
+    check_val_every_n_epoch)"""
     sanity_val_check_epochs, train_reload_epochs, val_reload_epochs = [], [], []
     sanity_val_step_epochs, val_step_epochs = [], []
 
@@ -1223,7 +1247,8 @@ def test_dataloaders_load_every_n_epochs_infrequent_val(
 
 
 def test_dataloaders_load_every_n_epochs_frequent_val(tmp_path):
-    """Test dataloader reload behavior when frequently checking validation set (via val_check_interval)"""
+    """Test dataloader reload behavior when frequently checking validation set (via
+    val_check_interval)"""
     train_reload_epochs, val_reload_epochs, val_check_epochs = [], [], []
 
     class TestModel(boring_classes.BoringModel):
@@ -1340,7 +1365,9 @@ def test_dataloaders_load_every_epoch_no_sanity_check(tmp_path):
 #         stages.append(str(trainer.stage))
 #         return original_request_dataloader(self, name)
 #
-#     # patch.object(reax.data.DataSourceManager, "_request_dataloader", side_effect_request_dataloader)
+#     # patch.object(
+#     #     reax.data.DataSourceManager, "_request_dataloader", side_effect_request_dataloader
+#     # )
 #
 #     # request_dataloader_mock = Mock(wraps=side_effect_request_dataloader)
 #     monkeypatch.setattr(
@@ -1366,7 +1393,9 @@ def test_dataloaders_load_every_epoch_no_sanity_check(tmp_path):
 #     trainer.test(model, dataloaders=test_dataloader)
 #     assert request_dataloader_mock.call_count == 1
 #
-#     expected = ["sanity_check", "train", "test"] if sanity_check else ["train", "validate", "test"]
+#     expected = (
+#         ["sanity_check", "train", "test"] if sanity_check else ["train", "validate", "test"]
+#     )
 #     assert stages == expected
 
 
@@ -1374,7 +1403,8 @@ def test_dataloaders_reset_and_attach(tmp_path):
     """Test that repeated calls to Trainer.{fit,validate,test,predict} properly reset dataloaders
     before attaching the new one.
     """
-    # the assertions compare the datasets and not dataloaders since we patch and replace the samplers
+    # the assertions compare the datasets and not dataloaders since we patch and replace the
+    # samplers
     dataloader_0 = reax.ReaxDataLoader(dataset=boring_classes.RandomDataset(32, 64))
     dataloader_1 = reax.ReaxDataLoader(dataset=boring_classes.RandomDataset(32, 64))
     dataloader_2 = reax.ReaxDataLoader(dataset=boring_classes.RandomDataset(32, 64))

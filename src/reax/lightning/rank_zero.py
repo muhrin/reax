@@ -34,7 +34,6 @@
 
 import logging
 import os
-from typing import Optional
 
 import lightning_utilities.core.rank_zero as rank_zero_module
 
@@ -47,7 +46,6 @@ from lightning_utilities.core.rank_zero import (  # noqa: F401
     rank_zero_info,
     rank_zero_warn,
 )
-from typing_extensions import ParamSpec
 
 rank_zero_module.log = logging.getLogger(__name__)
 

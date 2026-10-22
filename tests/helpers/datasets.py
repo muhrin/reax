@@ -1,16 +1,12 @@
 from collections.abc import Sequence
+import importlib.util
 
 import jax
 import jax.numpy as jnp
 
 import reax
 
-try:
-    import sklearn
-
-    _SKLEARN_AVAILABLE = True
-except ImportError:
-    _SKLEARN_AVAILABLE = False
+_SKLEARN_AVAILABLE = importlib.util.find_spec("sklearn") is not None
 
 
 class SklearnDataset(Sequence[tuple[jax.Array, jax.Array]]):

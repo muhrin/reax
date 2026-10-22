@@ -1,5 +1,5 @@
 import abc
-from typing import Any, TypeVar
+from typing import Any
 
 import equinox as eqx
 import jax

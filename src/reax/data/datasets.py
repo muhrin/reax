@@ -2,7 +2,7 @@ import bisect
 from collections.abc import Iterable, Sequence
 import itertools
 import math
-from typing import TYPE_CHECKING, TypeVar, cast
+from typing import TypeVar, cast
 import warnings
 
 import beartype
@@ -13,8 +13,6 @@ import numpy as np
 
 from . import _types
 
-if TYPE_CHECKING:
-    import reax
 __all__ = ("ArrayDataset", "ConcatDataset", "Subset", "random_split")
 
 _T = TypeVar("_T")

@@ -219,7 +219,8 @@ def test_unique_vmap_reduce(rng_key, dtype):
     reduced_unique = vectorized_unique.reduce(axis=0)
 
     # 4. Verify result
-    # The union of {1,2,3,4}, {3,4,5,6}, {6,7,8}, {1,5,9,0} is {0,1,2,3,4,5,6,7,8,9} (except 4 which is masked)
+    # The union of {1,2,3,4}, {3,4,5,6}, {6,7,8}, {1,5,9,0} is {0,1,2,3,4,5,6,7,8,9}
+    # (except 4 which is masked)
     expected = jnp.array([0, 1, 2, 3, 5, 6, 7, 8, 9], dtype=dtype)
     result = reduced_unique.compute()
 

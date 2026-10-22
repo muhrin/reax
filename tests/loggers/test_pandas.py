@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import reax
-from reax import demos, loggers
+from reax import loggers
 import reax.loggers.pandas
 
 
@@ -132,7 +132,8 @@ def test_formats(tmp_path):
 
 
 def test_dataframe_content(tmp_path):
-    """Test that log graph works with both model.example_input_array and if array is passed externally."""
+    """Test that log graph works with both model.example_input_array and if array is passed
+    externally."""
     logger = loggers.pandas.PandasLogger(tmp_path)
     df = logger.dataframe
     assert df.empty

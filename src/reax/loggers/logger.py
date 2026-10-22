@@ -43,7 +43,6 @@ from typing_extensions import override
 from reax.lightning import rank_zero
 
 if TYPE_CHECKING:
-    import reax
     from reax.listeners import ModelCheckpoint  # noqa: F401
 
 __all__ = ("Logger",)

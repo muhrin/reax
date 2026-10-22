@@ -1,11 +1,8 @@
 from unittest.mock import MagicMock
 
-from flax import nnx
 import jax.numpy as jnp
-import numpy as np
 import pytest
 
-import reax.data
 from reax.data import _datasource_manager, _loaders, datamodules
 
 

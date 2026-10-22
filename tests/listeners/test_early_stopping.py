@@ -209,7 +209,8 @@ def test_pickling():
 
 
 def test_early_stopping_no_val_step(tmp_path):
-    """Test that early stopping listener falls back to training metrics when no validation defined."""
+    """Test that early stopping listener falls back to training metrics when no validation
+    defined."""
     pytest.importorskip("sklearn")
 
     # Early stopping fires on a genuine plateau at around epoch 4, so this bound just has to be
@@ -521,7 +522,8 @@ _ES_CHECK_P3 = {"patience": 3, "check_on_train_epoch_end": True}
 #     devices: int,
 #     dist_diverge_epoch: Optional[int],
 # ):
-#     """Ensure when using multiple early stopping listeners we stop if any signals we should stop."""
+#     """Ensure when using multiple early stopping listeners we stop if any signals we should
+#     stop."""
 #
 #     model = EarlyStoppingModel(
 #         expected_stop_epoch, check_on_train_epoch_end, dist_diverge_epoch=dist_diverge_epoch
