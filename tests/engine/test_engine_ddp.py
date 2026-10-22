@@ -5,6 +5,7 @@ import pytest
 import reax
 from reax import testing
 from reax.demos import RandomDataset
+from reax.lightning import rank_zero
 from reax.metrics import Sum
 from reax.strategies import JaxDdpStrategy
 
@@ -97,3 +98,28 @@ def _run_engine_setup_dataloaders():
     # The two shards must be disjoint over the dataset items (each rank gets distinct half)
     # Batch shapes are (2, 4)
     assert batches[0].shape == (2, 4)
+
+
+@pytest.mark.multiproc
+def test_engine_sets_rank_zero_rank():
+    testing.in_subprocess(_run_engine_sets_rank_zero_rank)()
+
+
+def _run_engine_sets_rank_zero_rank():
+    engine = _make_engine()
+    process_index = engine.process_index
+    rank = rank_zero.get_rank()
+
+    ran = []
+
+    @rank_zero.rank_zero_only
+    def only_on_rank_zero():
+        ran.append(True)
+
+    only_on_rank_zero()
+
+    # Gather the results so that rank 0 checks them for every process
+    num_matching = engine.all_reduce(jnp.array([float(rank == process_index)]), reduce_op="sum")
+    num_ran = engine.all_reduce(jnp.array([float(len(ran))]), reduce_op="sum")
+    assert num_matching == 2.0, "the rank-zero rank doesn't match the process index"
+    assert num_ran == 1.0, "a rank_zero_only function ran on more than one process"

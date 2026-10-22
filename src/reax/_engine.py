@@ -16,6 +16,7 @@ from . import hooks, modules, optimizers, profilers, strategies
 from . import loggers as loggers_
 from . import metrics as metrics_
 from .data import DeviceDataLoader
+from .lightning import rank_zero
 from .training import _logger_connector
 from .utils import events
 
@@ -105,6 +106,10 @@ class Engine:
             self._strategy = strategy
         else:
             self._strategy = strategies.create(strategy, accelerator, devices=devices)
+        # The strategy knows this process's rank whatever launched it (e.g. REAX itself, MPI or
+        # SLURM), so make the rank-zero utilities agree with it.  This has to happen before the
+        # loggers are created, as they only write from rank zero.
+        rank_zero.set_rank(self.process_index)
         self._default_root_dir = (
             os.fspath(default_root_dir) if default_root_dir is not None else os.getcwd()
         )

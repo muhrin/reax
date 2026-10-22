@@ -166,11 +166,10 @@ class CsvLogger(logger.Logger):
             self.logger.experiment.some_experiment_writer_function()
 
         """
-        if self._experiment is not None:
-            return self._experiment
+        if self._experiment is None:
+            self._fs.makedirs(self.root_dir, exist_ok=True)
+            self._experiment = ExperimentWriter(log_dir=self.log_dir)
 
-        self._fs.makedirs(self.root_dir, exist_ok=True)
-        self._experiment = ExperimentWriter(log_dir=self.log_dir)
         return self._experiment
 
     @override
@@ -265,7 +264,8 @@ class ExperimentWriter:
 
     def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
         """Record metrics."""
-        metrics["step"] = step
+        if step is not None:
+            metrics["step"] = step
         self._metrics.append(metrics)
 
     def log_hparams(self, params: dict[str, Any]) -> None:

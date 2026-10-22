@@ -34,6 +34,7 @@
 
 import logging
 import os
+from typing import Any
 
 import lightning_utilities.core.rank_zero as rank_zero_module
 
@@ -64,12 +65,32 @@ def _get_rank() -> int | None:
 
 
 rank_zero_only = rank_zero_module.rank_zero_only
+# The rank is stored as an attribute on the `rank_zero_only` function, which type checkers don't
+# know about, so access it through this untyped alias
+_rank_holder: Any = rank_zero_only
 # add the attribute to the function but don't overwrite in case Trainer has already set it
-rank_zero_only.rank = getattr(rank_zero_only, "rank", _get_rank() or 0)
+_rank_holder.rank = getattr(_rank_holder, "rank", _get_rank() or 0)
+
+
+def get_rank() -> int:
+    """Get the rank of this process, as used by the rank-zero utilities."""
+    return _rank_holder.rank
+
+
+def set_rank(rank: int) -> None:
+    """Set the rank of this process, as used by the rank-zero utilities.
+
+    Until this is called, the rank is taken from environment variables set by common launchers
+    (e.g. ``RANK`` or ``SLURM_PROCID``), defaulting to ``0``.
+    """
+    _rank_holder.rank = rank
 
 
 class ReaxDeprecationWarning(DeprecationWarning):
     """Deprecation warnings raised by Lightning."""
 
 
-rank_zero_module.rank_zero_deprecation_category = ReaxDeprecationWarning
+# `lightning_utilities` types this as exactly `DeprecationWarning`, so go through an untyped alias
+# to swap in our subclass
+_lightning_rank_zero: Any = rank_zero_module
+_lightning_rank_zero.rank_zero_deprecation_category = ReaxDeprecationWarning

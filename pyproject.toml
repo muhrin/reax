@@ -157,7 +157,6 @@ exclude = [
     'src/reax/data/utils.py',
     'src/reax/demos/boring_classes.py',
     'src/reax/demos/mnist.py',
-    'src/reax/lightning/rank_zero.py',
     'src/reax/listeners/early_stopping.py',
     'src/reax/listeners/model_checkpoint.py',
     'src/reax/listeners/progress/tqdm_progress.py',
