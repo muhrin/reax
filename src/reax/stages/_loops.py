@@ -544,11 +544,8 @@ class LoopOverBatches(Loop[_DataStageT]):
 
         # If this is not the last batch then get the next batch ready for
         # starting the stage.
-        if (
-            self.max_batches is not None
-            and self.batch_idx + 1 < self.max_batches
-            and not self.should_stop
-        ):
+        max_batches = self.max_batches
+        if (max_batches is None or self.batch_idx + 1 < max_batches) and not self.should_stop:
             # Prefetch the next batch (if there is one).  This allows for
             # pipelining i.e. the GPU keeps working on the model, while we (the
             # CPU), fetch and process the next batch.  We then process the
