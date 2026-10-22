@@ -15,13 +15,13 @@ class DataSource(Generic[_T_co, U]):
     """Interface for classes that provide datasets."""
 
     def __init__(self) -> None:
-        """Attributes:
-        prepare_data_per_node:
-            If True, each LOCAL_RANK=0 will call prepare data.
-            Otherwise, only NODE_RANK=0, LOCAL_RANK=0 will prepare data.
-        allow_zero_length_dataloader_with_multiple_devices:
-            If True, dataloader with zero length within local rank is allowed.
-            Default value is False.
+        """Initialise the data source.
+
+        Attributes:
+            prepare_data_per_node: If ``True``, each ``LOCAL_RANK=0`` will call prepare data.
+                Otherwise, only ``NODE_RANK=0, LOCAL_RANK=0`` will prepare data.
+            allow_zero_length_dataloader_with_multiple_devices: If ``True``, a dataloader with
+                zero length within a local rank is allowed. Defaults to ``False``.
         """
         super().__init__()
         self.prepare_data_per_node: bool = True
