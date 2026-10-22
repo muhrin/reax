@@ -60,6 +60,7 @@ dev = [
     'flit',
     'ipython',
     "mlflow<3.7",
+    "omegaconf",
     'pandas',
     'pytest',
     'pytest-cov',
