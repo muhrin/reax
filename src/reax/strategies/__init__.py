@@ -5,4 +5,10 @@ from ._parallel import *
 from ._single_device import *
 from ._strategies import *
 
-__all__ = _factory.__all__ + _jax.__all__ + _parallel.__all__ + _strategies.__all__
+__all__ = (
+    _factory.__all__
+    + _jax.__all__
+    + _parallel.__all__
+    + _single_device.__all__
+    + _strategies.__all__
+)
