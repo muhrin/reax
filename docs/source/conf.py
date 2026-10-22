@@ -59,6 +59,10 @@ extensions = [
     "myst_nb",
 ]
 
+# Per-cell execution timeout (seconds) for notebooks; the quick start trains on MNIST, which
+# takes longer than myst-nb's default of 30s.
+nb_execution_timeout = 300
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
@@ -131,6 +135,7 @@ html_theme_options = {}
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 
 # -- Options for HTMLHelp output ------------------------------------------
 

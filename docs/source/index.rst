@@ -30,7 +30,7 @@ Why REAX?
 ---------
 
 🔧 **Framework Agnostic**
-    REAX works with **any** JAX neural network library: Flax Linen, Flax NNX, Equinox, Haiku, and
+    REAX works with **any** JAX neural network library: Flax Linen, Flax NNX, Equinox, and
     more. Bring your own models.
 
 ⚡ **Scale Effortlessly**
