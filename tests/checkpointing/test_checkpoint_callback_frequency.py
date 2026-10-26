@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 from unittest import mock
 
 import flax
@@ -101,6 +102,42 @@ def test_top_k(save_mock, tmp_path, k, epochs, val_check_interval, expected, sav
     # save_last=True: last epochs are saved every step (so double the save calls)
     expected = expected * 2 if save_last is True else expected
     assert save_mock.call_count == expected
+
+
+@pytest.mark.parametrize("save_on_train_epoch_end", [None, True, False])
+def test_monitor_val_metric_saves_best_checkpoint(tmp_path, save_on_train_epoch_end):
+    """Monitoring a validation metric must still produce a ``best`` checkpoint.
+
+    Regression test: the monitored key only becomes available once the validation stage has run.
+    If validation runs *after* ``on_train_epoch_end`` (where checkpointing happens by default), the
+    key is missing at save time and only ``last.ckpt`` is written.
+    """
+
+    class TestModel(demos.BoringModel):
+        def validation_step(self, batch, batch_idx, /):
+            res = super().validation_step(batch, batch_idx)
+            self.log("val/loss", res["x"])
+            return res
+
+    ckpt = listeners.ModelCheckpoint(
+        dirpath=tmp_path,
+        monitor="val/loss",
+        save_top_k=1,
+        save_last=True,
+        save_on_train_epoch_end=save_on_train_epoch_end,
+    )
+    trainer = reax.Trainer(
+        listeners=[ckpt],
+        default_root_dir=tmp_path,
+        enable_model_summary=False,
+        enable_progress_bar=False,
+        logger=False,
+    )
+    trainer.fit(TestModel(), max_epochs=1, limit_train_batches=1, limit_val_batches=1)
+
+    assert ckpt.best_model_path, "a best checkpoint should have been written"
+    assert ckpt.best_model_path.endswith(".ckpt")
+    assert os.path.exists(ckpt.best_model_path)
 
 
 #

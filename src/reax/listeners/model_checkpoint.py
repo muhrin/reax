@@ -313,6 +313,8 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         self._best_model_score: jax.Array | None = None
         # Keep track of the global number of optimizer steps
         self._last_global_step_saved = 0
+        # De-duplicate warnings so the same message is only emitted once
+        self._warning_cache = rank_zero.WarningCache()
 
     @staticmethod
     def __init_triggers(
@@ -579,8 +581,16 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         assert self._monitor is not None
         current = monitor_candidates.get(self._monitor)
 
+        if current is None:
+            self._warning_cache.warn(
+                f"The monitored key {self._monitor!r} was not found in the metrics available at "
+                f"checkpoint time, so no 'best' checkpoint can be saved. Make sure the metric is "
+                f"logged before the checkpoint listener runs; when monitoring a validation "
+                f"metric you may need `ModelCheckpoint(..., save_on_train_epoch_end=False)`."
+            )
+            return
+
         if self.check_monitor_top_k(current):
-            assert current is not None
             self._update_best_and_save(current, trainer, monitor_candidates)
         elif self._verbose:
             epoch = monitor_candidates["epoch"]

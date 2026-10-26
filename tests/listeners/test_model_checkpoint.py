@@ -15,6 +15,7 @@
 import os
 import time
 from unittest.mock import Mock
+import warnings
 
 import jax.numpy as jnp
 import pytest
@@ -263,6 +264,26 @@ def test_save_monitor_checkpoint_verbose_not_topk(tmp_path):
     ckpt._save_monitor_checkpoint(trainer, candidates)
     assert jnp.isclose(ckpt.best_model_score, 0.05)
     assert os.path.exists(ckpt.best_model_path)
+
+
+def test_save_monitor_checkpoint_missing_key_warns_once(tmp_path):
+    ckpt = ModelCheckpoint(dirpath=str(tmp_path), monitor="val/loss", save_top_k=1)
+    trainer = _make_trainer(tmp_path)
+    os.makedirs(ckpt.dirpath, exist_ok=True)
+
+    # the monitored key is absent -> no checkpoint, but a warning is emitted
+    candidates = {"epoch": jnp.array(0), "step": jnp.array(0)}
+    with pytest.warns(UserWarning, match="val/loss"):
+        ckpt._save_monitor_checkpoint(trainer, candidates)
+
+    assert ckpt.best_model_path == ""
+    assert os.listdir(ckpt.dirpath) == []
+
+    # the identical warning is de-duplicated by the warning cache
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ckpt._save_monitor_checkpoint(trainer, candidates)
+    assert not [w for w in caught if "val/loss" in str(w.message)]
 
 
 def test_update_best_and_save_evicts_worst(tmp_path):
