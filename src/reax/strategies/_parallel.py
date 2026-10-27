@@ -79,4 +79,8 @@ class ParallelDataLoader(data_.DataLoader[_T_co, _U]):
             pass
 
     def with_new_sampler(self, sampler: "reax.data.Sampler") -> "ParallelDataLoader[_T_co, _U]":
+        if not isinstance(sampler, data_.samplers.DistributedSampler):
+            raise TypeError(
+                f"ParallelDataLoader requires a DistributedSampler, got {type(sampler).__name__}"
+            )
         return ParallelDataLoader(dataset=self._dataset, sampler=sampler, fetcher=self._fetcher)

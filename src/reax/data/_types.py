@@ -1,11 +1,11 @@
 import abc
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence, Sized
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 if TYPE_CHECKING:
     import reax
 
-__all__ = "Sampler", "DataLoader", "Dataset", "CollateFn"
+__all__ = "Sampler", "DataLoader", "Dataset", "CollateFn", "BatchSampler"
 
 _T_co = TypeVar("_T_co", covariant=True)
 U = TypeVar("U")
@@ -13,6 +13,7 @@ IdxT = TypeVar("IdxT")
 
 Dataset = Iterable[_T_co] | Sequence[_T_co]
 Sampler = Iterable[IdxT]
+BatchSampler = Sampler[list[IdxT]]
 CollateFn = Callable[[Sequence[_T_co]], U]
 
 
@@ -25,7 +26,10 @@ class DataLoader(Generic[_T_co, U], Iterable[U], abc.ABC):
     """
 
     def __len__(self) -> int:
-        return len(self.sampler)
+        sampler = self.sampler
+        if not isinstance(sampler, Sized):
+            raise TypeError(f"Sampler {type(sampler).__name__} has no length.")
+        return len(sampler)
 
     @property
     @abc.abstractmethod

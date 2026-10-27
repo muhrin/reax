@@ -1,9 +1,9 @@
-from collections.abc import Hashable, Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence, Sized
 import contextlib
 import functools
 import itertools
 import math
-from typing import TYPE_CHECKING, Final, TypeVar
+from typing import TYPE_CHECKING, Any, Final, Generic, TypeVar
 
 import beartype
 import jax
@@ -15,18 +15,33 @@ from . import _types
 
 if TYPE_CHECKING:
     import reax
+    import reax.data
 
 __all__ = (
     "SequentialSampler",
     "RandomSampler",
-    "BatchSampler",
+    "ChunkedSampler",
     "IterableSampler",
     "DistributedSampler",
 )
 
 _T_co = TypeVar("_T_co", covariant=True)
-_IdxT = TypeVar("_IdxT", bound=Hashable)
+_IdxT = TypeVar("_IdxT")
 Empty = list[Never]
+
+
+def _try_len(obj: object) -> int | None:
+    """Return ``len(obj)``, or ``None`` if it has no (usable) length.
+
+    Wrappers such as :class:`ChunkedSampler` always define ``__len__`` but raise ``TypeError`` when
+    the wrapped sampler is unsized, so an ``isinstance(obj, Sized)`` check isn't enough.
+    """
+    if not isinstance(obj, Sized):
+        return None
+    try:
+        return len(obj)
+    except TypeError:
+        return None
 
 
 class SequentialSampler(_types.Sampler[int]):
@@ -80,17 +95,19 @@ class RandomSampler(_types.Sampler[int]):
 
         if self._replacements:
             for _ in range(self.num_samples // self.SAMPLE_SIZE):
-                yield from np.random.randint(0, high=total, size=(self.SAMPLE_SIZE,)).tolist()
-            yield from np.random.randint(
-                0, high=total, size=(self.num_samples % self.SAMPLE_SIZE,)
-            ).tolist()
+                yield from map(int, np.random.randint(0, high=total, size=(self.SAMPLE_SIZE,)))
+
+            yield from map(
+                int, np.random.randint(0, high=total, size=(self.num_samples % self.SAMPLE_SIZE,))
+            )
         else:
             for _ in range(self.num_samples // total):
-                yield from np.random.permutation(total).tolist()
-            yield from np.random.permutation(total).tolist()[: self.num_samples % total]
+                yield from map(int, np.random.permutation(total))
+
+            yield from map(int, np.random.permutation(total)[: self.num_samples % total])
 
 
-class BatchSampler(_types.Sampler[list[_IdxT]]):
+class ChunkedSampler(Generic[_IdxT], _types.Sampler[list[_IdxT]]):
     r"""Sample batches of indexes from a given sample."""
 
     def __init__(self, sampler: _types.Sampler[_IdxT], batch_size: int, drop_last: bool) -> None:
@@ -113,29 +130,23 @@ class BatchSampler(_types.Sampler[list[_IdxT]]):
 
     def __iter__(self) -> Iterator[list[_IdxT]]:
         """Iter function."""
-        if self._drop_last:
-            sampler_iter = iter(self._sampler)
-            while True:
-                try:
-                    batch = [next(sampler_iter) for _ in range(self._batch_size)]
-                    yield batch
-                except StopIteration:
-                    break
-        else:
-            batch = [0] * self._batch_size
-            idx_in_batch = 0
-            for idx in self._sampler:
-                batch[idx_in_batch] = idx
-                idx_in_batch += 1
-                if idx_in_batch == self._batch_size:
-                    yield batch
-                    idx_in_batch = 0
-                    batch = [0] * self._batch_size
-            if idx_in_batch > 0:
-                yield batch[:idx_in_batch]
+        sampler_iter = iter(self._sampler)
+        while True:
+            batch = list(itertools.islice(sampler_iter, self._batch_size))
+            if not batch:
+                return
+            if self._drop_last and len(batch) < self._batch_size:
+                return
+            yield batch
 
     def __len__(self) -> int:
-        """Len function."""
+        """Len function.
+
+        Raises:
+            TypeError: If the wrapped sampler is unsized.
+        """
+        if not isinstance(self._sampler, Sized):
+            raise TypeError(f"Wrapped sampler {type(self._sampler).__name__} has no length.")
         if self._drop_last:
             return len(self._sampler) // self._batch_size
 
@@ -143,12 +154,18 @@ class BatchSampler(_types.Sampler[list[_IdxT]]):
 
 
 class IterableSampler(_types.Sampler[list[None]]):
+    """Endless sampler for iterable (non random-access) datasets.
+
+    Each item is a placeholder "index" ``[None]``: the iterable fetcher ignores the values and just
+    pulls one element from the dataset per entry, stopping when the dataset is exhausted.
+    """
+
     def __iter__(self) -> Iterator[list[None]]:
         """Iter function."""
         yield from itertools.repeat([None])
 
 
-class DistributedSampler(_types.Sampler[_T_co]):
+class DistributedSampler(_types.Sampler[_T_co | Empty]):
     """A sampler that distributes data across multiple processes.
 
     This sampler is a pure sharding wrapper around an inner sampler (e.g.,
@@ -192,10 +209,7 @@ class DistributedSampler(_types.Sampler[_T_co]):
         self._drop_last: Final[bool] = drop_last
 
         # Sized inner: we know the global step count arithmetically.
-        try:
-            self._global_steps: int | None = len(inner)
-        except TypeError:
-            self._global_steps: int | None = None
+        self._global_steps: Final[int | None] = _try_len(inner)
 
     @staticmethod
     def _init_num_replicas(num_replicas: int | None) -> int:
@@ -260,28 +274,34 @@ def create_sampler(
     batch_size: int | None = None,
     replacements: bool = False,
     shuffle: bool = False,
-    sampler: "reax.data.Sampler[_T_co] | None" = None,
+    sampler: "reax.data.Sampler[Any] | None" = None,
     drop_last: bool = False,
-) -> "reax.data.Sampler[_T_co]":
-    """Create sampler."""
-    if sampler is None:
-        # Need this special case because jax arrays are not really subclasses of jax.Array and won't
-        # be matched by singledispatch
-        if isinstance(dataset, jax.Array):
-            sampler = create_sequence_sampler(dataset, replacements=replacements, shuffle=shuffle)
-        else:
-            sampler = _create_sampler(dataset, replacements=replacements, shuffle=shuffle)
+) -> "reax.data.Sampler[Any] | reax.data.BatchSampler[Any]":
+    """Create a sampler for ``dataset``, batching it if ``batch_size`` is given.
 
-    if batch_size is not None:
-        sampler = BatchSampler(sampler, batch_size, drop_last)
+    If ``sampler`` is passed it is used as-is (and batched if requested), otherwise a default
+    sampler is created based on the dataset type.
+    """
+    base: reax.data.Sampler[Any]
+    if sampler is not None:
+        base = sampler
+    elif isinstance(dataset, jax.Array):
+        # Need this special case because jax arrays are not really subclasses of jax.Array and
+        # won't be matched by singledispatch
+        base = create_sequence_sampler(dataset, replacements=replacements, shuffle=shuffle)
+    else:
+        base = _create_sampler(dataset, replacements=replacements, shuffle=shuffle)
 
-    return sampler
+    if batch_size is None:
+        return base
+
+    return ChunkedSampler(base, batch_size, drop_last)
 
 
 @functools.singledispatch
 def _create_sampler(
     dataset: _types.Dataset[_T_co], replacements: bool = False, shuffle: bool = False
-) -> "reax.data.Sampler[_T_co]":
+) -> "reax.data.Sampler[Any]":
     """Create sampler."""
     raise TypeError(f"Unsupported type {type(dataset).__name__}")
 
@@ -310,7 +330,7 @@ with contextlib.suppress(ImportError):
 @_create_sampler.register(np.ndarray)
 def create_sequence_sampler(
     dataset, replacements: bool = False, shuffle: bool = False
-) -> "reax.data.Sampler[_T_co]":
+) -> "reax.data.Sampler[int]":
     """Create sequence sampler."""
     if shuffle:
         return RandomSampler(len(dataset), replacements=replacements)
@@ -320,8 +340,8 @@ def create_sequence_sampler(
 
 @_create_sampler.register(Iterable)
 def create_iterable_sampler(
-    dataset: Iterable[_T_co], replacements: bool = False, shuffle: bool = False
-) -> _types.Sampler[None] | _types.Sampler[list[None]]:
+    dataset: Iterable[Any], replacements: bool = False, shuffle: bool = False
+) -> IterableSampler:
     """Create iterable sampler."""
     if shuffle:
         raise ValueError(
@@ -335,13 +355,3 @@ def create_iterable_sampler(
         )
 
     return IterableSampler()
-
-
-def create_batch_sampler(
-    dataset: Sequence[_T_co], replacements: bool = False, shuffle: bool = False
-) -> BatchSampler[int]:
-    """Create batch sampler."""
-    if shuffle:
-        return RandomSampler(len(dataset), replacements=replacements)
-
-    return SequentialSampler(len(dataset))

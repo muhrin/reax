@@ -122,6 +122,7 @@ ignore = [
     'E203',
     'E266',
     'F403',
+    'F722',
     'F821',
     'S101',
     'S603',
@@ -146,13 +147,11 @@ exclude = [
     'docs/source/get_started/quick_start.ipynb',
     'examples/autoencoder.py',
     'src/reax/data/_datasource_manager.py',
-    'src/reax/data/_loaders.py',
     'src/reax/data/_types.py',
     'src/reax/data/collate.py',
     'src/reax/data/datamodules.py',
     'src/reax/data/datasets.py',
     'src/reax/data/fetchers.py',
-    'src/reax/data/samplers.py',
     'src/reax/data/utils.py',
     'src/reax/demos/boring_classes.py',
     'src/reax/demos/mnist.py',
@@ -208,6 +207,10 @@ exclude = [
     'tests/utils/test_arrays.py',
     'tests/utils/test_containers.py',
 ]
+
+[tool.ty.analysis]
+allowed-unresolved-imports = ["torch.**"]
+
 
 [tool.pylint.MASTER]
 ignore-paths = '^src/reax/lightning/.*$'  # These are copy-paste from lightning, so don't lint

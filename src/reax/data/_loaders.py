@@ -1,5 +1,5 @@
-from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, Final, TypeVar
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, Final, TypeVar
 
 import beartype
 import jax
@@ -18,7 +18,8 @@ __all__ = "ArrayLoader", "CachingLoader", "ReaxDataLoader", "FetcherDataLoader",
 T = TypeVar("T")
 _U = TypeVar("_U")
 _T_co = TypeVar("_T_co", covariant=True)
-ArrayOrArrayTuple = jt.ArrayLike | tuple[jt.ArrayLike, ...]
+Array = jax.Array | np.ndarray
+ArrayOrArrayTuple = Array | tuple[Array, ...]
 
 
 def _single_or_value(value: tuple[T, ...], to_test=None) -> T | tuple[T, ...]:
@@ -37,7 +38,7 @@ class FetcherDataLoader(_types.DataLoader[_T_co, _U]):
     def __init__(
         self,
         dataset: "reax.data.Dataset[_T_co]",
-        sampler: _types.Sampler | Iterable,
+        sampler: _types.Sampler,
         collate_fn: _types.CollateFn,
     ):
         # Params
@@ -54,7 +55,7 @@ class FetcherDataLoader(_types.DataLoader[_T_co, _U]):
 
     @override
     @property
-    def sampler(self):
+    def sampler(self) -> "reax.data.Sampler":
         return self._sampler
 
     def __iter__(self) -> Iterator[_U]:
@@ -83,7 +84,7 @@ class ReaxDataLoader(FetcherDataLoader[_T_co, _U]):
         dataset: "reax.data.Dataset[_T_co]",
         batch_size: int = 1,
         shuffle: bool = False,
-        sampler=None,
+        sampler: "reax.data.Sampler | None" = None,
         collate_fn: _types.CollateFn | None = None,
     ):
         sampler = samplers.create_sampler(
@@ -96,7 +97,7 @@ class ReaxDataLoader(FetcherDataLoader[_T_co, _U]):
         super().__init__(dataset, sampler, collate_fn)
 
 
-class ArrayLoader(_types.DataLoader[ArrayOrArrayTuple, ArrayOrArrayTuple]):
+class ArrayLoader(_types.DataLoader[Any, ArrayOrArrayTuple]):
     """A more efficient loader for array datasets that uses .take() to batch over slices of an
     array dataset.
     """
@@ -106,12 +107,24 @@ class ArrayLoader(_types.DataLoader[ArrayOrArrayTuple, ArrayOrArrayTuple]):
         self,
         arrays: ArrayOrArrayTuple,
         batch_size: int = 1,
-        shuffle=False,
+        shuffle: bool = False,
         sampler: "reax.data.Sampler | None" = None,
+        *,
+        _batched_sampler: "reax.data.Sampler | None" = None,
     ):
+        """Init function.
+
+        Args:
+            arrays: The array, or tuple of equal-length arrays, to load from.
+            batch_size: Number of rows per batch.
+            shuffle: Whether to shuffle the rows.
+            sampler: Optional per-row index sampler. It is batched using ``batch_size``.
+            _batched_sampler: Internal, used by :meth:`with_new_sampler`. An already batched
+                sampler that is used as-is.
+        """
         # Params
-        self._batch_size: int = batch_size
-        self._shuffle: bool = shuffle
+        self._batch_size: Final[int] = batch_size
+        self._shuffle: Final[bool] = shuffle
 
         if isinstance(arrays, tuple):
             if not all(arrays[0].shape[0] == array.shape[0] for array in arrays):
@@ -123,23 +136,25 @@ class ArrayLoader(_types.DataLoader[ArrayOrArrayTuple, ArrayOrArrayTuple]):
             first_array = arrays
 
         # State
-        self._arrays = arrays
-        self._sampler = samplers.create_sampler(
-            first_array, batch_size=batch_size, shuffle=shuffle, sampler=sampler
-        )
+        self._arrays: Final[ArrayOrArrayTuple] = arrays
+        self._sampler: reax.data.Sampler
+        if _batched_sampler is not None:
+            self._sampler = _batched_sampler
+        else:
+            self._sampler = samplers.create_sampler(
+                first_array, batch_size=batch_size, shuffle=shuffle, sampler=sampler
+            )
 
     def __iter__(self) -> Iterator[ArrayOrArrayTuple]:
         """Iter function."""
-        for idx in self._sampler:
-            idx = np.asarray(idx)
+        for indices in self._sampler:
+            if len(indices) == 0:
+                continue  # Padding entry from a DistributedSampler
+            idx = np.asarray(indices, dtype=np.intp)
             if isinstance(self._arrays, tuple):
                 yield tuple(array.take(idx, axis=0) for array in self._arrays)
             else:
                 yield self._arrays.take(idx, axis=0)
-
-    def __len__(self) -> int:
-        """Len function."""
-        return len(self._sampler)
 
     @property
     def batch_size(self) -> int:
@@ -149,21 +164,28 @@ class ArrayLoader(_types.DataLoader[ArrayOrArrayTuple, ArrayOrArrayTuple]):
     def shuffle(self) -> bool:
         return self._shuffle
 
+    @override
     @property
     def dataset(self) -> ArrayOrArrayTuple:
         return self._arrays
 
+    @override
     @property
-    def sampler(self):
+    def sampler(self) -> "reax.data.Sampler":
         return self._sampler
 
     def first(self) -> ArrayOrArrayTuple:
         """First function."""
         return next(iter(self))
 
+    @override
     def with_new_sampler(self, sampler: "reax.data.Sampler") -> "ArrayLoader":
+        # Like the other loaders, ``sampler`` replaces ``self.sampler`` (which is already batched)
         return ArrayLoader(
-            arrays=self.dataset, batch_size=self._batch_size, shuffle=self._shuffle, sampler=sampler
+            arrays=self._arrays,
+            batch_size=self._batch_size,
+            shuffle=self._shuffle,
+            _batched_sampler=sampler,
         )
 
 
@@ -178,7 +200,7 @@ class CachingLoader(_types.DataLoader[_T_co, _U]):
         self._loader = loader
         self._reset_every = reset_every
         self._time_since_reset = 0
-        self._cache = None
+        self._cache: list[_U] | None = None
 
     def __iter__(self) -> Iterator[_U]:
         """Iter function."""
@@ -205,7 +227,7 @@ class CachingLoader(_types.DataLoader[_T_co, _U]):
 
     @override
     @property
-    def sampler(self):
+    def sampler(self) -> "reax.data.Sampler":
         return self._loader.sampler
 
     @override

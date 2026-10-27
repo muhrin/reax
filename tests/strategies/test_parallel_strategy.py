@@ -79,13 +79,13 @@ def test_base_strategy_wraps_raw_dataset():
     assert isinstance(wrapped, reax.data.DataLoader)
     # A raw sequence is wrapped in a BatchSampler, then DistributedSampler.
     assert isinstance(wrapped.sampler, samplers.DistributedSampler)
-    assert isinstance(wrapped.sampler.inner, samplers.BatchSampler)
+    assert isinstance(wrapped.sampler.inner, samplers.ChunkedSampler)
 
 
 def test_parallel_setup_dataloader_wraps_batch_sampler():
     strategy = FakeParallelStrategy(process_index=0, process_count=2)
     loader = _make_loader(10)
-    assert isinstance(loader.sampler, samplers.BatchSampler)
+    assert isinstance(loader.sampler, samplers.ChunkedSampler)
     inner_before = loader.sampler
 
     result = strategy.setup_dataloader(loader)

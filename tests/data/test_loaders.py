@@ -20,7 +20,7 @@ def test_single_or_value_multiple():
 
 def test_fetcher_dataloader_iter():
     dataset = [1, 2, 3, 4]
-    sampler = samplers.BatchSampler(samplers.SequentialSampler(len(dataset)), 2, False)
+    sampler = samplers.ChunkedSampler(samplers.SequentialSampler(len(dataset)), 2, False)
     loader = _loaders.FetcherDataLoader(dataset, sampler, lambda batch: list(batch))
     assert list(loader) == [[1, 2], [3, 4]]
     assert loader.dataset is dataset
@@ -30,9 +30,11 @@ def test_fetcher_dataloader_iter():
 def test_fetcher_dataloader_with_new_sampler():
     dataset = [1, 2, 3]
     loader = _loaders.FetcherDataLoader(
-        dataset, samplers.BatchSampler(samplers.SequentialSampler(3), 1, False), list
+        dataset, samplers.ChunkedSampler(samplers.SequentialSampler(3), 1, False), list
     )
-    new_loader = loader.with_new_sampler(samplers.BatchSampler(samplers.RandomSampler(3), 1, False))
+    new_loader = loader.with_new_sampler(
+        samplers.ChunkedSampler(samplers.RandomSampler(3), 1, False)
+    )
     assert isinstance(new_loader, _loaders.FetcherDataLoader)
     assert sorted(new_loader.dataset) == [1, 2, 3]
     assert sorted(itertools.chain.from_iterable(new_loader.sampler)) == [0, 1, 2]
@@ -83,7 +85,7 @@ def test_fetcher_dataloader_skips_distributed_sampler_padding():
     # ValueError("Must supply a non-empty batch to collate")) and only yield
     # real data.
     dataset = [10, 20, 30, 40, 50]
-    inner_batch = samplers.BatchSampler(samplers.SequentialSampler(len(dataset)), 1, False)
+    inner_batch = samplers.ChunkedSampler(samplers.SequentialSampler(len(dataset)), 1, False)
     from reax.data import collate
 
     # Sanity: the default collater rejects empty batches, proving that without
@@ -154,9 +156,23 @@ def test_array_loader_invalid_type_raises():
 def test_array_loader_with_new_sampler():
     array = np.arange(4)
     loader = _loaders.ArrayLoader(array, batch_size=2)
-    new_loader = loader.with_new_sampler(samplers.SequentialSampler(4))
+    # The new sampler replaces ``loader.sampler`` (already batched) and is used as-is
+    new_sampler = samplers.ChunkedSampler(samplers.SequentialSampler(4), 3, drop_last=False)
+    new_loader = loader.with_new_sampler(new_sampler)
     assert isinstance(new_loader, _loaders.ArrayLoader)
-    assert list(new_loader)[0].tolist() == [0, 1]
+    assert new_loader.sampler is new_sampler
+    assert [b.tolist() for b in new_loader] == [[0, 1, 2], [3]]
+
+
+@pytest.mark.parametrize("make_array", [np.arange, jnp.arange])
+def test_array_loader_with_distributed_sampler(make_array):
+    # 5 rows in batches of 2 -> 3 batches; across 2 ranks rank 1 gets one real batch plus padding
+    loader = _loaders.ArrayLoader(make_array(5), batch_size=2)
+    batches = {}
+    for rank in range(2):
+        dist = samplers.DistributedSampler(loader.sampler, num_replicas=2, process_index=rank)
+        batches[rank] = [np.asarray(b).tolist() for b in loader.with_new_sampler(dist)]
+    assert batches == {0: [[0, 1], [4]], 1: [[2, 3]]}
 
 
 def test_caching_loader():
@@ -164,7 +180,7 @@ def test_caching_loader():
     # single-item batches unwrapped to the raw value
     inner = _loaders.FetcherDataLoader(
         dataset,
-        samplers.BatchSampler(samplers.SequentialSampler(len(dataset)), 1, False),
+        samplers.ChunkedSampler(samplers.SequentialSampler(len(dataset)), 1, False),
         lambda b: b[0],
     )
     loader = _loaders.CachingLoader(inner, reset_every=1)
@@ -185,7 +201,7 @@ def test_caching_loader_reset_every_two():
     # single-item batches unwrapped to the raw value
     inner = _loaders.FetcherDataLoader(
         dataset,
-        samplers.BatchSampler(samplers.SequentialSampler(len(dataset)), 1, False),
+        samplers.ChunkedSampler(samplers.SequentialSampler(len(dataset)), 1, False),
         lambda b: b[0],
     )
     loader = _loaders.CachingLoader(inner, reset_every=2)
@@ -203,20 +219,22 @@ def test_caching_loader_properties():
     dataset = [1, 2]
     inner = _loaders.FetcherDataLoader(
         dataset,
-        samplers.BatchSampler(samplers.SequentialSampler(len(dataset)), 1, False),
+        samplers.ChunkedSampler(samplers.SequentialSampler(len(dataset)), 1, False),
         lambda b: b[0],
     )
     loader = _loaders.CachingLoader(inner, reset_every=1)
     assert loader.dataset is dataset
     assert loader.sampler is inner.sampler
-    new_loader = loader.with_new_sampler(samplers.BatchSampler(samplers.RandomSampler(2), 1, False))
+    new_loader = loader.with_new_sampler(
+        samplers.ChunkedSampler(samplers.RandomSampler(2), 1, False)
+    )
     assert isinstance(new_loader, _loaders.CachingLoader)
 
 
 def test_device_dataloader_puts_on_device():
     dataset = [jnp.array([1.0]), jnp.array([2.0])]
     inner = _loaders.FetcherDataLoader(
-        dataset, samplers.BatchSampler(samplers.SequentialSampler(2), 1, False), list
+        dataset, samplers.ChunkedSampler(samplers.SequentialSampler(2), 1, False), list
     )
     loader = _loaders.DeviceDataLoader(inner, device=jax.devices()[0])
 
@@ -229,7 +247,9 @@ def test_device_dataloader_puts_on_device():
     assert loader.parent is inner
     assert loader.dataset is dataset
     assert loader.sampler is inner.sampler
-    new_loader = loader.with_new_sampler(samplers.BatchSampler(samplers.RandomSampler(2), 1, False))
+    new_loader = loader.with_new_sampler(
+        samplers.ChunkedSampler(samplers.RandomSampler(2), 1, False)
+    )
     assert isinstance(new_loader, _loaders.DeviceDataLoader)
     assert new_loader._device is loader._device
 

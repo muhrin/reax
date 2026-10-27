@@ -315,21 +315,21 @@ def test_random_sampler_replacements_long():
 
 
 def test_batch_sampler_no_drop_last():
-    sampler = samplers.BatchSampler(samplers.SequentialSampler(5), batch_size=2, drop_last=False)
+    sampler = samplers.ChunkedSampler(samplers.SequentialSampler(5), batch_size=2, drop_last=False)
     assert list(sampler) == [[0, 1], [2, 3], [4]]
     assert len(sampler) == 3
 
 
 def test_batch_sampler_drop_last():
-    sampler = samplers.BatchSampler(samplers.SequentialSampler(5), batch_size=2, drop_last=True)
+    sampler = samplers.ChunkedSampler(samplers.SequentialSampler(5), batch_size=2, drop_last=True)
     assert list(sampler) == [[0, 1], [2, 3]]
     assert len(sampler) == 2
 
 
 def test_batch_sampler_len_formulas():
-    sampler = samplers.BatchSampler(samplers.SequentialSampler(10), batch_size=3, drop_last=False)
+    sampler = samplers.ChunkedSampler(samplers.SequentialSampler(10), batch_size=3, drop_last=False)
     assert len(sampler) == 4  # ceil(10 / 3)
-    sampler = samplers.BatchSampler(samplers.SequentialSampler(10), batch_size=3, drop_last=True)
+    sampler = samplers.ChunkedSampler(samplers.SequentialSampler(10), batch_size=3, drop_last=True)
     assert len(sampler) == 3  # floor(10 / 3)
 
 
@@ -342,7 +342,7 @@ def test_iterable_sampler_yields_repeated_none_batches():
 def test_create_sampler_sequence_shuffle():
     dataset = list(range(5))
     sampler = samplers.create_sampler(dataset, shuffle=True, batch_size=2)
-    assert isinstance(sampler, samplers.BatchSampler)
+    assert isinstance(sampler, samplers.ChunkedSampler)
 
 
 def test_create_sampler_sequence_no_batch_size():
@@ -394,17 +394,6 @@ def test_create_sampler_jax_array_batches():
 def test_create_sampler_unsupported_type_raises():
     with pytest.raises(TypeError, match="Unsupported type"):
         samplers.create_sampler(object(), batch_size=2)
-
-
-def test_create_batch_sampler_no_shuffle():
-    sampler = samplers.create_batch_sampler([0, 1, 2, 3])
-    assert list(sampler) == [0, 1, 2, 3]
-
-
-def test_create_batch_sampler_shuffle():
-    sampler = samplers.create_batch_sampler([0, 1, 2, 3], shuffle=True)
-    assert sorted(list(sampler)) == [0, 1, 2, 3]
-    assert sampler.num_samples == 4
 
 
 def test_distributed_sampler_padding_repeat_branch():
@@ -471,3 +460,14 @@ def test_distributed_sampler_drop_last_uniform_step_count(num_items, num_replica
         assert len(sampler) == target
         # drop_last=True never pads; all entries are real (non-empty).
         assert all(item != [] for item in yield_list)
+
+
+def test_distributed_sampler_wrapping_unsized_chunked_sampler():
+    # ChunkedSampler always defines __len__, but raises TypeError when its inner sampler is
+    # unsized. DistributedSampler must treat it as unsized rather than crash.
+    inner = samplers.ChunkedSampler(samplers.IterableSampler(), batch_size=2, drop_last=False)
+    sampler = samplers.DistributedSampler(inner, num_replicas=2, process_index=1)
+    it = iter(sampler)
+    assert [next(it) for _ in range(3)] == [[[None], [None]]] * 3
+    with pytest.raises(TypeError):
+        len(sampler)
