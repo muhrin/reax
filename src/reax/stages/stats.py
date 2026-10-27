@@ -1,6 +1,6 @@
 """Stage for evaluating dataset statistics"""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import beartype
 import jaxtyping as jt
@@ -16,7 +16,18 @@ if TYPE_CHECKING:
     import reax
 
 
-__all__ = ("EvaluateStats", "StatsEpoch")
+__all__ = ("EvaluateStats", "StatsEpoch", "StatsStage")
+
+
+@runtime_checkable
+class StatsStage(_loops.HostWithData, Protocol):
+    """Structural interface a stage must provide to run a :class:`StatsEpoch`.
+
+    ``StatsEpoch`` is generic over this protocol rather than a concrete stage, so
+    statistics can be computed on any stage that exposes the data/loop interface (for
+    example a custom stage such as ``FromData``), without forcing it to inherit from
+    :class:`EvaluateStats`.
+    """
 
 
 class EvaluateStats(stages.Stage):
@@ -63,10 +74,10 @@ class EvaluateStats(stages.Stage):
         return self.run_loop(self._loop)
 
 
-class StatsEpoch(_loops.LoopOverBatches[EvaluateStats]):
+class StatsEpoch(_loops.LoopOverBatches[StatsStage]):
     def __init__(
         self,
-        stage: "EvaluateStats",
+        stage: StatsStage,
         *,
         stats: "reax.Metric | Sequence[reax.Metric] | dict[str, reax.Metric]",
         fast_dev_run: bool | int = False,
