@@ -21,7 +21,7 @@ MetricType = type[metric_.Metric] | metric_.Metric
 class MetricCollection(equinox.Module):
     """A collection of metrics that can be created/updated/merged using a single call."""
 
-    _metrics: flax.core.FrozenDict[str, "reax.Metric"]
+    _metrics: "flax.core.FrozenDict[str, reax.Metric]"
     _evaluator: "reax.metrics.MetricEvaluator"
 
     @jt.jaxtyped(typechecker=beartype.beartype)

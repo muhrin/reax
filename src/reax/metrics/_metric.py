@@ -76,13 +76,13 @@ class Metric(equinox.Module, Generic[_OutT], metaclass=abc.ABCMeta):
         return FromFunction
 
     @hybrid_method
-    def empty(self_or_cls, /) -> "Metric[_OutT]":  # pylint: disable=no-self-argument
+    def empty(self) -> "Metric[_OutT]":  # pylint: disable=no-self-argument
         """Create a new empty instance.
 
         This can be called on the class or an instance. By default, this will call the constructor
         with no arguments, if needed, subclasses can overwrite this with custom behaviour.
         """
-        cls = self_or_cls if isinstance(self_or_cls, type) else type(self_or_cls)
+        cls = self if isinstance(self, type) else type(self)
         return cls()
 
     @hybrid_method
@@ -154,7 +154,7 @@ class FromFun(Metric[_OutT]):
 
     @override
     @hybrid_method
-    def empty(self, /) -> "FromFun[_OutT]":
+    def empty(self) -> "FromFun[_OutT]":
         """Empty function."""
         if isinstance(self, type):
             cls = cast("type[FromFun[_OutT]]", self)
