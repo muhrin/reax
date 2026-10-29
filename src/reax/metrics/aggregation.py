@@ -268,11 +268,9 @@ class Std(Aggregation):
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Get the total, sum of squares and count of the (unmasked) values."""
         values = jnp.atleast_1d(values)
-        mask, count = utils.prepare_mask(values, mask, return_count=True)
-        if mask is not None:
-            values = jnp.where(mask, values, jnp.zeros_like(values))
-
-        return values.sum(), (values**2).sum(), jnp.asarray(count)
+        where = None if mask is None else utils.prepare_mask(values, mask)
+        count = utils.count_valid(values, where)
+        return values.sum(where=where), (values**2).sum(where=where), jnp.asarray(count)
 
     def merge(self, other: "Std") -> "Std":
         """Merge function."""

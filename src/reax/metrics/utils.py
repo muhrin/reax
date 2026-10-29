@@ -1,6 +1,6 @@
 from collections.abc import Callable
 import math
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeVar, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar
 
 import beartype
 import jax
@@ -15,8 +15,10 @@ from ._metric import Metric
 if TYPE_CHECKING:
     import reax
 
+    Mask = reax.types.ArrayMask
     OptionalMask = reax.types.ArrayMask | None
 else:
+    Mask = Any
     OptionalMask = Any
 
 __all__ = tuple()
@@ -53,47 +55,28 @@ def _prepare_mask(
     return jnp.reshape(mask, (jnp.shape(mask)[0], *(1,) * (jnp.ndim(array) - 1)))
 
 
-@overload
-def prepare_mask(
-    values: jt.Shaped[ArrayLike, "N ..."],
-    mask: OptionalMask = None,
-    *,
-    return_count: Literal[False] = False,
-) -> OptionalMask: ...
-@overload
-def prepare_mask(
-    values: jt.Shaped[ArrayLike, "N ..."],
-    mask: OptionalMask = None,
-    *,
-    return_count: Literal[True],
-) -> "tuple[OptionalMask, int | jt.Int[ArrayLike, '']]": ...
 @jt.jaxtyped(typechecker=beartype.beartype)
-def prepare_mask(
-    values: jt.Shaped[ArrayLike, "N ..."], mask: OptionalMask = None, *, return_count: bool = False
-) -> "OptionalMask | tuple[OptionalMask, int | jt.Int[ArrayLike, '']]":
+def prepare_mask(values: jt.Shaped[ArrayLike, "N ..."], mask: Mask) -> jt.Bool[jax.Array, "N ..."]:
     """Prepare a mask for use with jnp.where(mask, values, ...).
 
     Implements a dual-behavior convention:
       - If `mask` is 1D [N]: Treated as an entity mask. It is verified to match the
-        leading dimension of `values` and broadcasted up to [N, *values_dims].
+        leading dimension of `values` and reshaped to [N, 1, ...] so it broadcasts against
+        `values`.
       - If `mask` is N-D [N, ...]: Treated as a data-specific mask. Its shape is
         strictly verified to match `values.shape` exactly.
+
+    Callers with an optional mask should check for ``None`` first, e.g.
+    ``where = None if mask is None else prepare_mask(values, mask)``.
 
     Args:
         values: the array the mask will be applied to
         mask: the mask to prepare
-        return_count: if ``True``, returns a tuple where the second
-            element is the number of valid (True) elements across all dimensions.
 
     Returns:
-        the prepared mask, and optionally the count of masked elements.
+        the prepared boolean mask
     """
     values_shape = jnp.shape(values)
-    if mask is None:
-        if return_count:
-            return None, math.prod(values_shape)
-        return None
-
     # Cast early to ensure boolean sums and properties are well-behaved downstream
     mask = jnp.asarray(mask, dtype=bool)
 
@@ -104,28 +87,30 @@ def prepare_mask(
                 f"1D entity mask must have the same leading dimension as `values`. "
                 f"Received mask shape {mask.shape} and values shape {values_shape}."
             )
+        return _prepare_mask(mask, values)
 
-        mask = _prepare_mask(mask, values)
-
-        if return_count:
-            # math.prod computes at trace-time natively. This avoids the overhead
-            # of allocating an intermediate JAX/NumPy array just to compute the product.
-            feature_size = math.prod(values_shape[1:])
-            count = mask.sum() * feature_size
-            return mask, count
-
-    else:
-        # 2. Data-Specific Mask Behavior: Shape must be [N, *shape]
-        if mask.shape != values_shape:
-            raise ValueError(
-                f"Multidimensional mask must exactly match `values` shape. "
-                f"Received mask shape {mask.shape} and values shape {values_shape}."
-            )
-
-        if return_count:
-            return mask, mask.sum()
-
+    # 2. Data-Specific Mask Behavior: Shape must be [N, *shape]
+    if mask.shape != values_shape:
+        raise ValueError(
+            f"Multidimensional mask must exactly match `values` shape. "
+            f"Received mask shape {mask.shape} and values shape {values_shape}."
+        )
     return mask
+
+
+def count_valid(
+    values: jt.ArrayLike, mask: jt.Bool[jax.Array, "N ..."] | None
+) -> "int | jt.Int[jax.Array, '']":
+    """Count the elements of `values` selected by a mask returned from :func:`prepare_mask`.
+
+    A ``None`` mask selects every element. A broadcast entity mask (shape [N, 1, ...]) counts
+    each selected entity once per feature, without materialising the full mask.
+    """
+    num_values = math.prod(jnp.shape(values))
+    if mask is None:
+        return num_values
+    # Computed at trace time: 1 for a full-shape mask, the feature size for an entity mask
+    return mask.sum() * (num_values // mask.size)
 
 
 def concat(tensors: tuple[jax.Array]) -> jax.Array:
@@ -152,8 +137,8 @@ class WithAccumulator(pytree.PyTree):
         mask: OptionalMask = None,
     ) -> _WithAccT:
         """Create function."""
-        mask = prepare_mask(values, mask)
-        return cls(accumulator=cls.reduce_fn(values, where=mask))
+        where = None if mask is None else prepare_mask(values, mask)
+        return cls(accumulator=cls.reduce_fn(values, where=where))
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def merge(self: _WithAccT, other: _WithAccT) -> _WithAccT:
@@ -177,8 +162,8 @@ class WithAccumulator(pytree.PyTree):
         if self.accumulator is None:
             return cls.create(values, mask=mask)
 
-        mask = prepare_mask(values, mask)
-        reduced = cls.reduce_fn(values, where=mask)
+        where = None if mask is None else prepare_mask(values, mask)
+        reduced = cls.reduce_fn(values, where=where)
         return cls(accumulator=cls.reduce_fn(cls.merge_fn((self.accumulator, reduced))))
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -205,8 +190,8 @@ class WithAccumulatorAndCount(WithAccumulator):
     ) -> _WithAccCountT:
         """Create function."""
         values = jnp.atleast_1d(values)
-        mask, num_elements = prepare_mask(values, mask, return_count=True)
-        return cls(accumulator=cls.reduce_fn(values, where=mask), count=num_elements)
+        where = None if mask is None else prepare_mask(values, mask)
+        return cls(accumulator=cls.reduce_fn(values, where=where), count=count_valid(values, where))
 
     @override
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -236,11 +221,11 @@ class WithAccumulatorAndCount(WithAccumulator):
             # This metric is empty
             return cls.create(values, mask=mask)
 
-        mask, num_elements = prepare_mask(values, mask, return_count=True)
-        reduced = cls.reduce_fn(values, where=mask)
+        where = None if mask is None else prepare_mask(values, mask)
+        reduced = cls.reduce_fn(values, where=where)
         return cls(
             accumulator=cls.reduce_fn(cls.merge_fn((self.accumulator, reduced))),
-            count=self.count + num_elements,
+            count=self.count + count_valid(values, where),
         )
 
     @override

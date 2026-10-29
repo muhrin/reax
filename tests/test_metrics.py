@@ -506,7 +506,7 @@ def test_accuracy_invalid_args():
 
 
 # ---------------------------------------------------------------------------
-# utils.prepare_mask / concat
+# utils.prepare_mask / count_valid / concat
 # ---------------------------------------------------------------------------
 
 
@@ -515,15 +515,13 @@ def test_prepare_mask():
 
     vals = jnp.array([[1.0, 2.0], [3.0, 4.0]])
 
-    assert mu.prepare_mask(vals, None) is None
-    mask, count = mu.prepare_mask(vals, None, return_count=True)
-    assert mask is None and count == vals.size
+    assert mu.count_valid(vals, None) == vals.size
 
-    mask, count = mu.prepare_mask(vals, jnp.array([True, False]), return_count=True)
-    assert mask.shape == (2, 1) and count == 2
+    mask = mu.prepare_mask(vals, jnp.array([True, False]))
+    assert mask.shape == (2, 1) and mu.count_valid(vals, mask) == 2
 
-    mask, count = mu.prepare_mask(vals, jnp.array([[True, False], [True, True]]), return_count=True)
-    assert count == 3
+    mask = mu.prepare_mask(vals, jnp.array([[True, False], [True, True]]))
+    assert mask.shape == vals.shape and mu.count_valid(vals, mask) == 3
 
     with pytest.raises(ValueError):
         mu.prepare_mask(vals, jnp.array([True]))
