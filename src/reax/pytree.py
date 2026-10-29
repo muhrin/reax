@@ -38,7 +38,7 @@ def field(*, static: bool = False, **kwargs) -> Any:
     """
     if static:
         kwargs["metadata"] = {**kwargs.get("metadata", {}), "static": True}
-    return dataclasses.field(**kwargs)
+    return dataclasses.field(**kwargs)  # pylint: disable=invalid-field-call
 
 
 @dataclass_transform(field_specifiers=(field, dataclasses.field))
@@ -47,10 +47,10 @@ class PyTree(_Pytree):
 
     _pytree__custom_init: bool = False
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, mutable: bool = False, **kwargs):
         # Let simple-pytree look at the class body first, it finds static fields from the
         # `dataclasses.Field` objects that the dataclass decorator then removes
-        super().__init_subclass__(**kwargs)
+        super().__init_subclass__(mutable=mutable, **kwargs)
 
         # Only generate an `__init__` if no one has written one, otherwise we would silently
         # replace a parent's hand-written `__init__` (the same rule as equinox)

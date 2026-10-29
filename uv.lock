@@ -5594,7 +5594,6 @@ source = { editable = "." }
 dependencies = [
     { name = "beartype" },
     { name = "einops" },
-    { name = "equinox" },
     { name = "flax", version = "0.10.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "flax", version = "0.12.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "flax", version = "0.12.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -5638,6 +5637,7 @@ dev = [
 docs = [
     { name = "docutils", version = "0.21.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "docutils", version = "0.22.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "equinox" },
     { name = "jupyter" },
     { name = "myst-nb" },
     { name = "pandoc" },
@@ -5663,7 +5663,7 @@ requires-dist = [
     { name = "cloudpickle", marker = "extra == 'dev'" },
     { name = "docutils", marker = "extra == 'docs'" },
     { name = "einops" },
-    { name = "equinox" },
+    { name = "equinox", marker = "extra == 'docs'" },
     { name = "flax" },
     { name = "flit", marker = "extra == 'dev'" },
     { name = "fsspec" },
