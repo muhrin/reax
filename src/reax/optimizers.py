@@ -1,11 +1,12 @@
 import functools
 from typing import TYPE_CHECKING, Any
 
-import equinox
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 import optax
+
+from . import pytree
 
 if TYPE_CHECKING:
     import reax
@@ -13,8 +14,8 @@ if TYPE_CHECKING:
 __all__ = ("Optimizer",)
 
 
-class Optimizer(equinox.Module):
-    optimizer: optax.GradientTransformation
+class Optimizer(pytree.PyTree):
+    optimizer: optax.GradientTransformation = pytree.field(static=True)
     state: optax.OptState
     update_count: (
         int | jt.Int[jax.Array, ""]
@@ -36,7 +37,7 @@ class Optimizer(equinox.Module):
         self.state = state
         self.update_count = count
 
-    @equinox.filter_jit
+    @jax.jit
     def update(
         self, params: optax.Params, grad: optax.Params, value: float | None = None
     ) -> "tuple[Any, reax.Optimizer]":
@@ -80,6 +81,8 @@ class Optimizer(equinox.Module):
 
 
 class DistributedOptimizer(Optimizer):
+    _engine: "reax.Engine" = pytree.field(static=True)
+
     def __init__(
         self,
         opt: optax.GradientTransformation,
@@ -90,7 +93,7 @@ class DistributedOptimizer(Optimizer):
         super().__init__(opt, state, count)
         self._engine = engine
 
-    @equinox.filter_jit
+    @jax.jit
     def update(
         self, params: optax.Params, grad: optax.Params, value: float | None = None
     ) -> "tuple[Any, reax.Optimizer]":

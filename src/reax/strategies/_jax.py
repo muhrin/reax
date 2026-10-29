@@ -6,7 +6,6 @@ import subprocess  # noqa  # Suppresses Bandit's B404 subprocess warning
 import sys
 from typing import TYPE_CHECKING, Any, TypeVar
 
-import equinox as eqx
 import jax
 from jax import distributed, tree
 from jax.experimental import multihost_utils
@@ -14,6 +13,7 @@ import jax.numpy as jnp
 import jaxtyping as jt
 from typing_extensions import override
 
+from .. import pytree
 from . import _parallel
 
 if TYPE_CHECKING:
@@ -236,11 +236,11 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
         if self.process_count == 1:
             return metric.compute()
 
-        dynamic, static = eqx.partition(metric, eqx.is_array)
+        dynamic, static = pytree.partition(metric, pytree.is_array)
         gathered = multihost_utils.process_allgather(dynamic)
         unbatched: list[reax.types.MetricInstance[_OutT]] = unbatch_pytree(gathered, dynamic)
         # Rejoin with the static data
-        unbatched = [eqx.combine(entry, static) for entry in unbatched]
+        unbatched = [pytree.combine(entry, static) for entry in unbatched]
 
         metric = unbatched[0]
         for entry in unbatched[1:]:

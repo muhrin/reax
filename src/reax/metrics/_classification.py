@@ -30,14 +30,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import dataclasses
-
 import beartype
 import jax.numpy as jnp
 import jax.typing
 import jaxtyping as jt
 from typing_extensions import TypedDict, override
 
+from .. import pytree
 from . import _metric, jm
 
 __all__ = ("Accuracy", "StatScores")
@@ -73,15 +72,16 @@ class Accuracy(_metric.Metric):
 
     stats: StatScores
 
-    mode: jm.DataType
-    average: jm.AverageMethod
-    mdmc_average: jm.MDMCAverageMethod
-    num_classes: int | None
-    threshold: float
-    multiclass: bool | None
-    ignore_index: int | None
-    top_k: int | None
-    subset_accuracy: bool
+    # Configuration, kept static so that it is available as Python data under `jax.jit`
+    mode: jm.DataType = pytree.field(static=True)
+    average: jm.AverageMethod = pytree.field(static=True)
+    mdmc_average: jm.MDMCAverageMethod = pytree.field(static=True)
+    num_classes: int | None = pytree.field(static=True)
+    threshold: float = pytree.field(static=True)
+    multiclass: bool | None = pytree.field(static=True)
+    ignore_index: int | None = pytree.field(static=True)
+    top_k: int | None = pytree.field(static=True)
+    subset_accuracy: bool = pytree.field(static=True)
 
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
@@ -304,13 +304,12 @@ class Accuracy(_metric.Metric):
             multiclass=self.multiclass,
         )
 
-        return dataclasses.replace(self, stats=StatScores(tp=tp, fp=fp, tn=tn, fn=fn))
+        return self.replace(stats=StatScores(tp=tp, fp=fp, tn=tn, fn=fn))
 
     @override
     def merge(self, other: "Accuracy") -> "Accuracy":
         """Merge function."""
-        return dataclasses.replace(
-            self,
+        return self.replace(
             stats=StatScores(
                 tp=self.stats["tp"] + other.stats["tp"],
                 fp=self.stats["fp"] + other.stats["fp"],

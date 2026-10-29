@@ -1,8 +1,8 @@
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
 
+from reax import pytree
 from reax.metrics import Sum
 from reax.strategies._jax import unbatch_pytree
 
@@ -78,12 +78,12 @@ def test_unbatch_roundtrip_with_metric():
     """Round trip: partition a metric, batch over a fake process axis, then
     unbatch back to per-process metrics and merge them."""
     metric = Sum().update(jnp.array([1.0, 2.0, 3.0]))
-    dynamic, static = eqx.partition(metric, eqx.is_array)
+    dynamic, static = pytree.partition(metric, pytree.is_array)
 
     # Simulate an all_gather that prepends a leading process axis (B=2)
     batched = jax.tree.map(lambda x: jnp.stack([x, x]), dynamic)
     unbatched = unbatch_pytree(batched, dynamic)
-    unbatched = [eqx.combine(entry, static) for entry in unbatched]
+    unbatched = [pytree.combine(entry, static) for entry in unbatched]
 
     assert len(unbatched) == 2
     merged = unbatched[0].merge(unbatched[1])

@@ -2,11 +2,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import beartype
-import equinox
 import flax.core
 import jaxtyping as jt
 
-from .. import exceptions
+from .. import exceptions, pytree
 from . import _evaluators
 from . import _metric as metric_
 
@@ -18,7 +17,7 @@ __all__ = ("MetricCollection", "combine")
 MetricType = type[metric_.Metric] | metric_.Metric
 
 
-class MetricCollection(equinox.Module):
+class MetricCollection(pytree.PyTree):
     """A collection of metrics that can be created/updated/merged using a single call."""
 
     _metrics: "flax.core.FrozenDict[str, reax.Metric]"

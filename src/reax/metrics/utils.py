@@ -3,13 +3,13 @@ import math
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol, TypeVar, overload
 
 import beartype
-import equinox
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 from jaxtyping import ArrayLike
 from typing_extensions import override
 
+from .. import pytree
 from ._metric import Metric
 
 if TYPE_CHECKING:
@@ -133,7 +133,7 @@ def concat(tensors: tuple[jax.Array]) -> jax.Array:
     return jnp.concatenate(tuple(map(jnp.atleast_1d, tensors)))
 
 
-class WithAccumulator(equinox.Module):
+class WithAccumulator(pytree.PyTree):
     """Abstract aggregation metric."""
 
     reduce_fn: ClassVar[ReduceFn]

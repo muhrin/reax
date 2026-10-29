@@ -3,9 +3,10 @@
 import abc
 from typing import TYPE_CHECKING, TypeVar
 
-import equinox as eqx
 import jax
 from typing_extensions import override
+
+from .. import pytree
 
 if TYPE_CHECKING:
     import reax
@@ -15,7 +16,7 @@ __all__ = "MetricEvaluator", "DefaultEvaluator", "VmapEvaluator"
 T = TypeVar("T", bound="reax.Metric")
 
 
-class MetricEvaluator(abc.ABC, eqx.Module):
+class MetricEvaluator(abc.ABC, pytree.PyTree):
     @abc.abstractmethod
     def create(self, metric: T, *args, **kwargs) -> T:
         """Evaluate the metric creating a new instance"""

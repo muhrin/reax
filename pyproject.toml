@@ -25,7 +25,6 @@ requires-python = '>=3.10'
 dependencies = [
     'beartype',
     "einops",
-    "equinox",
     "flax",
     'fsspec',
     'jax',
@@ -47,6 +46,7 @@ Source = 'https://github.com/camml-lab/reax'
 [project.optional-dependencies]
 docs = [
     'docutils',
+    'equinox', # Used by the example model in the introduction notebook
     'jupyter', # For running doc examples
     'myst-nb', # Jupyter notebooks in docs
     'pandoc',

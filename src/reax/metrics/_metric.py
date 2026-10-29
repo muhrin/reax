@@ -4,10 +4,11 @@ import functools
 import types
 from typing import Any, ClassVar, Generic, TypeVar, cast
 
-import equinox
 import jax
 import jax.numpy as jnp
 from typing_extensions import Self, override
+
+from .. import pytree
 
 __all__ = ("Metric", "FromFun")
 
@@ -29,7 +30,7 @@ class hybrid_method(Generic[_R]):  # pylint: disable=invalid-name
         return types.MethodType(self.__func__, objtype if obj is None else obj)
 
 
-class Metric(equinox.Module, Generic[_OutT], metaclass=abc.ABCMeta):
+class Metric(pytree.PyTree, Generic[_OutT], metaclass=abc.ABCMeta):
     """The base class for all metrics.
 
     To be compatible with JAX Metrics are designed to be immutable meaning that when we 'update'

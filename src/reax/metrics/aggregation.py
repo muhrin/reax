@@ -1,11 +1,11 @@
 import abc
 from typing import Any
 
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 from typing_extensions import Self, override
 
+from reax import pytree
 from reax.utils import arrays
 
 from . import utils
@@ -51,8 +51,8 @@ class SetAccumulation(Metric[jax.Array]):
     """Get the set of unique values with a fixed memory footprint."""
 
     # We keep these static so JAX knows the shape of the accumulator at compile time
-    max_size: int = eqx.field(static=True, default=SET_ACCUMULATION_MAX_SIZE)
-    fill_value: Any = eqx.field(static=True, default=-1)
+    max_size: int = pytree.field(static=True, default=SET_ACCUMULATION_MAX_SIZE)
+    fill_value: Any = pytree.field(static=True, default=-1)
     _accumulator: jax.Array | None = None
 
     @property
@@ -110,11 +110,7 @@ class SetAccumulation(Metric[jax.Array]):
         # 3. Re-uniquify the combined buffer
         new_acc = self._get_unique_fixed(jnp, combined, self.max_size, self.fill_value)
 
-        return eqx.tree_at(
-            lambda m: m._accumulator,  # pylint: disable=protected-access
-            self,
-            new_acc,
-        )
+        return self.replace(_accumulator=new_acc)
 
     @override
     def merge(self, other: "SetAccumulation") -> "SetAccumulation":
@@ -127,7 +123,7 @@ class SetAccumulation(Metric[jax.Array]):
         np_ = arrays.infer_backend([self.accumulator, other.accumulator])
         combined = np_.concatenate([self.accumulator, other.accumulator])
         new_acc = self._get_unique_fixed(np_, combined, self.max_size, self.fill_value)
-        return eqx.tree_at(lambda m: m.accumulator, self, new_acc)
+        return self.replace(_accumulator=new_acc)
 
     @override
     def compute(self) -> jax.Array:

@@ -1,14 +1,13 @@
 import dataclasses
 from typing import TYPE_CHECKING, Generic, TypeVar
 
-import equinox
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
 from typing_extensions import override
 
 from . import metrics as _metric
-from . import types
+from . import pytree, types
 
 if TYPE_CHECKING:
     import reax
@@ -39,7 +38,7 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
 
     value: jax.Array = 0  # Redefine here so the typing hinting works
     weight: jax.Array = 0
-    reduce_fn: "reax.types.ReduceFn" = equinox.field(static=True, default="mean")
+    reduce_fn: "reax.types.ReduceFn" = pytree.field(static=True, default="mean")
 
     @classmethod
     def create(
