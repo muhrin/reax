@@ -45,7 +45,7 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
         # pylint: disable=arguments-differ
         cls,
         value: jt.ArrayLike,
-        batch_size: int | None = None,
+        batch_size: "reax.types.BatchSize | None" = None,
         reduce_fn: "reax.types.ReduceFn" = "mean",
     ) -> "ArrayResultMetric":
         """Create function."""
@@ -61,7 +61,7 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
         # pylint: disable=arguments-differ
         self,
         value: jt.ArrayLike,
-        batch_size: int | None = None,
+        batch_size: "reax.types.BatchSize | None" = None,
     ) -> "ArrayResultMetric":
         """Update function."""
         weight = _weight(batch_size, self.reduce_fn)
@@ -96,7 +96,9 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
         return self.value / self.weight
 
 
-def _weight(batch_size: int | None, reduce_fn: "reax.types.ReduceFn") -> int:
+def _weight(
+    batch_size: "reax.types.BatchSize | None", reduce_fn: "reax.types.ReduceFn"
+) -> "reax.types.BatchSize":
     """How much a value logged with ``batch_size`` counts for.
 
     Totals are added up as they are, so they carry no weight.  Averages are weighted by the number
@@ -162,7 +164,7 @@ class ResultCollection(dict[str, ResultEntry]):
         logger: bool = False,
         on_step: bool = False,
         on_epoch: bool = True,
-        batch_size: int | None = None,
+        batch_size: "reax.types.BatchSize | None" = None,
         reduce_fn: "reax.types.ReduceFn" = "mean",
     ):
         """Log function.

@@ -17,6 +17,10 @@ MetricsDict = dict[str, ScalarLike]
 #: single value at the end of it: either their mean, or their total.
 ReduceFn = Literal["sum", "mean"]
 
+#: The number of samples in a batch.  This can be a (scalar) JAX array, so that it can be computed
+#: on the device (e.g. from a padding mask) without forcing a sync with the host.
+BatchSize = int | jax.Array
+
 
 @runtime_checkable
 class MetricType(Protocol[_OutT]):

@@ -432,7 +432,7 @@ class Trainer(stages.StageListener):
         value,
         *,
         prog_bar: bool = False,
-        batch_size: int | None = None,
+        batch_size: "reax.types.BatchSize | None" = None,
         logger: bool | None = None,
         on_step=True,
         on_epoch=True,

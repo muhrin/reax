@@ -186,7 +186,7 @@ class Module(
         value: MetricType,
         *,
         prog_bar: bool = False,
-        batch_size: int | None = None,
+        batch_size: "reax.types.BatchSize | None" = None,
         logger: bool | None = None,
         on_step=True,
         on_epoch=True,
@@ -250,7 +250,7 @@ class Module(
         logger: bool | None = None,
         on_step: bool | None = None,
         on_epoch: bool | None = None,
-        batch_size: int | None = None,
+        batch_size: "reax.types.BatchSize | None" = None,
     ) -> None:
         """Log a dictionary of values at once.
 
@@ -275,7 +275,7 @@ class Module(
                 determined by the hook. See
                 :ref:`extensions/logging:Automatic Logging` for details,
                 defaults to None.
-            batch_size (Optional[int], optional): Current batch size.
+            batch_size (Optional[int | jax.Array], optional): Current batch size.
                 This will be directly inferred from the loaded batch,
                 but some data structures might need to explicitly
                 provide it, defaults to None.

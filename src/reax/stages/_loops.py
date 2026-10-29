@@ -490,7 +490,7 @@ class LoopOverBatches(Loop[_DataStageT]):
         self,
         name: str,
         value: "jt.ArrayLike | reax.types.MetricInstance",
-        batch_size: int | None = None,
+        batch_size: "reax.types.BatchSize | None" = None,
         prog_bar: bool = False,
         logger: bool = False,
         on_step=False,
