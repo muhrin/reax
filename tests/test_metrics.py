@@ -566,6 +566,21 @@ def test_num_unique_update_and_saturation():
     assert sat == 3.0 / metrics.Unique.create(jnp.array([1, 2, 3])).max_size
 
 
+@pytest.mark.parametrize("backend", [np, jnp])
+def test_unique_per_row_mask(backend):
+    # Per-node values of shape (N, 1) with an (N,) padding mask: the padding value (0) must not
+    # broadcast into the set
+    values = backend.asarray([[8], [14], [0], [0]])
+    mask = backend.asarray([True, True, False, False])
+
+    created = metrics.Unique.create(values, mask)
+    np.testing.assert_array_equal(created.compute(), [8, 14])
+
+    updated = metrics.Unique.create(backend.asarray([[1]])).update(values, mask)
+    np.testing.assert_array_equal(updated.compute(), [1, 8, 14])
+    assert metrics.NumUnique.create(values, mask).update(values, mask).compute() == 2
+
+
 # ---------------------------------------------------------------------------
 # Std
 # ---------------------------------------------------------------------------

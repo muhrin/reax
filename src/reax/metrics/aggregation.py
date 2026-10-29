@@ -83,7 +83,9 @@ class SetAccumulation(Metric[jax.Array]):
                 # Use a large finite negative number to avoid NaN gradient poisoning
                 fill_value = SET_ACCUMULATION_FILL_VALUE
             else:
-                fill_value = jnp.iinfo(val_arr.dtype).max
+                # Use the dtype JAX will hold this as (int64 -> int32 unless x64 is enabled),
+                # otherwise the sentinel overflows when cast back in `compute`
+                fill_value = jnp.iinfo(jax.dtypes.canonicalize_dtype(val_arr.dtype)).max
 
         acc = cls._get_unique_fixed(np_, val_arr, max_size, fill_value, where=mask)
         return cls(_accumulator=acc, max_size=max_size, fill_value=fill_value)
@@ -100,9 +102,10 @@ class SetAccumulation(Metric[jax.Array]):
         fv_cast = self._cast_sentinel(self.accumulator)
 
         if mask is not None:
-            values = jnp.where(mask, values, fv_cast)
+            values = jnp.where(utils.prepare_mask(values, mask), values, fv_cast)
 
-        combined = jnp.concatenate([self.accumulator, values])
+        # The accumulator is flat, so flatten e.g. (N, 1) per-node values before joining
+        combined = jnp.concatenate([self.accumulator, values.reshape(-1)])
 
         # 3. Re-uniquify the combined buffer
         new_acc = self._get_unique_fixed(jnp, combined, self.max_size, self.fill_value)
