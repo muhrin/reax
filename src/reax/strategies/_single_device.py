@@ -18,7 +18,7 @@ class SingleDevice(_strategies.Strategy):
     """Strategy for a single device e.g. a single GPU."""
 
     def __init__(self, platform: str):
-        self._device = jax.Device = (
+        self._device: jax.Device = (
             jax.devices()[0] if platform == "auto" else jax.devices(platform)[0]
         )
 
