@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from typing_extensions import Self, override
 
 from reax import pytree
-from reax.utils import arrays
+from reax.utils import arrays, masking
 
 from . import utils
 from ._metric import Metric
@@ -102,7 +102,7 @@ class SetAccumulation(Metric[jax.Array]):
         fv_cast = self._cast_sentinel(self.accumulator)
 
         if mask is not None:
-            values = jnp.where(utils.prepare_mask(values, mask), values, fv_cast)
+            values = jnp.where(masking.prepare_mask(values, mask), values, fv_cast)
 
         # The accumulator is flat, so flatten e.g. (N, 1) per-node values before joining
         combined = jnp.concatenate([self.accumulator, values.reshape(-1)])
@@ -167,7 +167,7 @@ class SetAccumulation(Metric[jax.Array]):
         fv_cast = np_.array(fill_value, dtype=values.dtype)
 
         if where is not None:
-            where = utils.prepare_mask(values, where)
+            where = masking.prepare_mask(values, where)
             values = np_.where(where, values, fv_cast)
 
         if np_ is jnp:
@@ -268,8 +268,8 @@ class Std(Aggregation):
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Get the total, sum of squares and count of the (unmasked) values."""
         values = jnp.atleast_1d(values)
-        where = None if mask is None else utils.prepare_mask(values, mask)
-        count = utils.count_valid(values, where)
+        where = None if mask is None else masking.prepare_mask(values, mask)
+        count = masking.count_valid(values, where)
         return values.sum(where=where), (values**2).sum(where=where), jnp.asarray(count)
 
     def merge(self, other: "Std") -> "Std":

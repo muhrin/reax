@@ -506,27 +506,8 @@ def test_accuracy_invalid_args():
 
 
 # ---------------------------------------------------------------------------
-# utils.prepare_mask / count_valid / concat
+# utils.concat
 # ---------------------------------------------------------------------------
-
-
-def test_prepare_mask():
-    from reax.metrics import utils as mu
-
-    vals = jnp.array([[1.0, 2.0], [3.0, 4.0]])
-
-    assert mu.count_valid(vals, None) == vals.size
-
-    mask = mu.prepare_mask(vals, jnp.array([True, False]))
-    assert mask.shape == (2, 1) and mu.count_valid(vals, mask) == 2
-
-    mask = mu.prepare_mask(vals, jnp.array([[True, False], [True, True]]))
-    assert mask.shape == vals.shape and mu.count_valid(vals, mask) == 3
-
-    with pytest.raises(ValueError):
-        mu.prepare_mask(vals, jnp.array([True]))
-    with pytest.raises(ValueError):
-        mu.prepare_mask(vals, jnp.zeros((2, 3), dtype=bool))
 
 
 def test_utils_concat():
