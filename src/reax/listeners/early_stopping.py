@@ -182,7 +182,7 @@ class EarlyStopping(hooks.TrainerListener):
         """Should skip check."""
         if trainer.current_epoch < self._start_from_epoch:
             return True
-        return not isinstance(trainer.stage, stages.Fit) and not trainer.sanity_checking
+        return not isinstance(trainer.stage, stages.Fit) or trainer.sanity_checking
 
     @override
     def on_fit_start(self, _trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
@@ -204,8 +204,15 @@ class EarlyStopping(hooks.TrainerListener):
         self._run_early_stopping_check(trainer, stage)
 
     @override
-    def on_validation_end(self, trainer: "reax.Trainer", stage: "reax.stages.Validate", /) -> None:
-        """On validation end."""
+    def on_validation_epoch_end(
+        self, trainer: "reax.Trainer", stage: "reax.Stage", _loop: "reax.stages.ValidationEpoch", /
+    ) -> None:
+        """On validation epoch end.
+
+        Validation nested inside ``fit`` fires this hook, whereas ``on_validation_end`` only
+        fires for a standalone validation stage.  This is therefore where the check has to run
+        when ``check_on_train_epoch_end`` is false.
+        """
         if self._check_on_train_epoch_end or self._should_skip_check(trainer):
             return
         self._run_early_stopping_check(trainer, stage)

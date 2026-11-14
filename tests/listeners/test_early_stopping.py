@@ -158,6 +158,44 @@ def test_early_stopping_patience(
     assert trainer.current_epoch == expected_stop_epoch
 
 
+@pytest.mark.parametrize("check_on_train_epoch_end", [True, False])
+def test_early_stopping_ends_fit_on_validation_end(tmp_path, check_on_train_epoch_end: bool):
+    """Early stopping must stop fitting whether it checks on the train or validation end.
+
+    Regression test: with ``check_on_train_epoch_end=False`` the check was attached to
+    ``on_validation_end``, which reax only fires for a standalone validation stage.  As a
+    result, it never ran for validation nested inside ``fit`` and training always ran to
+    ``max_epochs``.
+    """
+    losses = [6, 5, 5, 5, 5, 5, 5, 5, 5, 5]
+    expected_stop_epoch = 4
+
+    class ModelOverrideValidationReturn(boring_classes.BoringModel):
+        @override
+        def on_validation_epoch_end(
+            self, stage: "reax.Stage", loop: "reax.stages.ValidationEpoch", /
+        ) -> None:
+            loss = losses[self._trainer.current_epoch]
+            self.log("test_val_loss", jnp.array(loss))
+
+    model = ModelOverrideValidationReturn()
+    early_stop_listener = listeners.EarlyStopping(
+        monitor="test_val_loss",
+        patience=3,
+        check_on_train_epoch_end=check_on_train_epoch_end,
+    )
+    trainer = reax.Trainer(
+        default_root_dir=tmp_path, listeners=[early_stop_listener], enable_progress_bar=False
+    )
+    fit = trainer.fit(model, num_sanity_val_steps=0, max_epochs=10)
+
+    assert trainer.current_epoch == expected_stop_epoch
+    assert early_stop_listener.stopped_epoch == expected_stop_epoch
+    # The request must land on the fit stage so the outer epoch loop stops, rather than
+    # being absorbed by the nested validation loop.
+    assert fit.stop_requested
+
+
 @pytest.mark.parametrize("validation_step_none", [True, False])
 @pytest.mark.parametrize(
     ("loss_values", "patience", "expected_stop_epoch"),
