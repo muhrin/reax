@@ -59,4 +59,5 @@ def mlflow_mock(monkeypatch):
 
     monkeypatch.setattr("reax.loggers.mlflow._MLFLOW_AVAILABLE", True)
     monkeypatch.setattr("reax.loggers.mlflow._MLFLOW_SYNCHRONOUS_AVAILABLE", True)
+    monkeypatch.setattr("reax.loggers.mlflow._sqlite_is_default", lambda: True)
     return mlflow

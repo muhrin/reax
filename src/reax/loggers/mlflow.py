@@ -64,6 +64,9 @@ __all__ = ("MlflowLogger", "MLFlowLogger")
 
 _LOGGER = logging.getLogger(__name__)
 LOCAL_FILE_URI_PREFIX = "file:"
+SQLITE_URI_PREFIX = "sqlite:///"
+DEFAULT_DB_FILENAME = "mlflow.db"
+DEFAULT_ARTIFACTS_DIRNAME = "artifacts"
 _MLFLOW_AVAILABLE = imports.RequirementCache("mlflow>=1.0.0", "mlflow")
 _MLFLOW_SYNCHRONOUS_AVAILABLE = imports.RequirementCache("mlflow>=2.8.0", "mlflow")
 TagsDict = dict[str, str]
@@ -83,7 +86,7 @@ class MlflowLogger(logger.Logger):
         from reax import Trainer
         from reax.loggers import MLFlowLogger
 
-        mlf_logger = MLFlowLogger(experiment_name="reax_logs", tracking_uri="file:./ml-runs")
+        mlf_logger = MLFlowLogger(experiment_name="reax_logs", tracking_uri="sqlite:///mlflow.db")
         trainer = Trainer(logger=mlf_logger)
 
     Use the logger anywhere in your :class:`~reax.Module` as follows:
@@ -128,13 +131,20 @@ class MlflowLogger(logger.Logger):
                 in `tags`, the value is overridden by the `run_name`,
                 defaults to ``None``.
             tracking_uri (str | None, optional): Address of local or
-                remote tracking server. If not provided back to
-                `file:<save_dir>`, defaults to
+                remote tracking server. If not provided, a local SQLite
+                database at ``<save_dir>/mlflow.db`` is used (for
+                MLflow >= 3.9, older versions use ``file:<save_dir>``), unless
+                ``save_dir`` already contains data from MLflow's legacy
+                file-based store, in which case ``file:<save_dir>`` is used
+                (note that MLflow >= 3.13 requires
+                ``MLFLOW_ALLOW_FILE_STORE=true`` for this), defaults to
                 os.getenv("MLFLOW_TRACKING_URI").
             tags (dict[str, Any] | None, optional): A dictionary tags
                 for the experiment, defaults to None.
             save_dir (str | None, optional): A path to a local directory
-                where the MLflow runs get saved.
+                where the MLflow runs get saved. By default this will contain
+                the SQLite tracking database (``mlflow.db``) and the run
+                artifacts (``artifacts/``).
 
                 Has no effect if `tracking_uri` is provided, defaults to "./mlruns".
             log_model (Literal[True, False, "all"], optional): Log
@@ -149,8 +159,10 @@ class MlflowLogger(logger.Logger):
             prefix (str, optional): A string to put at the beginning of
                 metric keys, defaults to "".
             artifact_location (str | None, optional): The location to
-                store run artifacts. If not provided, the server picks
-                an appropriate default, defaults to None.
+                store run artifacts. If not provided and the default local
+                SQLite store is used, ``<save_dir>/artifacts`` is used,
+                otherwise the server picks an appropriate default, defaults
+                to None.
             run_id (str | None, optional): The run identifier of the
                 experiment. If not provided, a new run is started,
                 defaults to None.
@@ -169,7 +181,12 @@ class MlflowLogger(logger.Logger):
             raise ModuleNotFoundError("`synchronous` requires mlflow>=2.8.0")
         super().__init__()
         if not tracking_uri:
-            tracking_uri = f"{LOCAL_FILE_URI_PREFIX}{save_dir}"
+            tracking_uri, artifact_location = _default_local_store(save_dir, artifact_location)
+            local_dir = save_dir
+        else:
+            local_dir = _local_save_dir(tracking_uri)
+
+        self._save_dir: Final[str | None] = local_dir
 
         # Params
         self._experiment_name: Final[str] = experiment_name
@@ -360,9 +377,7 @@ class MlflowLogger(logger.Logger):
                 Local path to the root
         experiment directory if the tracking uri is local. Otherwise, returns ``None``.
         """
-        if self._tracking_uri.startswith(LOCAL_FILE_URI_PREFIX):
-            return self._tracking_uri[len(LOCAL_FILE_URI_PREFIX) :]
-        return None
+        return self._save_dir
 
     @property
     @override
@@ -472,6 +487,73 @@ def _get_resolve_tags() -> Callable[
         resolve_tags = _identity
 
     return resolve_tags
+
+
+def _is_legacy_file_store(save_dir: Path) -> bool:
+    """Check whether `save_dir` contains data from MLflow's (deprecated) file-based store."""
+    if not save_dir.is_dir():
+        return False
+    if (save_dir / ".trash").is_dir():
+        return True
+    return any(child.is_dir() and (child / "meta.yaml").is_file() for child in save_dir.iterdir())
+
+
+def _sqlite_is_default() -> bool:
+    """Whether to default to a SQLite (rather than file-based) local tracking store.
+
+    MLflow 3.7 made SQLite the default tracking backend (deprecating the file store, which is
+    disabled by default since 3.13), so we follow suit.  We only do this from 3.9 as the SQLite
+    store of earlier versions fails to import with SQLAlchemy >= 2.1, while their file store still
+    works.  The version is checked on the module (rather than the distribution) so that this also
+    works with ``mlflow-skinny``.
+    """
+    import mlflow
+
+    match = re.match(r"(\d+)\.(\d+)", getattr(mlflow, "__version__", ""))
+    if match is None:
+        return True  # Unknown (e.g. dev) version, assume it's recent
+    return (int(match.group(1)), int(match.group(2))) >= (3, 9)
+
+
+def _default_local_store(
+    save_dir: str | None, artifact_location: str | None
+) -> tuple[str, str | None]:
+    """Get the default tracking URI (and artifact location) for a local `save_dir`.
+
+    Newer versions of MLflow have deprecated (and since 3.13 disabled by default) the file-based
+    tracking store, so by default we use a SQLite database in `save_dir`.  If `save_dir` already
+    contains a legacy file store we keep using that so that existing runs remain visible.
+    """
+    save_path = Path(save_dir if save_dir is not None else "./mlruns")
+    if not _sqlite_is_default():
+        return f"{LOCAL_FILE_URI_PREFIX}{save_path}", artifact_location
+
+    if _is_legacy_file_store(save_path):
+        _LOGGER.warning(
+            "Found an existing MLflow file store in '%s', continuing to use it. MLflow has "
+            "deprecated the file store (since 3.13 it requires MLFLOW_ALLOW_FILE_STORE=true), "
+            "consider migrating with `mlflow migrate-filestore`.",
+            save_path,
+        )
+        return f"{LOCAL_FILE_URI_PREFIX}{save_path}", artifact_location
+
+    save_path = save_path.resolve()
+    save_path.mkdir(parents=True, exist_ok=True)
+    if artifact_location is None:
+        artifact_location = (save_path / DEFAULT_ARTIFACTS_DIRNAME).as_uri()
+    return f"{SQLITE_URI_PREFIX}{save_path / DEFAULT_DB_FILENAME}", artifact_location
+
+
+def _local_save_dir(tracking_uri: str) -> str | None:
+    """Get the local directory corresponding to the tracking URI, or ``None`` if not local."""
+    if tracking_uri.startswith(LOCAL_FILE_URI_PREFIX):
+        return tracking_uri[len(LOCAL_FILE_URI_PREFIX) :]
+    if tracking_uri.startswith(SQLITE_URI_PREFIX):
+        db_path = tracking_uri[len(SQLITE_URI_PREFIX) :]
+        # In-memory databases have no corresponding directory
+        if db_path and db_path != ":memory:":
+            return str(Path(db_path).parent)
+    return None
 
 
 def _identity(x):

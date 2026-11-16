@@ -200,22 +200,26 @@ def test_mlflow_log_dir(mlflow_mock, tmp_path):
 
 
 def test_mlflow_logger_dirs_creation(tmp_path):
-    """Test that the logger creates the folders and files in the right place."""
+    """Test that the logger creates the database, folders and files in the right place."""
     if not mlflow._MLFLOW_AVAILABLE:
         pytest.skip("test for explicit file creation requires mlflow dependency to be installed.")
+    if not mlflow._sqlite_is_default():
+        pytest.skip("the SQLite tracking store is only the default for mlflow>=3.9")
 
     assert not os.listdir(tmp_path)
-    logger = mlflow.MlflowLogger("test", save_dir=str(tmp_path))
+    logger = mlflow.MlflowLogger("test", save_dir=str(tmp_path), log_model=True)
     assert logger.save_dir == str(tmp_path)
-    assert set(os.listdir(tmp_path)) == {".trash"}
+    # By default, a local SQLite database is used (the file store is deprecated in MLflow)
+    assert logger._tracking_uri == f"sqlite:///{tmp_path / 'mlflow.db'}"
     run_id = logger.run_id
     exp_id = logger.experiment_id
+    assert (tmp_path / "mlflow.db").is_file()
 
-    # multiple experiment calls should not lead to new experiment folders
+    # multiple experiment calls should not lead to new experiments or runs
     for _ in range(2):
-        _ = logger.experiment
-        assert set(os.listdir(tmp_path)) == {".trash", exp_id}
-        assert set(os.listdir(tmp_path / exp_id)) == {run_id, "meta.yaml"}
+        client = logger.experiment
+        assert [exp.name for exp in client.search_experiments()].count("test") == 1
+        assert [run.info.run_id for run in client.search_runs([exp_id])] == [run_id]
 
     class CustomModel(demos.BoringModel):
         def on_train_epoch_end(self, *args, **kwargs):
@@ -233,11 +237,49 @@ def test_mlflow_logger_dirs_creation(tmp_path):
         limit_train_batches=limit_batches,
         limit_val_batches=limit_batches,
     )
-    assert set(os.listdir(tmp_path / exp_id)) == {run_id, "meta.yaml"}
-    assert "epoch" in os.listdir(tmp_path / exp_id / run_id / "metrics")
-    # TODO: assert set(os.listdir(tmp_path / exp_id / run_id / "params")) == model.hparams.keys()
+    assert "epoch" in logger.experiment.get_run(run_id).data.metrics
+    # TODO: assert logger.experiment.get_run(run_id).data.params.keys() == model.hparams.keys()
     assert trainer.checkpoint_listener.dirpath == str(tmp_path / exp_id / run_id / "checkpoints")
     assert os.listdir(trainer.checkpoint_listener.dirpath) == [f"epoch=0-step={limit_batches}.ckpt"]
+
+    # Artifacts (here, the logged checkpoint) should be stored under the save directory
+    artifacts_dir = tmp_path / "artifacts"
+    assert artifacts_dir.is_dir()
+    assert list(artifacts_dir.rglob(f"epoch=0-step={limit_batches}.ckpt"))
+
+
+def test_mlflow_logger_legacy_file_store(tmp_path, monkeypatch):
+    """Test that an existing (legacy) file store in `save_dir` continues to be used."""
+    if not mlflow._MLFLOW_AVAILABLE:
+        pytest.skip("test for explicit file creation requires mlflow dependency to be installed.")
+    if not mlflow._sqlite_is_default():
+        pytest.skip("the SQLite tracking store is only the default for mlflow>=3.9")
+
+    # MLflow >= 3.13 refuses to use the file store unless explicitly allowed
+    monkeypatch.setenv("MLFLOW_ALLOW_FILE_STORE", "true")
+
+    legacy = mlflow.MlflowLogger("test", tracking_uri=f"file:{tmp_path}")
+    run_id = legacy.run_id
+    assert (tmp_path / ".trash").is_dir()
+
+    logger = mlflow.MlflowLogger("test", save_dir=str(tmp_path))
+    assert logger._tracking_uri == f"file:{tmp_path}"
+    assert logger.save_dir == str(tmp_path)
+    assert not (tmp_path / "mlflow.db").exists()
+    assert logger.experiment.get_run(run_id).info.run_id == run_id
+
+
+@pytest.mark.parametrize(
+    "tracking_uri, expected",
+    [
+        ("file:/some/dir", "/some/dir"),
+        ("sqlite:////some/dir/mlflow.db", "/some/dir"),
+        ("sqlite:///:memory:", None),
+        ("http://localhost:5000", None),
+    ],
+)
+def test_mlflow_local_save_dir(tracking_uri, expected):
+    assert mlflow._local_save_dir(tracking_uri) == expected
 
 
 @mock.patch("reax.loggers.mlflow._get_resolve_tags", Mock())
@@ -398,8 +440,8 @@ def test_mlflow_logger_with_many_params(mlflow_mock, tmp_path):
     ],
 )
 @mock.patch("reax.loggers.mlflow._get_resolve_tags", Mock())
-def test_mlflow_logger_finalize(mlflow_mock, status, expected):
-    logger = mlflow.MlflowLogger("test")
+def test_mlflow_logger_finalize(mlflow_mock, tmp_path, status, expected):
+    logger = mlflow.MlflowLogger("test", save_dir=str(tmp_path))
 
     # Pretend we are in a worker process and finalizing
     _ = logger.experiment
@@ -410,8 +452,8 @@ def test_mlflow_logger_finalize(mlflow_mock, status, expected):
 
 
 @mock.patch("reax.loggers.mlflow._get_resolve_tags", Mock())
-def test_mlflow_logger_finalize_when_exception(mlflow_mock):
-    logger = mlflow.MlflowLogger("test")
+def test_mlflow_logger_finalize_when_exception(mlflow_mock, tmp_path):
+    logger = mlflow.MlflowLogger("test", save_dir=str(tmp_path))
 
     # Pretend we are on the main process and failing
     assert logger._mlflow_client
