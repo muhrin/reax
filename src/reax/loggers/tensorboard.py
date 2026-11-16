@@ -53,7 +53,7 @@ except ImportError:
 from reax.lightning import rank_zero
 
 from .. import types
-from . import _utils, logger
+from . import _figures, _utils, logger
 
 __all__ = ("TensorBoardLogger",)
 
@@ -313,6 +313,22 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
             # comp = jax.jit(model).lower(inputs).compiler_ir("hlo")
             # self.experiment.file_writer.add_graph
             pass
+
+    @override
+    def _log_figure(
+        self, name: str, figure: Any, step: int | None = None, *, close: bool = False
+    ) -> None:
+        """Log a figure as a TensorBoard image."""
+        tag = f"{self._prefix}{self.LOGGER_JOIN_CHAR}{name}" if self._prefix else name
+        try:
+            if _figures.is_matplotlib_figure(figure):
+                self.experiment.add_figure(tag, figure, step, close=False)
+            else:
+                image = _figures.to_figure_data(figure).to_array()
+                self.experiment.add_image(tag, image, step, dataformats="HWC")
+        finally:
+            if close:
+                _figures.close_figure(figure)
 
     @override
     def _save(self) -> None:

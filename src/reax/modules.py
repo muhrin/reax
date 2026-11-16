@@ -39,6 +39,8 @@ TrainOutput = LossAndGrad | LossAndGradDict
 class Module(
     Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, _datasources.DataSource[BatchT, Any]
 ):
+    # pylint: disable=too-many-public-methods
+
     example_input_array: BatchT | None
 
     def __init__(self):
@@ -295,6 +297,47 @@ class Module(
                 on_epoch=on_epoch,
                 batch_size=batch_size,
             )
+
+    def log_figure(
+        self, name: str, figure: Any, *, step: int | None = None, close: bool = False
+    ) -> None:
+        """Log a figure or image to all the trainer's loggers.
+
+        Example::
+
+            fig, ax = plt.subplots()
+            ax.scatter(targets, predictions)
+            self.log_figure("val/parity", fig, close=True)
+
+        See :meth:`reax.Logger.log_figure` for the supported figure types.  To store arbitrary
+        files, use ``self.logger.open_artifact(path)``.
+
+        Args:
+            name (str): The figure name, use ``/`` to create groups.
+            figure (Any): The figure to log.
+            step (Optional[int], optional): The step, defaults to :attr:`global_updates`.
+            close (bool, optional): Close the figure after logging (where supported, e.g.
+                ``matplotlib``), defaults to False.
+        """
+        try:
+            trainer = self._trainer
+            if trainer is None:
+                rank_zero.rank_zero_warn(
+                    "`self.log_figure()` was called before `self.trainer` was set. "
+                    "Probably, the model was not passed to `Trainer`"
+                )
+                return
+
+            if step is None:
+                step = trainer.global_updates
+
+            for logger in trainer.loggers:
+                logger.log_figure(name, figure, step)
+        finally:
+            if close:
+                from .loggers import _figures  # pylint: disable=import-outside-toplevel
+
+                _figures.close_figure(figure)
 
     def state_dict(self) -> dict[str, Any]:
         """Save any additional module state"""

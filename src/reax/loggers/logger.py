@@ -34,13 +34,19 @@
 
 import abc
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+import contextlib
 import functools
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, Union
+import io
+import posixpath
+from typing import IO, TYPE_CHECKING, Any, Generic, TypeVar, Union
 
+import fsspec
 from typing_extensions import override
 
 from reax.lightning import rank_zero
+
+from . import _figures
 
 if TYPE_CHECKING:
     from reax.listeners import ModelCheckpoint  # noqa: F401
@@ -144,6 +150,47 @@ class Logger(abc.ABC):
                 model checkpoint listener instance.
         """
 
+    @contextlib.contextmanager
+    def open_artifact(self, path: str) -> Iterator[IO[bytes]]:
+        """Open an artifact file for (binary) writing, the logger decides where it is stored.
+
+        Example::
+
+            with logger.open_artifact("plots/loss.svg") as file:
+                fig.savefig(file, format="svg")
+
+        The default implementation writes to ``path`` relative to :attr:`log_dir`.
+
+        Args:
+            path (str): A relative, ``/`` separated, path identifying the artifact.
+
+        Raises:
+            NotImplementedError: If the logger doesn't support storing artifacts.
+        """
+        with _open_local_artifact(self, path) as file:
+            yield file
+
+    def log_figure(
+        self, name: str, figure: Any, step: int | None = None, *, close: bool = False
+    ) -> None:
+        """Log a figure or image.
+
+        Supported types include ``matplotlib`` and ``plotly`` figures, ``PIL`` images, ``numpy``
+        and ``jax`` arrays of shape ``(H, W[, C])`` (``uint8``, or floats in ``[0, 1]``) and
+        PNG/JPEG encoded ``bytes``.  Further types can be supported using
+        :func:`reax.loggers.register_figure_converter`.
+
+        The default implementation stores the figure, as an image, using :meth:`open_artifact`.
+
+        Args:
+            name (str): The figure name, use :attr:`group_separator` to create groups.
+            figure (Any): The figure to log.
+            step (Optional[int], optional): The current step, defaults to None.
+            close (bool, optional): Close the figure after logging (where supported, e.g.
+                ``matplotlib``), defaults to False.
+        """
+        _default_log_figure(self, name, figure, step, close=close)
+
 
 class DummyLogger(Logger):
     """Dummy logger for internal use.
@@ -180,6 +227,15 @@ class DummyLogger(Logger):
     def version(self) -> str:
         """Return the experiment version."""
         return ""
+
+    @override
+    def log_figure(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    @override
+    @contextlib.contextmanager
+    def open_artifact(self, path: str) -> Iterator[IO[bytes]]:
+        yield io.BytesIO()
 
     def __getitem__(self, idx: int) -> "DummyLogger":
         # enables self.logger[0].experiment.add_image(...)
@@ -232,6 +288,30 @@ class WithDdp(Generic[Exp], abc.ABC):
         """Finalize function."""
         return self._finalize(status)
 
+    def log_figure(
+        self, name: str, figure: Any, step: int | None = None, *, close: bool = False
+    ) -> None:
+        """Log a figure (see :meth:`Logger.log_figure`)."""
+        if rank_zero.rank_zero_only.rank > 0:
+            if close:
+                _figures.close_figure(figure)
+            return None
+
+        return self._log_figure(name, figure, step, close=close)
+
+    @contextlib.contextmanager
+    def open_artifact(self, path: str) -> Iterator[IO[bytes]]:
+        """Open an artifact for writing (see :meth:`Logger.open_artifact`).
+
+        On ranks other than zero, the data written is discarded.
+        """
+        if rank_zero.rank_zero_only.rank > 0:
+            yield io.BytesIO()
+            return
+
+        with self._open_artifact(path) as file:
+            yield file
+
     @property
     def _experiment(self) -> Exp | None:
         """Experiment function."""
@@ -250,12 +330,61 @@ class WithDdp(Generic[Exp], abc.ABC):
     def _log_graph(self, model: Callable, *args, **kwargs) -> None:
         """Log graph implementation."""
 
+    def _log_figure(
+        self, name: str, figure: Any, step: int | None = None, *, close: bool = False
+    ) -> None:
+        """Log figure implementation."""
+        _default_log_figure(self, name, figure, step, close=close)
+
+    def _open_artifact(self, path: str) -> contextlib.AbstractContextManager[IO[bytes]]:
+        """Open artifact implementation."""
+        return _open_local_artifact(self, path)
+
     def _save(self) -> None:
         """Save implementation."""
 
     def _finalize(self, status: str) -> None:  # pylint: disable=unused-argument
         """Finalize implementation."""
         self._save()
+
+
+def _check_artifact_path(path: str) -> str:
+    """Make sure that the artifact path is relative and stays within the logger's directory."""
+    norm = posixpath.normpath(path.replace("\\", "/"))
+    if not path or posixpath.isabs(norm) or norm == "." or norm.split("/")[0] == "..":
+        raise ValueError(f"Artifact paths must be relative and non-empty, got {path!r}")
+    return norm
+
+
+@contextlib.contextmanager
+def _open_local_artifact(logger: Any, path: str) -> Iterator[IO[bytes]]:
+    """Open an artifact relative to the logger's ``log_dir``."""
+    path = _check_artifact_path(path)
+    log_dir = logger.log_dir
+    if log_dir is None:
+        raise NotImplementedError(
+            f"{type(logger).__name__} does not save locally, so it cannot store artifacts"
+        )
+
+    fs, root = fsspec.core.url_to_fs(log_dir)
+    full_path = posixpath.join(root.rstrip("/"), path)
+    fs.makedirs(posixpath.dirname(full_path), exist_ok=True)
+    with fs.open(full_path, "wb") as file:
+        yield file
+
+
+def _default_log_figure(
+    logger: Any, name: str, figure: Any, step: int | None, *, close: bool
+) -> None:
+    """Convert the figure to an image and save it using the logger's ``open_artifact()``."""
+    try:
+        data = _figures.to_figure_data(figure)
+        path = _figures.figure_path(name, step, data.fmt, logger.group_separator)
+        with logger.open_artifact(path) as file:
+            file.write(data.data)
+    finally:
+        if close:
+            _figures.close_figure(figure)
 
 
 def rank_zero_experiment(fn: Callable) -> Callable:

@@ -35,14 +35,16 @@
 """
 
 from argparse import Namespace
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+import contextlib
+import io
 import logging
 import os
 from pathlib import Path
 import re
 import tempfile
 from time import time
-from typing import TYPE_CHECKING, Any, Final, Literal
+from typing import IO, TYPE_CHECKING, Any, Final, Literal
 
 import jax
 from lightning_utilities.core import imports
@@ -51,7 +53,7 @@ import yaml
 
 from reax.lightning import rank_zero
 
-from . import _utils, logger
+from . import _figures, _utils, logger
 
 if TYPE_CHECKING:
     import mlflow
@@ -348,6 +350,59 @@ class MlflowLogger(logger.Logger):
         self.experiment.log_batch(
             run_id=self.run_id, metrics=metrics_list, **self._log_batch_kwargs
         )
+
+    @override
+    @contextlib.contextmanager
+    def open_artifact(self, path: str) -> Iterator[IO[bytes]]:
+        """Open an artifact for writing, it is uploaded to the run's artifacts once closed.
+
+        On ranks other than zero, the data written is discarded.
+        """
+        if rank_zero.rank_zero_only.rank > 0:
+            yield io.BytesIO()
+            return
+
+        path = logger._check_artifact_path(path)  # pylint: disable=protected-access
+        artifact_dir, filename = os.path.split(path)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            local_path = os.path.join(tmp_dir, filename)
+            with open(local_path, "wb") as file:
+                yield file
+
+            self.experiment.log_artifact(
+                self.run_id, local_path, artifact_path=artifact_dir or None
+            )
+
+    @override
+    def log_figure(
+        self, name: str, figure: Any, step: int | None = None, *, close: bool = False
+    ) -> None:
+        """Log a figure.
+
+        ``plotly`` figures are stored as interactive HTML.  Other figures logged with a ``step``
+        are stored as MLflow step images (viewable with a step slider), otherwise they are stored
+        as an image artifact.
+        """
+        try:
+            if rank_zero.rank_zero_only.rank > 0:
+                return
+
+            if self._prefix:
+                name = f"{self._prefix}{self.LOGGER_JOIN_CHAR}{name}"
+
+            if _figures.is_plotly_figure(figure):
+                path = _figures.figure_path(name, step, "html", self.group_separator)
+                self.experiment.log_figure(self.run_id, figure, artifact_file=path)
+            elif step is not None:
+                image = _figures.to_figure_data(figure).to_array()
+                self.experiment.log_image(self.run_id, image, key=name, step=step)
+            else:
+                logger._default_log_figure(  # pylint: disable=protected-access
+                    self, name, figure, step, close=False
+                )
+        finally:
+            if close:
+                _figures.close_figure(figure)
 
     @override
     @rank_zero.rank_zero_only
