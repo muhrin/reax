@@ -52,7 +52,7 @@ class ReaxAutoEncoder(reax.Module):
         if self.parameters() is None:
             inputs = self._prepare_batch(batch)
             # Flax Linen: Initialize with RNGs and example input
-            params = self.autoencoder.init(self.rngs(), inputs)
+            params = self.autoencoder.init(self.rngs.params(), inputs)
             self.set_parameters(params)
 
     def __call__(self, x):

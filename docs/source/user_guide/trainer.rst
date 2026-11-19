@@ -12,8 +12,8 @@ To use the Trainer, you simply initialise it and call :meth:`~reax.Trainer.fit`.
 
 .. code-block:: python
 
-    model = MyModel(din=32, dout=10, rngs=nnx.Rngs(0))
-    trainer = reax.Trainer(accelerator='auto')
+    trainer = reax.Trainer(accelerator='auto', seed=42)
+    model = MyModel(din=32, dout=10, rngs=trainer.rngs)
     trainer.fit(model, train_dataloader, val_dataloader, max_epochs=10)
 
 Under the Hood
@@ -36,6 +36,8 @@ The ``Trainer`` constructor takes the following keyword arguments:
 *   **enable_checkpointing**: Whether to automatically save checkpoints (default ``True``).
 *   **default_root_dir**: Root directory for logs and checkpoints.
 *   **checkpointing**: A :class:`~reax.Checkpointing` instance controlling serialisation.
+*   **seed**: The single seed all randomness is derived from. ``None`` (the default) draws a
+    random one. See :doc:`randomness`.
 
 The following limits and scheduling options are **not** constructor arguments -- they are passed to
 :meth:`~reax.Trainer.fit` instead:

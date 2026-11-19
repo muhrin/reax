@@ -110,6 +110,18 @@ The checkpoint contains:
 *   ``epoch``: Current epoch
 *   ``global_step``: Global training step
 *   ``reax_version``: The REAX version the checkpoint was written with
+*   ``seed``: The seed the run was started with (see :doc:`randomness`), so the run can be
+    replayed from scratch with ``reax.Trainer(seed=...)``
+*   ``rngs``: The state (key and counter) of each random number stream
+
+Passing ``ckpt_path`` to :meth:`~reax.Trainer.fit` also restores the random number state, so
+the resumed run continues the random sequences where the checkpointed run left off.  Loading
+parameters manually, as above, does not.
+
+.. note::
+
+    The ``seed`` and ``rngs`` entries are only written for full checkpoints, not for
+    ``weights_only`` ones.
 
 Manual Checkpointing
 --------------------

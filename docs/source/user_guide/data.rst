@@ -42,8 +42,8 @@ Example
 
         def setup(self, engine, *, stage):
             # Split dataset
-            rng = engine.rngs.default()
-            self.data_train, self.data_val = random_split(dataset, rng=rng)
+            # Draws from the engine's `data` stream, so the split follows the trainer seed
+            self.data_train, self.data_val = random_split(engine.rngs, dataset, [0.9, 0.1])
             ...
 
         def train_dataloader(self):

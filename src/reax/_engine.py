@@ -10,11 +10,13 @@ from flax import nnx
 import fsspec.utils
 import jax
 import jaxtyping as jt
+import numpy as np
 
 from . import data as data_
 from . import hooks, modules, optimizers, profilers, strategies
 from . import loggers as loggers_
 from . import metrics as metrics_
+from . import random as random_
 from .data import DeviceDataLoader
 from .lightning import rank_zero
 from .training import _logger_connector
@@ -43,10 +45,6 @@ class Engine:
     It encapsulates the environment setup defined by the chosen strategy,
     managing details like accelerator configuration, process launching (e.g.,
     via MPI or Python's multiprocessing), and backend initialization.
-
-    Attributes:
-        strategy (object): The execution strategy defining the environment and distributed
-            communication.
     """
 
     # pylint: disable=too-many-public-methods
@@ -65,6 +63,7 @@ class Engine:
         default_root_dir: "reax.types.Path | None" = None,
         profiler: "reax.Profiler | str | None" = None,
         metric_evaluator: "reax.metrics.MetricEvaluator | None" = None,
+        seed: int | None = None,
     ):
         """
         Initializes the Engine with execution parameters and components.
@@ -86,11 +85,18 @@ class Engine:
             listeners (list[reax.TrainerListener] | reax.TrainerListener | None): A single or list
                 of :class:`reax.TrainerListener` objects for hooking into events.
             deterministic (bool): Currently not supported, a warning is issued if set.
-            rngs (nnx.Rngs): The initial random number generator state used for all training steps.
-                Defaults to a new :class:`nnx.Rngs(0)`.
+            rngs (nnx.Rngs): Advanced: an explicit random number generator state to use instead of
+                the one REAX builds from ``seed``.  Cannot be combined with ``seed``.
             default_root_dir (typing.Path | None): The default directory path for saving logs and
                 checkpoints if not specified elsewhere. Defaults to the current working directory.
+            seed (int | None): The single seed from which all randomness is derived (see
+                :mod:`reax.random`).  Pass an integer for a reproducible run.  If ``None``, a seed
+                is drawn at random (and shared across all processes), so every run is different.
+                Either way, the seed is logged, stored in checkpoints and available as
+                :attr:`seed`, so any run can be reproduced.
         """
+        if rngs is not None and seed is not None:
+            raise ValueError("Pass either `seed` or `rngs`, not both.")
         if deterministic:
             _LOGGER.warning("`deterministic=True` is not supported yet, ignoring.")
         if precision is not None:
@@ -116,8 +122,17 @@ class Engine:
         self._events = events.EventGenerator[hooks.TrainerListener](
             default_args=(weakref.proxy(self),)
         )
-        self._rngs = rngs if rngs is not None else nnx.Rngs(0)
         self._loggers: list[loggers_.Logger] = _init_loggers(logger, self.default_root_dir)
+        self._seed: int | None
+        if rngs is not None:
+            self._seed = None
+            self._rngs = rngs
+        else:
+            self._seed = self._resolve_seed(seed)
+            self._rngs = random_.create_rngs(self._seed, process_index=self.process_index)
+            random_.seed_globals(self._seed)
+            if self.is_global_zero:
+                _LOGGER.info("Using seed: %i", self._seed)
         self._logging = _logger_connector.TrainerLogging()
         self._profiler: profilers.Profiler = _init_profiler(profiler)
 
@@ -192,12 +207,34 @@ class Engine:
     @property
     def rngs(self) -> nnx.Rngs:
         """
-        The current random number generator state used by the Engine.
+        The random number generators from which all randomness should be drawn.
+
+        These have independent named streams (see :mod:`reax.random`): ``params``, ``data`` and
+        ``default`` are identical on all processes, while ``dropout`` differs between processes.
 
         Returns:
             nnx.Rngs: The RNG state object.
         """
         return self._rngs
+
+    @property
+    def seed(self) -> int | None:
+        """
+        The seed from which :attr:`rngs` were created, or ``None`` if explicit ``rngs`` were
+        passed in.
+        """
+        return self._seed
+
+    def _resolve_seed(self, seed: int | None) -> int:
+        """Get the seed to use, drawing a random one (shared by all processes) if needed."""
+        if seed is not None:
+            return int(seed)
+
+        seed = random_.draw_seed()
+        if self.process_count > 1:
+            seed = int(self.broadcast(np.asarray(seed, dtype=np.int32), src=0))
+
+        return seed
 
     @property
     def strategy(self) -> strategies.Strategy:
@@ -339,7 +376,8 @@ class Engine:
             reax.data.DeviceDataLoader | list[reax.data.DeviceDataLoader]: The prepared
             dataloader(s), wrapped as a :class:`~reax.data.DeviceDataLoader`.
         """
-        loaders = list(map(self.strategy.setup_dataloader, args))
+        loaders = list(map(self._seed_loader, args))
+        loaders = list(map(self.strategy.setup_dataloader, loaders))
         # Wrap in DeviceLoader so all data is already on the selected device
         loaders = list(map(self._wrap_loader, loaders))
         if len(args) == 1:
@@ -436,6 +474,19 @@ class Engine:
         """
         return self._strategy.compute(metric)
 
+    def _seed_loader(self, loader: "reax.DataLoader") -> "reax.DataLoader":
+        """Give any unseeded :class:`~reax.data.samplers.RandomSampler` used by the loader a seed
+        drawn from the ``data`` stream, so shuffling follows the engine seed and is the same on
+        all processes."""
+        inner = loader
+        while isinstance(inner, DeviceDataLoader):
+            inner = inner.parent
+        for sub in data_.samplers.iter_samplers(getattr(inner, "sampler", None)):
+            if isinstance(sub, data_.samplers.RandomSampler) and sub.seed is None:
+                sub.seed = random_.key_to_seed(self._rngs.data())
+
+        return loader
+
     def _wrap_loader(self, loader: "reax.DataLoader") -> "reax.data.DeviceDataLoader":
         """
         Internal utility to wrap a standard DataLoader into a DeviceDataLoader.
@@ -465,7 +516,7 @@ def _(arg: modules.Module, engine: Engine) -> modules.Module:
 
 @_setup.register
 def _(arg: data_.DataLoader, engine: Engine) -> data_.DataLoader:
-    return engine.strategy.setup_dataloader(arg)
+    return engine.strategy.setup_dataloader(engine._seed_loader(arg))  # pylint: disable=protected-access
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)

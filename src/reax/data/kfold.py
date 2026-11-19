@@ -4,10 +4,9 @@ from collections.abc import Iterator, Sequence
 from itertools import islice
 from typing import TYPE_CHECKING, TypeVar
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
+from .. import random as random_
 from . import datasets as datasets_
 
 if TYPE_CHECKING:
@@ -33,24 +32,10 @@ class KFold:
         self.n_splits = n_splits
         self.shuffle = shuffle
 
-        # Synchronise seed across distributed ranks
-        if engine is not None and shuffle:
-            if seed is None:
-                # Initialize matching array structures on all ranks
-                raw = jnp.zeros((), dtype=jnp.uint32)
-
-                if engine.is_global_zero:
-                    # Extract a valid integer representation from the nnx PRNGKey
-                    key = engine.rngs.default()
-                    raw = jax.random.key_data(key)[0]
-
-                # Broadcast the array and extract the integer scalar
-                broadcasted_seed = engine.broadcast(raw, src=0)
-                self.seed = int(broadcasted_seed)
-            else:
-                self.seed = seed
-        else:
-            self.seed = seed if seed is not None else 42
+        if seed is None and engine is not None and shuffle:
+            # The engine's ``data`` stream is identical on all processes, so no syncing is needed
+            seed = random_.key_to_seed(engine.rngs.data())
+        self.seed = seed if seed is not None else 42
 
     # -- public API ----------------------------------------------------------
 

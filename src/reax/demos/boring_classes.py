@@ -41,7 +41,7 @@ class BoringModel(modules.Module):
     def configure_model(self, _stage, batch: Any, /) -> None:
         """Configure our model."""
         if self._parameters is None:
-            params = self.layer.init(self.rngs(), batch[0])
+            params = self.layer.init(self.rngs.params(), batch[0])
             self.set_parameters(params)
 
     def forward(self, x: jax.Array) -> jax.Array:

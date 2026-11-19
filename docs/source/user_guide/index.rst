@@ -9,6 +9,7 @@ User Guide
    trainer
    engine
    data
+   randomness
    hooks
    listeners
    checkpointing

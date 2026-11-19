@@ -11,6 +11,7 @@ import jax.random
 import jaxtyping as jt
 import numpy as np
 
+from .. import random as random_
 from . import _types
 
 __all__ = ("ArrayDataset", "ConcatDataset", "Subset", "random_split")
@@ -132,7 +133,7 @@ class Subset(Sequence[_T_co]):
 
 
 def random_split(
-    rngs: nnx.Rngs,
+    rngs: "nnx.Rngs | nnx.RngStream | jax.Array | int",
     dataset: Sequence[_T],
     lengths: Sequence[int | float],
 ) -> list[Subset[_T]]:
@@ -146,19 +147,19 @@ def random_split(
     distributed in round-robin fashion to the lengths
     until there are no remainders left.
 
-    Optionally fix the generator for reproducible results, e.g.:
+    The split is drawn from ``rngs``; pass ``engine.rngs`` to have it follow the engine seed (and
+    be identical on all processes).
 
     Example:
-        >>> # xdoctest: +SKIP
-        >>> key1 = torch.Generator().manual_seed(42)
-        >>> key2 = torch.Generator().manual_seed(42)
-        >>> random_split(key1, range(10), [3, 7])
-        >>> random_split(key2, range(30), [0.3, 0.3, 0.4])
+        >>> rngs = nnx.Rngs(data=42)
+        >>> train, val = random_split(rngs, range(10), [3, 7])
+        >>> train, val, test = random_split(jax.random.key(0), range(30), [0.3, 0.3, 0.4])
 
     Args:
+        rngs: The source of randomness: an :class:`flax.nnx.Rngs` (a key is drawn from its
+            ``data`` stream), an :class:`flax.nnx.RngStream`, a JAX key or an integer seed.
         dataset (Dataset): Dataset to be split
         lengths (sequence): lengths or fractions of splits to be produced
-        generator (Generator): Generator used for the random permutation.
     """
     if math.isclose(sum(lengths), 1) and sum(lengths) <= 1:
         subset_lengths: list[int] = []
@@ -184,7 +185,8 @@ def random_split(
     if sum(lengths) != len(dataset):
         raise ValueError("Sum of input lengths does not equal the length of the input dataset!")
 
-    indices = jax.random.permutation(rngs(), sum(lengths)).tolist()
+    key = random_.to_key(rngs, stream="data")
+    indices = jax.random.permutation(key, sum(lengths)).tolist()
     lengths = cast(Sequence[int], lengths)
     return [
         Subset(dataset, indices[offset - length : offset])

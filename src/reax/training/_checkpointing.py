@@ -25,6 +25,8 @@ PARAMS: Final[str] = "parameters"
 REAX_VERSION: Final[str] = "reax_version"
 GLOBAL_STEP: Final[str] = "global_step"
 EPOCH: Final[str] = "epoch"
+SEED: Final[str] = "seed"
+RNGS: Final[str] = "rngs"
 
 
 def dump_checkpoint(module: "reax.Module", weights_only: bool = False) -> CheckpointDict:
@@ -46,6 +48,9 @@ def dump_checkpoint(module: "reax.Module", weights_only: bool = False) -> Checkp
     }
     if not weights_only:
         checkpoint["state_dict"] = module.state_dict()
+        if trainer.seed is not None:
+            checkpoint[SEED] = trainer.seed
+        checkpoint[RNGS] = reax.random.rngs_state_dict(trainer.rngs)
 
     return checkpoint
 

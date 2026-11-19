@@ -29,4 +29,20 @@ Saving helpers
 
    reax.save_hparams_to_yaml
    reax.load_hparams_from_yaml
+
+Randomness
+----------
+
+See :doc:`/user_guide/randomness`.
+
+.. autosummary::
+
+   :nosignatures:
+
+   reax.random.create_rngs
+   reax.random.to_key
+   reax.random.draw_seed
+   reax.random.seed_globals
+   reax.random.rngs_state_dict
+   reax.random.load_rngs_state_dict
    reax.seed_everything

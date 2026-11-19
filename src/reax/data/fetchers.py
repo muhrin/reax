@@ -5,6 +5,7 @@ import functools
 from typing import Generic, TypeVar
 
 import jax
+import numpy as np
 
 from . import _types
 
@@ -111,11 +112,12 @@ def create_fetcher(
     CPython's singledispatch C3 linearization places the ``Iterable`` abstract base class before
     the concrete ``jax.Array`` in the composed MRO. Registering a ``jax.Array`` handler therefore
     would never be selected and the array would be handled by the iterable fetcher, which ignores
-    the sampler indices and yields the dataset sequentially. We disambiguate with an explicit
+    the sampler indices and yields the dataset sequentially (``numpy.ndarray`` isn't a ``Sequence``
+    either, so has the same problem). We disambiguate with an explicit
     ``isinstance`` check (mirroring the equivalent special case in ``create_sampler``) so the array
     is treated as a ``_MapFetcher`` and the sampler indices are actually used.
     """
-    if isinstance(dataset, jax.Array):
+    if isinstance(dataset, (jax.Array, np.ndarray)):
         return _MapFetcher(dataset, collate_fn)
 
     return _create_fetcher(dataset, collate_fn)

@@ -67,15 +67,32 @@ class SequentialSampler(_types.Sampler[int]):
 
 
 class RandomSampler(_types.Sampler[int]):
-    """Randomly sample integer index up to a given ``length`` with possible ``replacements``."""
+    """Randomly sample integer index up to a given ``length`` with possible ``replacements``.
+
+    If a ``seed`` is set, each iteration (epoch) draws a different, but reproducible, order from
+    ``(seed, epoch)``.  When a loader is set up by a :class:`reax.Engine`, any unseeded
+    ``RandomSampler`` is given a seed drawn from the engine's ``data`` stream, so shuffling follows
+    the engine seed and is identical on all processes (as needed for distributed sharding).  If
+    no seed is set, the global numpy generator is used.
+    """
 
     SAMPLE_SIZE = 32  # Used to control the number of samples we generate internally at once
 
-    def __init__(self, length: int, replacements: bool = False, num_samples: int | None = None):
+    def __init__(
+        self,
+        length: int,
+        replacements: bool = False,
+        num_samples: int | None = None,
+        seed: int | None = None,
+    ):
         # Params
         self._length: Final[int] = length
         self._replacements: Final[bool] = replacements
         self._num_samples: Final[int | None] = num_samples
+
+        # State
+        self.seed: int | None = seed
+        self._epoch: int = 0
 
     @property
     def num_samples(self) -> int:
@@ -85,26 +102,53 @@ class RandomSampler(_types.Sampler[int]):
 
         return self._num_samples  # Fixed number of samples
 
+    @property
+    def epoch(self) -> int:
+        """The number of the next iteration, used together with :attr:`seed` to set the order."""
+        return self._epoch
+
+    def set_epoch(self, epoch: int) -> None:
+        """Set the epoch used for the next iteration (e.g. when resuming)."""
+        self._epoch = epoch
+
     def __len__(self) -> int:
         """Len function."""
         return self.num_samples
 
     def __iter__(self) -> Iterator[int]:
         """Iter function."""
+        if self.seed is None:
+            # Legacy behaviour: use the global numpy generator
+            integers, permutation = np.random.randint, np.random.permutation
+        else:
+            rng = np.random.default_rng([self.seed, self._epoch])
+            integers, permutation = rng.integers, rng.permutation
+        self._epoch += 1
+
         total = self._length
 
         if self._replacements:
             for _ in range(self.num_samples // self.SAMPLE_SIZE):
-                yield from map(int, np.random.randint(0, high=total, size=(self.SAMPLE_SIZE,)))
+                yield from map(int, integers(0, total, size=(self.SAMPLE_SIZE,)))
 
-            yield from map(
-                int, np.random.randint(0, high=total, size=(self.num_samples % self.SAMPLE_SIZE,))
-            )
+            yield from map(int, integers(0, total, size=(self.num_samples % self.SAMPLE_SIZE,)))
         else:
             for _ in range(self.num_samples // total):
-                yield from map(int, np.random.permutation(total))
+                yield from map(int, permutation(total))
 
-            yield from map(int, np.random.permutation(total)[: self.num_samples % total])
+            yield from map(int, permutation(total)[: self.num_samples % total])
+
+
+def iter_samplers(sampler: Any) -> Iterator[Any]:
+    """Iterate over ``sampler`` and every sampler it (transitively) wraps."""
+    while sampler is not None:
+        yield sampler
+        if isinstance(sampler, ChunkedSampler):
+            sampler = sampler.sampler
+        elif isinstance(sampler, DistributedSampler):
+            sampler = sampler.inner
+        else:
+            return
 
 
 class ChunkedSampler(Generic[_IdxT], _types.Sampler[list[_IdxT]]):

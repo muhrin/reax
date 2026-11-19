@@ -18,6 +18,7 @@ from .. import _engine as engine_
 from .. import data, exceptions, hooks, keys, stages, strategies
 from .. import listeners as listeners_
 from .. import loggers as loggers_
+from .. import random as random_
 from ..utils import events
 from . import _checkpointing, _hooks_map, _logger_connector, _utils
 
@@ -57,6 +58,7 @@ class Trainer(stages.StageListener):
         checkpointing: "reax.Checkpointing | None" = None,
         profiler: "reax.Profiler | None" = None,
         metric_evaluator: "reax.metrics.MetricEvaluator | None" = None,
+        seed: int | None = None,
     ):
         """Create a Trainer.
 
@@ -79,8 +81,8 @@ class Trainer(stages.StageListener):
                 Not yet supported; passing ``True`` emits a warning.
             deterministic: If ``True``, enable deterministic training (reproducible
                 results, potentially slower).
-            rngs: Optional :class:`flax.nnx.Rngs` instance for controlling random
-                number generation. If ``None``, the engine's default RNGs are used.
+            rngs: Advanced: an explicit :class:`flax.nnx.Rngs` to use instead of the one built
+                from ``seed``. Cannot be combined with ``seed``.
             default_root_dir: Default directory path used as the base for loggers,
                 checkpoints, and other artefacts. If ``None``, the current working
                 directory is used.
@@ -90,6 +92,10 @@ class Trainer(stages.StageListener):
                 of stage execution.
             metric_evaluator: An optional :class:`reax.metrics.MetricEvaluator` used
                 when evaluating metrics during stages.
+            seed: The single seed from which all randomness is derived (see
+                :mod:`reax.random`). Pass an integer for a reproducible run. If ``None``, a random
+                seed is drawn (shared by all processes), so every run is different; it is logged,
+                stored in checkpoints and available as :attr:`seed`.
         """
         # Params
         self._log_every_n_steps: Final[int] = log_every_n_steps
@@ -114,6 +120,7 @@ class Trainer(stages.StageListener):
             default_root_dir=default_root_dir,
             profiler=profiler,
             metric_evaluator=metric_evaluator,
+            seed=seed,
         )
 
         self._current_epoch: int = -1
@@ -177,7 +184,13 @@ class Trainer(stages.StageListener):
 
     @property
     def rngs(self) -> nnx.Rngs:
+        """The random number generators, see :attr:`reax.Engine.rngs`."""
         return self._engine.rngs
+
+    @property
+    def seed(self) -> int | None:
+        """The seed from which :attr:`rngs` were created, see :attr:`reax.Engine.seed`."""
+        return self._engine.seed
 
     @property
     def profiler(self) -> "reax.Profiler":
@@ -560,7 +573,7 @@ class Trainer(stages.StageListener):
             )
 
         if ckpt_path:
-            self._load_module_params(module, ckpt_path)
+            self._load_module_params(module, ckpt_path, restore_rngs=True)
 
         datamanager = self._create_data_manager(
             module=module,
@@ -1014,9 +1027,14 @@ class Trainer(stages.StageListener):
         if event is not None:
             self._events.fire_event(event, *args)
 
-    def _load_module_params(self, module: "reax.Module", filename: "reax.types.Path"):
+    def _load_module_params(
+        self, module: "reax.Module", filename: "reax.types.Path", restore_rngs: bool = False
+    ):
         ckpt = self._checkpointing.load(filename)
         module.set_parameters(ckpt[_checkpointing.PARAMS])
+        if restore_rngs and _checkpointing.RNGS in ckpt:
+            # Continue the random sequences from where the checkpointed run left off
+            random_.load_rngs_state_dict(self.rngs, ckpt[_checkpointing.RNGS])
 
     def _create_data_manager(
         self,

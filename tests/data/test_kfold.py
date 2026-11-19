@@ -1,7 +1,7 @@
-import jax
 import numpy as np
 import pytest
 
+import reax
 from reax.data import KFold
 
 
@@ -70,37 +70,18 @@ def test_kfold_n_splits_gt_n_samples():
         list(kf.split(3))
 
 
-class MockEngine:
-    def __init__(self, is_zero: bool):
-        self._is_zero = is_zero
-        self.broadcast_called = False
-
-    @property
-    def is_global_zero(self):
-        return self._is_zero
-
-    def broadcast(self, obj, src):
-        self.broadcast_called = True
-        return 99
-
-    class MockRngs:
-        def default(self):
-            return jax.random.key(123)
-
-    rngs = MockRngs()
-
-
-def test_kfold_with_engine_seed_broadcast():
-    engine = MockEngine(is_zero=True)
+def test_kfold_with_engine_seed_from_data_stream():
+    engine = reax.Engine(seed=7, logger=False)
     kf = KFold(n_splits=3, shuffle=True, seed=None, engine=engine)
+    # A second engine with the same seed must give the same folds (as all ranks would)
+    kf2 = KFold(n_splits=3, shuffle=True, seed=None, engine=reax.Engine(seed=7, logger=False))
+    assert kf.seed == kf2.seed
 
-    assert engine.broadcast_called
-    assert kf.seed == 99
+    kf3 = KFold(n_splits=3, shuffle=True, seed=None, engine=reax.Engine(seed=8, logger=False))
+    assert kf.seed != kf3.seed
 
 
 def test_kfold_with_engine_explicit_seed():
-    engine = MockEngine(is_zero=True)
+    engine = reax.Engine(seed=7, logger=False)
     kf = KFold(n_splits=3, shuffle=True, seed=42, engine=engine)
-
-    assert not engine.broadcast_called
     assert kf.seed == 42
