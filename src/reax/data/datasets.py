@@ -2,17 +2,19 @@ import bisect
 from collections.abc import Iterable, Sequence
 import itertools
 import math
-from typing import TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar, cast
 import warnings
 
 import beartype
-from flax import nnx
 import jax.random
 import jaxtyping as jt
 import numpy as np
 
 from .. import random as random_
 from . import _types
+
+if TYPE_CHECKING:
+    from flax import nnx
 
 __all__ = ("ArrayDataset", "ConcatDataset", "Subset", "random_split")
 

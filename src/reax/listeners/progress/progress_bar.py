@@ -103,10 +103,8 @@ class ProgressBar(hooks.TrainerListener):
     def enable(self) -> None:
         """You should provide a way to enable the progress bar.
 
-        The :class:`~lightning.pytorch.trainer.trainer.Trainer` will call this in e.g. pre-training
-        routines like the :ref:`learning rate finder
-        <advanced/training_tricks:Learning Rate Finder>`. to temporarily enable and disable the
-        training progress bar.
+        The :class:`~reax.Trainer` may call this in e.g. pre-training routines to temporarily
+        enable and disable the training progress bar.
 
         """
         raise NotImplementedError

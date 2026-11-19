@@ -300,10 +300,10 @@ class ModuleHooks:
 
         Only called when using automatic optimization (see
         :attr:`~reax.Module.automatic_optimization`). This is called for every training batch,
-        including when gradients are being accumulated (see
-        :paramref:`~reax.Trainer.fit.accumulate_grad_batches`), as accumulation is performed by
-        the optimizer. Any transformations that are part of the optimizer (e.g. gradient
-        clipping) will not have been applied yet.
+        including when gradients are being accumulated (see the
+        ``accumulate_grad_batches`` argument of :meth:`~reax.Trainer.fit`), as accumulation is
+        performed by the optimizer. Any transformations that are part of the optimizer (e.g.
+        gradient clipping) will not have been applied yet.
 
         Args:
             optimizer: The optimizer that is about to be updated.

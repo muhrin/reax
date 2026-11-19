@@ -119,38 +119,37 @@ class Accuracy(_metric.Metric):
                 - `'micro'` [default]: Calculate the metric globally, across all samples and
                   classes.
                 - `'macro'`: Calculate the metric for each class separately, and average the
-                metrics across classes (with equal weights for each class).
+                  metrics across classes (with equal weights for each class).
                 - `'weighted'`: Calculate the metric for each class separately, and average the
-                metrics across classes, weighting each class by its support (`tp + fn`).
+                  metrics across classes, weighting each class by its support (`tp + fn`).
                 - `'none'` or `None`: Calculate the metric for each class separately, and return
-                the metric for every class.
+                  the metric for every class.
                 - `'samples'`: Calculate the metric for each sample, and average the metrics
-                across samples (with equal weights for each sample).
+                  across samples (with equal weights for each sample).
 
                 .. note:: What is considered a sample in the multidimensional multi-class case
-                depends on the value of `mdmc_average`.
+                   depends on the value of `mdmc_average`.
 
                 .. note:: If `'none'` and a given class doesn't occur in the `preds` or `target`,
-                the value for the class will be `nan`, defaults to jm.AverageMethod.MICRO.
+                   the value for the class will be `nan`.
+
+                Defaults to jm.AverageMethod.MICRO.
             mdmc_average (Union[str, jm.MDMCAverageMethod], optional):
                 Defines how averaging is done for multidimensional
                 multi-class inputs (on top of the `average` parameter).
                 Should be one of the following:
 
                 - `None` [default]: Should be left unchanged if your data is not multidimensional
-                multi-class.
-
+                  multi-class.
                 - `'samplewise'`: In this case, the statistics are computed separately for each
-                sample on the `N` axis, and then averaged over samples.
-                The computation for each sample is done by treating the flattened extra axes `...`
-                (see :ref:`references/modules:input types`) as the `N` dimension within the sample,
-                and computing the metric for the sample based on that.
+                  sample on the `N` axis, and then averaged over samples. The computation for each
+                  sample is done by treating the flattened extra axes `...` as the `N` dimension
+                  within the sample, and computing the metric for the sample based on that.
+                - `'global'`: In this case the `N` and `...` dimensions of the inputs are
+                  flattened into a new `N_X` sample axis, i.e. the inputs are treated as if they
+                  were `(N_X, C)`. From here on the `average` parameter applies as usual.
 
-                - `'global'`: In this case the `N` and `...` dimensions of the inputs
-                (see :ref:`references/modules:input types`)
-                are flattened into a new `N_X` sample axis, i.e. the inputs are treated as if they
-                were `(N_X, C)`. From here on the `average` parameter applies as usual, defaults to
-                jm.MDMCAverageMethod.GLOBAL.
+                Defaults to jm.MDMCAverageMethod.GLOBAL.
             ignore_index (Optional[int], optional): Integer specifying a
                 target class to ignore. If given, this class index does
                 not contribute to the returned score, regardless of
@@ -284,12 +283,9 @@ class Accuracy(_metric.Metric):
                 probabilities, or target).
             target (jax.Array): Ground truth target.
 
-        Example:
+        Example::
 
-            ``python
-            accuracy = Accuracy().reset()
-
-            accuracy = accuracy.update(preds=preds, target=target)
+            accuracy = Accuracy().create(preds=preds, target=target)
         """
 
         tp, fp, tn, fn = jm.stat_scores_update(

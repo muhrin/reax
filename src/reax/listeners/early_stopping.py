@@ -78,10 +78,12 @@ class EarlyStopping(hooks.TrainerListener):
 
             .. note::
 
-            It must be noted that the patience parameter counts the number of validation checks with
-            no improvement, and not the number of training epochs. Therefore, with parameters
-            ``check_val_every_n_epoch=10`` and ``patience=3``, the trainer will perform at least 40
-            training epochs before being stopped, defaults to 3.
+               The patience parameter counts the number of validation checks with no
+               improvement, and not the number of training epochs. Therefore, with parameters
+               ``check_val_every_n_epoch=10`` and ``patience=3``, the trainer will perform at
+               least 40 training epochs before being stopped.
+
+            Defaults to 3.
         verbose (bool, optional): Verbosity mode, defaults to False.
         mode (Literal["min", "max"], optional): One of ``'min'``,
             ``'max'``. In ``'min'`` mode, training will stop when the

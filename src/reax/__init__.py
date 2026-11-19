@@ -42,7 +42,6 @@ __all__ = (
     + saving.__all__
     + strategies.__all__
     + training.__all__
-    + data.__all__
     # Modules
     + (
         "data",

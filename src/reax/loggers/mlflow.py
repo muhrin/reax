@@ -155,7 +155,7 @@ class MlflowLogger(logger.Logger):
 
                 * if ``log_model == 'all'``, checkpoints are logged during training.
                 * if ``log_model == True``, checkpoints are logged at the end of training, except
-                  when :paramref:`~reax.listeners.Checkpointer.save_top_k` ``== -1``
+                  when ``save_top_k == -1`` on the checkpoint listener,
                   which also logs every checkpoint during training.
                 * if ``log_model == False`` (default), no checkpoint is logged, defaults to False.
             prefix (str, optional): A string to put at the beginning of
@@ -429,8 +429,8 @@ class MlflowLogger(logger.Logger):
     def save_dir(self) -> str | None:
         """The root file directory in which MLflow experiments are saved.
 
-                Local path to the root
-        experiment directory if the tracking uri is local. Otherwise, returns ``None``.
+        Local path to the root experiment directory if the tracking uri is local. Otherwise,
+        returns ``None``.
         """
         return self._save_dir
 

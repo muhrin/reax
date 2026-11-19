@@ -66,7 +66,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     r"""Save the model periodically by monitoring a quantity.
 
     Every metric logged with :meth:`~reax.Module.log` or :meth:`~reax.Module.log_dict` is a
-    candidate for the monitor key. For more information, see :ref:`checkpointing`.
+    candidate for the monitor key. For more information, see :doc:`/user_guide/checkpointing`.
 
     After training finishes, use :attr:`best_model_path` to retrieve the path to the
     best checkpoint file and :attr:`best_model_score` to retrieve its score.
@@ -111,7 +111,6 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
         *monitor, mode, every_n_train_steps, every_n_epochs, train_time_interval*
 
-        Read more: :ref:`Persisting Listener State <extensions/listeners_state:save listener state>`
     """
 
     CHECKPOINT_JOIN_CHAR: Final[str] = "-"
@@ -140,30 +139,33 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     ):
         """Init function.
 
-            Example::
-
-            # custom path
-            # saves a file like: my/path/epoch=0-step=10.ckpt
-            >>> checkpoint_listener = ModelCheckpoint(dirpath='my/path/')
-
-            specified by :class:`~reax.Trainer`'s
-
         Args:
             dirpath (Optional[Union[str, pathlib.Path]], optional):
-                Directory to save the model file.
-            filename (Optional[str], optional): Checkpoint filename. Can
-                contain named formatting options to be autofilled.
+                Directory to save the model file. By default, it is set at runtime to the location
+                specified by :attr:`~reax.Trainer.default_root_dir`, and if the Trainer uses a
+                logger, the path will also contain logger name and version, defaults to None.
 
                 Example::
 
-                # save any arbitrary metrics like `val_loss`, etc. in name
-                # saves a file like: my/path/epoch=2-val_loss=0.02-other_metric=0.03.ckpt
-                >>> checkpoint_listener = ModelCheckpoint(
-                ...     dirpath='my/path',
-                ...     filename='{epoch}-{val_loss:.2f}-{other_metric:.2f}'
-                ... )
+                    # custom path
+                    # saves a file like: my/path/epoch=0-step=10.ckpt
+                    >>> checkpoint_listener = ModelCheckpoint(dirpath='my/path/')
 
-                the number of finished epoch and optimizer steps respectively, defaults to None.
+            filename (Optional[str], optional): Checkpoint filename. Can
+                contain named formatting options to be autofilled. By
+                default, it is ``'{epoch}-{step}'``, where ``epoch`` and
+                ``step`` are the number of finished epochs and optimizer
+                steps respectively, defaults to None.
+
+                Example::
+
+                    # save any arbitrary metrics like `val_loss`, etc. in name
+                    # saves a file like: my/path/epoch=2-val_loss=0.02-other_metric=0.03.ckpt
+                    >>> checkpoint_listener = ModelCheckpoint(
+                    ...     dirpath='my/path',
+                    ...     filename='{epoch}-{val_loss:.2f}-{other_metric:.2f}'
+                    ... )
+
             monitor (Optional[str], optional): Quantity to monitor,
                 defaults to None.
             verbose: Verbosity mode, defaults to ``False``.
@@ -204,8 +206,8 @@ class ModelCheckpoint(checkpointer.Checkpointer):
                 epoch ``1`` and acc ``1.12`` will resolve to
                 ``checkpoint_epoch=01-acc=01.ckpt``. Is useful to set it
                 to ``False`` when metric names contain ``/`` as this
-                will result in extra folders. For example, ``filename='e
-                poch={epoch}-step={step}-val_acc={val/acc:.2f}',
+                will result in extra folders. For example,
+                ``filename='epoch={epoch}-step={step}-val_acc={val/acc:.2f}',
                 auto_insert_metric_name=False``, defaults to True.
             every_n_train_steps (Optional[int], optional): Number of
                 training steps between checkpoints. If
@@ -251,8 +253,6 @@ class ModelCheckpoint(checkpointer.Checkpointer):
                 version to the existing file name. If this is ``False``,
                 then the checkpoint files will be overwritten, defaults
                 to True.
-        :paramref:`~reax.Trainer.default_root_dir` argument, and if the Trainer uses a logger, the
-            path will also contain logger name and version, defaults to None.
 
         Raises:
             MisconfigurationException: If ``save_top_k`` is smaller than

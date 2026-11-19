@@ -269,14 +269,13 @@ class Module(
             on_step (Optional[bool], optional): If ``True`` logs at this
                 step. ``None`` auto-logs for training_step but not
                 validation/test_step. The default value is determined by
-                the hook. See :ref:`extensions/logging:Automatic
-                Logging` for details, defaults to None.
+                the hook. See :doc:`/user_guide/logging` for details,
+                defaults to None.
             on_epoch (Optional[bool], optional): If ``True`` logs epoch
                 accumulated metrics. ``None`` auto-logs for val/test
                 step but not ``training_step``. The default value is
-                determined by the hook. See
-                :ref:`extensions/logging:Automatic Logging` for details,
-                defaults to None.
+                determined by the hook. See :doc:`/user_guide/logging`
+                for details, defaults to None.
             batch_size (Optional[int | jax.Array], optional): Current batch size.
                 This will be directly inferred from the loaded batch,
                 but some data structures might need to explicitly

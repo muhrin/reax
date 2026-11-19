@@ -52,7 +52,7 @@ class DataSource(Generic[_T_co, U]):
                 self.some_state = some_other_state()
 
         In a distributed environment, ``prepare_data`` can be called in two ways
-        (using :ref:`prepare_data_per_node<common/lightning_module:prepare_data_per_node>`)
+        (using :attr:`prepare_data_per_node`)
 
         1. Once per node. This is the default and is only called on LOCAL_RANK=0.
         2. Once in total. Only called on GLOBAL_RANK=0.
@@ -135,11 +135,6 @@ class DataSource(Generic[_T_co, U]):
     def train_dataloader(self) -> "reax.DataLoader[_T_co, U]":
         """An iterable or collection of iterables specifying training samples.
 
-        For more information about multiple dataloaders, see :ref:`section <multiple-dataloaders>`.
-
-        The dataloader you return will not be reloaded unless you set
-        :paramref:`~reax.Trainer.fit(reload_dataloaders_every_n_epochs=k)` to a positive integer.
-
         For data processing use the following pattern:
 
             - download in :meth:`prepare_data`
@@ -166,12 +161,6 @@ class DataSource(Generic[_T_co, U]):
     def val_dataloader(self) -> Optional["reax.DataLoader[_T_co, U]"]:
         r"""An iterable or collection of iterables specifying validation samples.
 
-        For more information about multiple dataloaders, see :ref:`section <multiple-dataloaders>`.
-
-        The dataloader you return will not be reloaded unless you set
-        :paramref:`~lightning.pytorch.trainer.trainer.Trainer.reload_dataloaders_every_n_epochs` to
-        a positive integer.
-
         It's recommended that all data downloads and preparation happen in :meth:`prepare_data`.
 
         - :meth:`~reax.Trainer.fit`
@@ -192,8 +181,6 @@ class DataSource(Generic[_T_co, U]):
     def test_dataloader(self) -> "reax.DataLoader[_T_co, U]":
         r"""An iterable or collection of iterables specifying test samples.
 
-        For more information about multiple dataloaders, this :ref:`section <multiple-dataloaders>`.
-
         For data processing use the following pattern:
 
             - download in :meth:`prepare_data`
@@ -204,7 +191,7 @@ class DataSource(Generic[_T_co, U]):
         Warning:
             do not assign state in prepare_data
 
-        - :meth:`~lightning.pytorch.trainer.trainer.Trainer.test`
+        - :meth:`~reax.Trainer.test`
         - :meth:`prepare_data`
         - :meth:`setup`
 
@@ -223,8 +210,6 @@ class DataSource(Generic[_T_co, U]):
 
     def predict_dataloader(self) -> "reax.DataLoader[_T_co, U]":
         r"""An iterable or collection of iterables specifying prediction samples.
-
-        For more information about multiple dataloaders, see :ref:`section <multiple-dataloaders>`.
 
         It's recommended that all data downloads and preparation happen in :meth:`prepare_data`.
 
