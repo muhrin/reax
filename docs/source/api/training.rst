@@ -2,7 +2,7 @@ Training
 ========
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
    :template: autosummary/class.rst
 
@@ -16,7 +16,7 @@ Stage
 -----
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
 
    reax.Stage

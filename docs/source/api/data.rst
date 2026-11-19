@@ -5,7 +5,7 @@ Core abstractions
 -----------------
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
    :template: autosummary/class.rst
 
@@ -18,7 +18,7 @@ Datasets
 --------
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
    :template: autosummary/class.rst
 
@@ -31,7 +31,7 @@ Samplers
 --------
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
    :template: autosummary/class.rst
 

@@ -2,7 +2,7 @@ Core API
 ========
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
    :template: autosummary/class.rst
 
@@ -13,7 +13,7 @@ Checkpointing classes
 ----------------------
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
    :template: autosummary/class.rst
 
@@ -24,7 +24,7 @@ Saving helpers
 --------------
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
 
    reax.save_hparams_to_yaml
@@ -36,7 +36,7 @@ Randomness
 See :doc:`/user_guide/randomness`.
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
 
    reax.random.create_rngs

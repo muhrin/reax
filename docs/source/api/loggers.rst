@@ -2,7 +2,7 @@ Loggers
 =======
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
    :template: autosummary/class.rst
 

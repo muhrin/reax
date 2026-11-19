@@ -5,7 +5,7 @@ Base classes
 ------------
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
    :template: autosummary/class.rst
 
@@ -17,7 +17,7 @@ Pre-implemented metrics
 ------------------------
 
 .. autosummary::
-
+   :toctree: generated
    :nosignatures:
    :template: autosummary/class.rst
 
