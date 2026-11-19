@@ -3,13 +3,12 @@ import contextlib
 import functools
 import itertools
 import math
-from typing import TYPE_CHECKING, Any, Final, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Final, Generic, Never, TypeVar
 
 import beartype
 import jax
 import jaxtyping as jt
 import numpy as np
-from typing_extensions import Never
 
 from . import _types
 

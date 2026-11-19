@@ -14,14 +14,13 @@ classifiers = [
     'Development Status :: 4 - Beta',
     'License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)',
     'Programming Language :: Python',
-    'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
     'Programming Language :: Python :: 3.13',
     'Programming Language :: Python :: 3.14',
 ]
 keywords = ['machine learning', 'jax', 'research']
-requires-python = '>=3.10'
+requires-python = '>=3.11'
 dependencies = [
     'beartype',
     "einops",
@@ -103,7 +102,7 @@ mae = "reax.metrics:MeanAbsoluteError"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 exclude = [
     'migrations',
 ]
@@ -282,7 +281,7 @@ envlist = py311
 [testenv]
 usedevelop = true
 
-[testenv:py{310,311,312,313}]
+[testenv:py{311,312,313,314}]
 description = Run the unit tests
 extras =
     dev

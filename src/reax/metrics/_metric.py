@@ -2,11 +2,11 @@ import abc
 from collections.abc import Callable
 import functools
 import types
-from typing import Any, ClassVar, Generic, TypeVar, cast
+from typing import Any, ClassVar, Generic, Self, TypeVar, cast
 
 import jax
 import jax.numpy as jnp
-from typing_extensions import Self, override
+from typing_extensions import override
 
 from .. import pytree
 

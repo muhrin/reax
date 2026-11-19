@@ -1,9 +1,9 @@
 import abc
-from typing import Any
+from typing import Any, Self
 
 import jax
 import jax.numpy as jnp
-from typing_extensions import Self, override
+from typing_extensions import override
 
 from reax import pytree
 from reax.utils import arrays, masking

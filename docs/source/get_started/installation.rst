@@ -13,7 +13,7 @@ You can install REAX using pip:
 Prerequisites
 -------------
 
-REAX requires Python 3.10 or later. It is built on top of JAX and Flax.
+REAX requires Python 3.11 or later. It is built on top of JAX and Flax.
 
 We recommend using a conda environment to manage your dependencies and ensure a clean environment.
 
