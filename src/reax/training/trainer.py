@@ -947,7 +947,8 @@ class Trainer(stages.StageListener):
         """On stage iter ending."""
         if isinstance(stage, stages.ModuleStage):
             self._logging.update(stage)
-            if stage.logged_metrics:
+            # Sanity check metrics are not sent to the loggers
+            if stage.logged_metrics and not self.sanity_checking:
                 logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
                 logging_metrics.update(stage.logged_metrics)
                 for logger in self.loggers:
@@ -966,7 +967,7 @@ class Trainer(stages.StageListener):
             self._logging.update(stage)
 
             metrics = stage.results
-            if metrics[keys.LOG]:
+            if metrics[keys.LOG] and not self.sanity_checking:
                 logging_metrics = {"epoch": self.current_epoch, "stage": stage.name}
                 logging_metrics.update(metrics[keys.LOG])
                 for logger in self.loggers:

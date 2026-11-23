@@ -483,3 +483,43 @@ def eval_stats(platform, devices, tmp_path):
 
     comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
     assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))
+
+
+def test_sanity_check_metrics_not_logged(tmp_path):
+    """Metrics logged during the sanity check should not be passed to the loggers."""
+
+    class RecordingLogger(reax.loggers.logger.DummyLogger):
+        def __init__(self):
+            super().__init__()
+            self.logged = []
+
+        def log_metrics(self, metrics, step=None):
+            self.logged.append((dict(metrics), step))
+
+    class Model(demos.BoringModel):
+        def validation_step(self, batch, batch_idx, /):
+            out = super().validation_step(batch, batch_idx)
+            self.log("val_loss", out["x"], on_step=True, logger=True)
+            return out
+
+    logger = RecordingLogger()
+    sanity_steps = []
+
+    class SanityProbe(reax.TrainerListener):
+        def on_loop_iter_end(self, trainer, stage, loop, outputs, /):
+            if trainer.sanity_checking:
+                sanity_steps.append(trainer.global_updates)
+
+    trainer = reax.Trainer(
+        default_root_dir=tmp_path,
+        logger=logger,
+        listeners=[SanityProbe()],
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+    )
+    trainer.fit(Model(), max_epochs=1, limit_train_batches=2, limit_val_batches=2)
+
+    assert sanity_steps, "The sanity check should have run"
+    assert logger.logged, "Metrics from the actual validation should be logged"
+    assert all(metrics["epoch"] >= 0 for metrics, _ in logger.logged)
+    assert all(step >= 0 for _, step in logger.logged)
