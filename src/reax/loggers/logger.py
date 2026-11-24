@@ -133,7 +133,7 @@ class Logger(abc.ABC):
     def save(self) -> None:  # noqa: B027
         """Save the log data."""
 
-    def finalize(self, status: str) -> None:  # pylint: disable=unused-argument
+    def finalize(self, status: str) -> None:
         """Do postprocessing to be done at the end of an experiment.
 
         Args:
@@ -343,7 +343,7 @@ class WithDdp(Generic[Exp], abc.ABC):
     def _save(self) -> None:
         """Save implementation."""
 
-    def _finalize(self, status: str) -> None:  # pylint: disable=unused-argument
+    def _finalize(self, status: str) -> None:
         """Finalize implementation."""
         self._save()
 

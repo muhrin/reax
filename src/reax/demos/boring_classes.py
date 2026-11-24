@@ -155,7 +155,6 @@ class BoringDataModule(reax.DataModule):
         self.random_full = RandomDataset(32, 64 * 4)
 
     def setup(self, engine: "reax.Engine", /, *, stage: str | None = None) -> None:
-        # pylint: disable=attribute-defined-outside-init
         if stage == "fit":
             self.random_train = reax.data.Subset(self.random_full, indices=range(64))
 

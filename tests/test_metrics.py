@@ -116,7 +116,7 @@ def test_stats_evaluator(rng_key, test_trainer):
     # Check that `evaluate_stats` produces the same result
     evaluated = test_trainer.eval_stats(stats, values).logged_metrics
 
-    comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
+    comparison = jax.tree.map(jnp.isclose, results, evaluated)
     assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))
 
 

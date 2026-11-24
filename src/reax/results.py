@@ -42,7 +42,6 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
 
     @classmethod
     def create(
-        # pylint: disable=arguments-differ
         cls,
         value: jt.ArrayLike,
         batch_size: "reax.types.BatchSize | None" = None,
@@ -58,7 +57,6 @@ class ArrayResultMetric(_metric.Metric[jax.Array]):
 
     @override
     def update(
-        # pylint: disable=arguments-differ
         self,
         value: jt.ArrayLike,
         batch_size: "reax.types.BatchSize | None" = None,

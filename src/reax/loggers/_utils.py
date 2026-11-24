@@ -30,12 +30,12 @@ def convert_params(params: dict[str, Any] | argparse.Namespace | None) -> dict[s
 
 def sanitize_params(params: dict[str, Any]) -> dict[str, Any]:
     """Sanitize params."""
-    for key in params:
+    for key, value in params.items():
         # JAX/numpy scalars to python base types
-        if isinstance(params[key], (jnp.bool_, jnp.integer, jnp.floating)):
-            params[key] = params[key].item()
-        elif type(params[key]) not in [bool, int, float, str, jax.typing.ArrayLike]:
-            params[key] = str(params[key])
+        if isinstance(value, (jnp.bool_, jnp.integer, jnp.floating)):
+            params[key] = value.item()
+        elif type(value) not in [bool, int, float, str, jax.typing.ArrayLike]:
+            params[key] = str(value)
 
     return params
 

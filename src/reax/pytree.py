@@ -38,7 +38,7 @@ def field(*, static: bool = False, **kwargs) -> Any:
     """
     if static:
         kwargs["metadata"] = {**kwargs.get("metadata", {}), "static": True}
-    return dataclasses.field(**kwargs)  # pylint: disable=invalid-field-call
+    return dataclasses.field(**kwargs)
 
 
 @dataclass_transform(field_specifiers=(field, dataclasses.field))

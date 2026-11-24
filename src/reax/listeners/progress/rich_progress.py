@@ -287,8 +287,6 @@ class RichProgressBar(progress_bar.ProgressBar):
 
     """
 
-    # pylint: disable=too-many-public-methods
-
     def __init__(
         self,
         refresh_rate: int = 1,
@@ -344,9 +342,7 @@ class RichProgressBar(progress_bar.ProgressBar):
     def val_sanity_check_bar(self) -> rich.progress.Task:
         assert self.progress is not None
         assert self.val_sanity_progress_bar_id is not None
-        return self.progress.tasks[  # pylint: disable=invalid-sequence-index
-            self.val_sanity_progress_bar_id
-        ]
+        return self.progress.tasks[self.val_sanity_progress_bar_id]
 
     @property
     def val_progress_bar(self) -> rich.progress.Task:
@@ -682,7 +678,6 @@ class RichProgressBar(progress_bar.ProgressBar):
         if not _RICH_AVAILABLE:
             return []
 
-        # pylint: disable=possibly-used-before-assignment
         return [
             rich.progress.TextColumn("[progress.description]{task.description}"),
             CustomBarColumn(

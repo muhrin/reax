@@ -25,7 +25,7 @@ class Registry(containers.Registry[metric_.Metric]):
             raise KeyError(f"Metric not found: {key}") from exc
 
     @override
-    def register(  # pylint: disable=arguments-renamed
+    def register(
         self, key: str, obj: "metric_.Metric | type[metric_.Metric] | reax.types.MetricType"
     ):
         """Register a metric, either as an instance or a type that can be instantiated without
@@ -51,12 +51,12 @@ class Registry(containers.Registry[metric_.Metric]):
 
 
 # Helpers to make it easy to choose a metric using a string
-_registry: Registry | None = None  # pylint: disable=invalid-name
+_registry: Registry | None = None
 
 
 def get_registry() -> Registry:
     """Get registry."""
-    global _registry  # pylint: disable=global-statement,global-variable-not-assigned # noqa: F824
+    global _registry  # noqa: F824, PLW0603
     if _registry is None:
         _registry = Registry()
         for name, metric in plugins.get_metrics().items():
@@ -70,7 +70,7 @@ def get_registry() -> Registry:
 
 def set_registry(registry: Registry) -> None:
     """Set registry."""
-    global _registry  # pylint: disable=global-statement
+    global _registry  # noqa: PLW0603
     _registry = registry
 
 

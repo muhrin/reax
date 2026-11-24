@@ -68,7 +68,6 @@ dev = [
     'pytest-env',
     'pytest-timeout',
     'pre-commit',
-    'pylint',
     'ruff',
     'ty==0.0.109',
 ]
@@ -115,6 +114,7 @@ select = [
     'E',
     'F',
     'I',
+    'PL',
     'S',
     'UP',
     'W',
@@ -125,6 +125,10 @@ ignore = [
     'F403',
     'F722',
     'F821',
+    'PLC0415', # import-outside-top-level
+    'PLR0913', # too-many-arguments
+    'PLR2004', # magic-value-comparison
+    'PLW2901', # redefined-loop-name
     'S101',
     'S603',
     'S607',
@@ -133,12 +137,20 @@ ignore = [
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
 
+[tool.ruff.lint.pylint]
+max-branches = 14
+max-locals = 22
+max-positional-args = 10
+max-public-methods = 22
+max-returns = 8
+
 [tool.ruff.lint.mccabe]
 max-complexity = 18
 
 [tool.ruff.lint.per-file-ignores]
 'src/reax/lightning/*.py' = [
     'C90',
+    'PL',
 ]
 
 [tool.ty.src]
@@ -204,36 +216,6 @@ exclude = [
 [tool.ty.analysis]
 allowed-unresolved-imports = ["torch.**"]
 
-
-[tool.pylint.MASTER]
-ignore-paths = '^src/reax/lightning/.*$'  # These are copy-paste from lightning, so don't lint
-
-[tool.pylint.format]
-max-line-length = 100
-max-module-lines = 1200
-
-[tool.pylint.messages_control]
-disable = [
-    # Unfortunately, jaxtyping decorator creates a function that seems to mistakenly be identified as
-    # not returning anything, so we have to disable the error below for now
-    'assignment-from-no-return',
-    'duplicate-code',
-    'import-outside-toplevel',
-    'missing-docstring',
-    'locally-disabled',
-    'too-few-public-methods',
-    'too-many-arguments',
-    'too-many-instance-attributes',
-    'use-dict-literal',
-    'fixme',
-]
-
-[tool.pylint.design]
-max-locals = 22
-max-branches = 14
-max-returns = 8
-max-positional-arguments = 10
-max-public-methods = 22
 
 [tool.doc8]
 max-line-length = 100

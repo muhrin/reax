@@ -71,7 +71,7 @@ def test_default_collate_dict():
 
 def test_fallback_collate_with_registered_scalars(collator):
     # Register scalar types so the nested values can be collated
-    collator.register(int, lambda batch: np.asarray(batch))
+    collator.register(int, np.asarray)
 
     def _check(fn):
         batch = fn([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
@@ -82,7 +82,7 @@ def test_fallback_collate_with_registered_scalars(collator):
 
 
 def test_fallback_collate_ordered_dict(collator):
-    collator.register(int, lambda batch: np.asarray(batch))
+    collator.register(int, np.asarray)
     batch = [OrderedDict([("a", 1)]), OrderedDict([("a", 2)])]
     result = collator.collate(batch)
     assert isinstance(result, OrderedDict)
@@ -104,7 +104,7 @@ def test_fallback_collate_mapping_init_error(collator):
         def __len__(self):
             return len(self._map)
 
-    collator.register(int, lambda batch: np.asarray(batch))
+    collator.register(int, np.asarray)
     batch = [WeirdMapping({"a": 1}), WeirdMapping({"a": 2})]
     result = collator.collate(batch)
     assert result["a"].tolist() == [1, 2]
@@ -128,7 +128,7 @@ def test_fallback_collate_mapping_constructor_rejects_dict(collator):
             if args or kwargs:
                 raise TypeError("no callable constructor with arguments")
 
-    collator.register(int, lambda batch: np.asarray(batch))
+    collator.register(int, np.asarray)
     m1, m2 = NoDictCtor(), NoDictCtor()
     m1._map, m2._map = {"a": 1}, {"a": 2}
     # `elem_type({...})` raises -> falls back to a plain dict.
@@ -137,7 +137,7 @@ def test_fallback_collate_mapping_constructor_rejects_dict(collator):
 
 
 def test_fallback_collate_namedtuple(collator):
-    collator.register(int, lambda batch: np.asarray(batch))
+    collator.register(int, np.asarray)
     Point = namedtuple("Point", ["x", "y"])
     batch = [Point(1, 2), Point(3, 4)]
     result = collator.collate(batch)
@@ -147,7 +147,7 @@ def test_fallback_collate_namedtuple(collator):
 
 
 def test_fallback_collate_tuple(collator):
-    collator.register(int, lambda batch: np.asarray(batch))
+    collator.register(int, np.asarray)
     batch = [(1, 2), (3, 4)]
     result = collator.collate(batch)
     assert isinstance(result, list)
@@ -156,7 +156,7 @@ def test_fallback_collate_tuple(collator):
 
 
 def test_fallback_collate_list(collator):
-    collator.register(int, lambda batch: np.asarray(batch))
+    collator.register(int, np.asarray)
     batch = [[1, 2], [3, 4]]
     result = collator.collate(batch)
     assert isinstance(result, list)
@@ -170,7 +170,7 @@ def test_fallback_collate_list_size_mismatch_raises(collator):
 
 def test_fallback_collate_range_fallback(collator):
     # range supports Sequence but not `type(elem)(iterable)` -> hits the except TypeError branch
-    collator.register(int, lambda batch: np.asarray(batch))
+    collator.register(int, np.asarray)
     batch = [range(3), range(3)]
     result = collator.collate(batch)
     # Returns a plain list (not a range), one entry per transposed column
@@ -200,5 +200,5 @@ def test_fallback_collate_dataclass_raises(collator):
 
 
 def test_custom_register(collator):
-    collator.register(complex, lambda batch: np.asarray(batch))
+    collator.register(complex, np.asarray)
     assert collator.collate([1 + 2j, 3 + 4j]).tolist() == [(1 + 2j), (3 + 4j)]

@@ -16,7 +16,6 @@ __all__ = ("TqdmProgressBar",)
 
 
 class TqdmProgressBar(progress_bar.ProgressBar):
-    # pylint: disable=too-many-public-methods
     BAR_FORMAT = (
         "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_noinv_fmt}{postfix}]"
     )
@@ -44,7 +43,6 @@ class TqdmProgressBar(progress_bar.ProgressBar):
 
     @train_progress_bar.setter
     def train_progress_bar(
-        # pylint: disable=disallowed-name
         self,
         bar: tqdm.tqdm,
     ) -> None:
@@ -62,7 +60,6 @@ class TqdmProgressBar(progress_bar.ProgressBar):
 
     @val_progress_bar.setter
     def val_progress_bar(
-        # pylint: disable=disallowed-name
         self,
         bar: tqdm.tqdm,
     ) -> None:
@@ -81,7 +78,6 @@ class TqdmProgressBar(progress_bar.ProgressBar):
 
     @test_progress_bar.setter
     def test_progress_bar(
-        # pylint: disable=disallowed-name
         self,
         bar: tqdm.tqdm,
     ) -> None:
@@ -100,7 +96,6 @@ class TqdmProgressBar(progress_bar.ProgressBar):
 
     @predict_progress_bar.setter
     def predict_progress_bar(
-        # pylint: disable=disallowed-name
         self,
         bar: tqdm.tqdm,
     ) -> None:
@@ -387,7 +382,6 @@ class TqdmProgressBar(progress_bar.ProgressBar):
 
 
 def _update_n(
-    # pylint: disable=disallowed-name
     bar: tqdm.tqdm,
     value: int,
 ) -> None:

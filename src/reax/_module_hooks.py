@@ -17,8 +17,6 @@ class ModuleHooks:
     :attr:`loop.batch_idx <reax.stages.LoopOverBatches.batch_idx>`.
     """
 
-    # pylint: disable=too-many-public-methods
-
     # region Stages
 
     def on_fit_start(self, stage: "reax.stages.Fit", /) -> None:

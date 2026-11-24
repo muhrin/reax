@@ -32,7 +32,6 @@
 #     the instance are skipped rather than raising a ``KeyError``.
 #   * ``replace()`` always copies the instance and swaps the values, it never calls
 #     ``__init__`` (``dataclasses.replace`` does, which breaks custom ``__init__`` methods).
-# pylint: skip-file
 from abc import ABCMeta
 import copy as copy_
 import dataclasses

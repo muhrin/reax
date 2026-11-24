@@ -110,7 +110,6 @@ class PandasLogger(logger.WithDdp["ExperimentWriter"], logger.Logger):
 
     @override
     def _log_hyperparams(
-        # pylint: disable=arguments-differ
         self,
         params: dict[str, Any] | argparse.Namespace,
     ) -> None:

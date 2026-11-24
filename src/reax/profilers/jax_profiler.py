@@ -54,7 +54,7 @@ class JaxProfiler(profiler.Profiler):
     @override
     def start_recording(self, action_name: str) -> None:
         trace = jax.profiler.TraceAnnotation(action_name)
-        trace.__enter__()  # pylint: disable=unnecessary-dunder-call
+        trace.__enter__()
         self._traces[action_name] = trace
 
     @override

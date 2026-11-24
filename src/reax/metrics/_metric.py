@@ -30,7 +30,7 @@ def _default_reduce_fn(
     return jnp.sum(values, axis=axis, where=where)
 
 
-class hybrid_method(Generic[_R]):  # pylint: disable=invalid-name
+class hybrid_method(Generic[_R]):
     """A decorator that binds the function to the instance if called on an instance, or the class
     if called on the class."""
 
@@ -93,7 +93,7 @@ class Metric(pytree.PyTree, Generic[_OutT], metaclass=abc.ABCMeta):
         return FromFunction
 
     @hybrid_method
-    def empty(self) -> "Metric[_OutT]":  # pylint: disable=no-self-argument
+    def empty(self) -> "Metric[_OutT]":
         """Create a new empty instance.
 
         This can be called on the class or an instance. By default, this will call the constructor
@@ -175,10 +175,10 @@ class FromFun(Metric[_OutT]):
         """Empty function."""
         if isinstance(self, type):
             cls = cast("type[FromFun[_OutT]]", self)
-            return cls(state=cls.metric.empty())  # pylint: disable=not-callable
+            return cls(state=cls.metric.empty())
 
         instance = cast(FromFun, self)
-        return type(instance)(state=self._state.empty())  # pylint: disable=protected-access
+        return type(instance)(state=self._state.empty())
 
     @override
     @hybrid_method
@@ -194,7 +194,7 @@ class FromFun(Metric[_OutT]):
             metric = self._state
 
         cls = cast("type[FromFun]", cls)
-        return cls(state=metric.create(*val))  # pylint: disable=not-callable
+        return cls(state=metric.create(*val))
 
     @override
     def merge(self, other: "FromFun") -> "FromFun":
@@ -204,7 +204,7 @@ class FromFun(Metric[_OutT]):
         if other.is_empty:
             return self
 
-        return type(self)(state=self._state.merge(other._state))  # pylint: disable=protected-access
+        return type(self)(state=self._state.merge(other._state))
 
     @override
     def update(self, *args, **kwargs) -> "FromFun":
@@ -212,7 +212,7 @@ class FromFun(Metric[_OutT]):
         if self.is_empty:
             return self.create(*args, **kwargs)
 
-        val = self._call_fn(*args, **kwargs)  # pylint: disable=protected-access
+        val = self._call_fn(*args, **kwargs)
         return type(self)(state=self._state.update(*val))
 
     @override

@@ -39,8 +39,6 @@ TrainOutput = LossAndGrad | LossAndGradDict
 class Module(
     Generic[BatchT, OutputT_co], _module_hooks.ModuleHooks, _datasources.DataSource[BatchT, Any]
 ):
-    # pylint: disable=too-many-public-methods
-
     example_input_array: BatchT | None
 
     def __init__(self):
@@ -334,7 +332,7 @@ class Module(
                 logger.log_figure(name, figure, step)
         finally:
             if close:
-                from .loggers import _figures  # pylint: disable=import-outside-toplevel
+                from .loggers import _figures
 
                 _figures.close_figure(figure)
 

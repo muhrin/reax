@@ -244,7 +244,6 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
 
     @override
     def _log_hyperparams(
-        # pylint: disable=arguments-differ
         self,
         params: dict[str, Any] | argparse.Namespace,
         metrics: dict[str, Any] | None = None,
@@ -285,14 +284,13 @@ class TensorBoardLogger(logger.WithDdp["tensorboardX.SummaryWriter"], logger.Log
             self.log_metrics(metrics, 0)
 
             exp, ssi, sei = tensorboardX.summary.hparams(params, metrics)
-            writer = self.experiment._get_file_writer()  # pylint: disable=protected-access
+            writer = self.experiment._get_file_writer()
             writer.add_summary(exp)
             writer.add_summary(ssi)
             writer.add_summary(sei)
 
     @override
     def _log_graph(
-        # pylint: disable=arguments-differ
         self,
         model: Callable,
         *inputs,

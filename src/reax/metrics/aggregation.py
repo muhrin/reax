@@ -117,7 +117,7 @@ class SetAccumulation(Metric[jax.Array]):
         if self._accumulator is None:
             # Ensure we return an instance with OUR config, even if the other one is None
             return self
-        if other._accumulator is None:  # pylint: disable=protected-access
+        if other._accumulator is None:
             return self
 
         np_ = arrays.infer_backend([self.accumulator, other.accumulator])
@@ -134,7 +134,7 @@ class SetAccumulation(Metric[jax.Array]):
         else:
             mask = self.accumulator != sentinel
 
-        return self.accumulator[mask]  # pylint: disable=unsubscriptable-object
+        return self.accumulator[mask]
 
     @override
     def reduce(self, axis: int = 0) -> "SetAccumulation":

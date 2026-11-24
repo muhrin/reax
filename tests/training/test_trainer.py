@@ -481,7 +481,7 @@ def eval_stats(platform, devices, tmp_path):
     # Check that `evaluate_stats` produces the same result
     evaluated = trainer.eval_stats(stats, values).logged_metrics
 
-    comparison = jax.tree.map(lambda a, b: jnp.isclose(a, b), results, evaluated)
+    comparison = jax.tree.map(jnp.isclose, results, evaluated)
     assert jnp.all(jnp.stack(jax.tree.flatten(comparison)[0]))
 
 

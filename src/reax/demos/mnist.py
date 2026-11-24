@@ -349,7 +349,6 @@ def parse_labels(filename) -> np.ndarray:
 def parse_images(filename) -> np.ndarray:
     with gzip.open(filename, "rb") as fh:
         _, num_data, rows, cols = struct.unpack(">IIII", fh.read(16))
-        # pylint: disable=too-many-function-args
         img = np.array(array.array("B", fh.read()), dtype=np.uint8).reshape(num_data, rows, cols)
         # Flatten all but the first dimension of an ndarray
         # todo: return np.reshape(img, (img.shape[0], -1)) / np.float32(255.0)

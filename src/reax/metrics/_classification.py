@@ -271,7 +271,6 @@ class Accuracy(_metric.Metric):
 
     @override
     def create(
-        # pylint: disable=arguments-differ
         self,
         preds: jax.Array,
         target: jax.Array,

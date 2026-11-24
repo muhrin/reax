@@ -58,7 +58,7 @@ class BatchSizer:
             yield None
 
 
-_registry = None  # pylint: disable=invalid-name
+_registry = None
 
 
 def _array_batch_size(batch: jax.Array | np.ndarray):
@@ -85,7 +85,7 @@ except ImportError:
 
 def get_registry() -> BatchSizer:
     """Get registry."""
-    global _registry  # pylint: disable=global-statement
+    global _registry  # noqa: PLW0603
     if _registry is None:
         _registry = BatchSizer()
         _registry.register((jax.Array, np.ndarray), _array_batch_size)

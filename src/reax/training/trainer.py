@@ -36,8 +36,6 @@ __all__ = ("Trainer",)
 
 
 class Trainer(stages.StageListener):
-    # pylint: disable=too-many-public-methods
-
     @jt.jaxtyped(typechecker=beartype.beartype)
     def __init__(
         self,
@@ -442,7 +440,6 @@ class Trainer(stages.StageListener):
         return self._stage.module
 
     def log(
-        # pylint: disable=unused-argument
         self,
         name: str,
         value,

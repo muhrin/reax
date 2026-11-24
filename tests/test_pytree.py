@@ -140,7 +140,7 @@ class TestVendoredPytree:
             def __init__(self, x: T):
                 self.x = x
 
-        MyClass[int]  # pylint: disable=pointless-statement
+        MyClass[int]
 
     def test_key_paths(self):
         @dataclasses.dataclass
@@ -303,7 +303,7 @@ class TestMutablePytree:
         assert tree.x == 4
 
     def test_dataclass_inheritance(self):
-        A = dataclasses.make_dataclass(  # pylint: disable=invalid-name
+        A = dataclasses.make_dataclass(
             "A",
             [("x", int), "y", ("z", int, pytree.field(static=True, default=5))],
         )
@@ -472,12 +472,12 @@ def test_optimizer_update_jit():
     # up with two steps to see all combinations of int/array count and `None`/float value
     for _ in range(2):
         params, optimizer = step(params, optimizer)
-    cache_size = reax.Optimizer.update._cache_size()  # ty: ignore[missing-attribute]  # pylint: disable=protected-access
+    cache_size = reax.Optimizer.update._cache_size()  # ty: ignore[missing-attribute]
     for _ in range(3):
         params, optimizer = step(params, optimizer)
 
     assert optimizer.update_count == 10
-    assert reax.Optimizer.update._cache_size() == cache_size  # ty: ignore[missing-attribute]  # pylint: disable=protected-access
+    assert reax.Optimizer.update._cache_size() == cache_size  # ty: ignore[missing-attribute]
 
 
 def test_distributed_optimizer_constructs():
@@ -489,7 +489,7 @@ def test_distributed_optimizer_constructs():
         transform.init({"w": jnp.ones(2)}),
         engine=engine,  # ty: ignore[invalid-argument-type]
     )
-    assert optimizer._engine is engine  # pylint: disable=protected-access
+    assert optimizer._engine is engine
     assert len(jax.tree.leaves(optimizer)) == 1  # Only the update count
 
 

@@ -148,9 +148,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
                 cmd = [sys.executable] + sys.argv
             _LOGGER.info("Launching subprocess with: %s", " ".join(cmd))
             children.append(
-                subprocess.Popen(  # pylint: disable=consider-using-with
-                    cmd, env=env
-                )  # noqa # Disable bandit
+                subprocess.Popen(cmd, env=env)  # noqa # Disable bandit
             )
 
         return children

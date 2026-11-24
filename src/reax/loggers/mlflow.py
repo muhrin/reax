@@ -362,7 +362,7 @@ class MlflowLogger(logger.Logger):
             yield io.BytesIO()
             return
 
-        path = logger._check_artifact_path(path)  # pylint: disable=protected-access
+        path = logger._check_artifact_path(path)
         artifact_dir, filename = os.path.split(path)
         with tempfile.TemporaryDirectory() as tmp_dir:
             local_path = os.path.join(tmp_dir, filename)
@@ -397,9 +397,7 @@ class MlflowLogger(logger.Logger):
                 image = _figures.to_figure_data(figure).to_array()
                 self.experiment.log_image(self.run_id, image, key=name, step=step)
             else:
-                logger._default_log_figure(  # pylint: disable=protected-access
-                    self, name, figure, step, close=False
-                )
+                logger._default_log_figure(self, name, figure, step, close=False)
         finally:
             if close:
                 _figures.close_figure(figure)

@@ -117,12 +117,12 @@ def collate_numpy_array_fn(batch: Sequence[np.ndarray]):
     return np.stack(batch)
 
 
-_default_collator: Collator | None = None  # pylint: disable=invalid-name
+_default_collator: Collator | None = None
 
 
 def get_default_collator() -> Collator:
     r"""Get or create the default collato."""
-    global _default_collator  # pylint: disable=global-statement
+    global _default_collator  # noqa: PLW0603
     if _default_collator is not None:
         return _default_collator
 
@@ -135,7 +135,7 @@ def get_default_collator() -> Collator:
 
         collator.register(
             torch.Tensor,
-            torch.utils.data._utils.collate.collate_tensor_fn,  # pylint: disable=protected-access
+            torch.utils.data._utils.collate.collate_tensor_fn,
         )
 
     collator.register(np.ndarray, collate_numpy_array_fn)

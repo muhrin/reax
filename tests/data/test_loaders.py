@@ -22,7 +22,7 @@ def test_single_or_value_multiple():
 def test_fetcher_dataloader_iter():
     dataset = [1, 2, 3, 4]
     sampler = samplers.ChunkedSampler(samplers.SequentialSampler(len(dataset)), 2, False)
-    loader = _loaders.FetcherDataLoader(dataset, sampler, lambda batch: list(batch))
+    loader = _loaders.FetcherDataLoader(dataset, sampler, list)
     assert list(loader) == [[1, 2], [3, 4]]
     assert loader.dataset is dataset
     assert loader.sampler is sampler
@@ -75,7 +75,7 @@ def test_reax_dataloader_custom_sampler():
 
 
 def test_reax_dataloader_custom_collate():
-    loader = _loaders.ReaxDataLoader([1, 2], batch_size=1, collate_fn=lambda b: sum(b))
+    loader = _loaders.ReaxDataLoader([1, 2], batch_size=1, collate_fn=sum)
     assert list(loader) == [1, 2]
 
 
@@ -276,7 +276,7 @@ def test_generic_dataloader_default():
 
 
 def test_generic_dataloader_custom_collate():
-    custom = _ConcreteGeneric([1, 2], batch_size=1, collate_fn=lambda b: sum(b))
+    custom = _ConcreteGeneric([1, 2], batch_size=1, collate_fn=sum)
     assert list(custom) == [1, 2]
 
 

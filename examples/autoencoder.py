@@ -13,8 +13,8 @@ from lightning.pytorch.demos.mnist_datamodule import MNIST
 import numpy as np
 import optax
 import PIL
-import torch  # pylint: disable=import-error
-from torch.utils.data import random_split  # pylint: disable=import-error
+import torch
+from torch.utils.data import random_split
 
 import reax
 
@@ -26,7 +26,6 @@ class Autoencoder(linen.Module):
 
     def setup(self):
         super().__init__()
-        # pylint: disable=attribute-defined-outside-init
         self.encoder = linen.Sequential([linen.Dense(self.hidden_dim), linen.relu, linen.Dense(3)])
         self.decoder = linen.Sequential(
             [linen.Dense(self.hidden_dim), linen.relu, linen.Dense(28 * 28)]
@@ -197,5 +196,5 @@ if __name__ == "__main__":
     autoencoder = ReaxAutoEncoder()
 
     trainer = reax.Trainer()
-    trainer.fit(autoencoder, datamodule=datamodule, max_epochs=10)  # pylint: disable=not-callable
-    trainer.test(autoencoder, datamodule=datamodule)  # pylint: disable=not-callable
+    trainer.fit(autoencoder, datamodule=datamodule, max_epochs=10)
+    trainer.test(autoencoder, datamodule=datamodule)

@@ -52,7 +52,6 @@ class EventGenerator(Generic[ListenerT]):
         return self._event_listeners[handle]
 
     def find(
-        # pylint: disable=redefined-builtin
         self,
         *,
         type: type[T] | None = None,

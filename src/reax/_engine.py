@@ -47,10 +47,7 @@ class Engine:
     via MPI or Python's multiprocessing), and backend initialization.
     """
 
-    # pylint: disable=too-many-public-methods
-
-    def __init__(
-        # pylint: disable=too-many-positional-arguments
+    def __init__(  # noqa: PLR0917
         self,
         accelerator: str = "auto",
         strategy: "str | reax.Strategy" = "auto",
@@ -516,7 +513,7 @@ def _(arg: modules.Module, engine: Engine) -> modules.Module:
 
 @_setup.register
 def _(arg: data_.DataLoader, engine: Engine) -> data_.DataLoader:
-    return engine.strategy.setup_dataloader(engine._seed_loader(arg))  # pylint: disable=protected-access
+    return engine.strategy.setup_dataloader(engine._seed_loader(arg))
 
 
 @jt.jaxtyped(typechecker=beartype.beartype)

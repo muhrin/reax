@@ -27,7 +27,7 @@ def get_batch_sizers() -> list:
     def get_type(extension: stevedore.extension.Extension):
         try:
             sizers.extend(extension.plugin())
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             _LOGGER.exception("Failed to get types plugin from %s", extension.name)
 
     try:
@@ -51,7 +51,7 @@ def get_metrics() -> "dict[str, reax.types.MetricType]":
     def get_type(extension: stevedore.extension.Extension):
         try:
             metrics[extension.name] = extension.plugin
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             _LOGGER.exception("Failed to get types plugin from %s", extension.name)
 
     try:

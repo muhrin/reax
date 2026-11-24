@@ -289,7 +289,7 @@ class EarlyStopping(hooks.TrainerListener):
             )
         elif self._divergence_threshold is not None and self.monitor_op(
             -current,
-            -self._divergence_threshold,  # pylint: disable=invalid-unary-operand-type
+            -self._divergence_threshold,
         ):
             should_stop = True
             reason = (

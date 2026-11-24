@@ -15,8 +15,6 @@ class TrainerListener:
     :class:`~reax.Module` hook (if any).
     """
 
-    # pylint: disable=too-many-public-methods
-
     def on_fit_start(self, trainer: "reax.Trainer", stage: "reax.stages.Fit", /) -> None:
         """A fitting stage has started."""
 

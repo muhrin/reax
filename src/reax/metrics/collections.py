@@ -72,17 +72,13 @@ class MetricCollection(pytree.PyTree):
         merged = {}
         for name, metric in self._metrics.items():
             try:
-                merged[name] = metric.merge(
-                    other._metrics[name]  # pylint: disable=protected-access
-                )
+                merged[name] = metric.merge(other._metrics[name])
             except KeyError:
                 merged[name] = metric  # Nothing to merge
 
         # Now put in all the ones that only appear in 'other'
-        for name in set(other._metrics.keys()) - set(  # pylint: disable=protected-access
-            self._metrics.keys()
-        ):
-            merged[name] = other._metrics[name]  # pylint: disable=protected-access
+        for name in set(other._metrics.keys()) - set(self._metrics.keys()):
+            merged[name] = other._metrics[name]
 
         return MetricCollection(merged, self._evaluator)
 

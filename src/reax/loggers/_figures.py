@@ -202,7 +202,7 @@ def _has_repr_png(obj: Any) -> bool:
 
 
 def _repr_png_to_figure_data(obj: Any) -> FigureData:
-    data = obj._repr_png_()  # pylint: disable=protected-access
+    data = obj._repr_png_()
     if data is None:
         raise ValueError(f"`{type(obj).__name__}._repr_png_()` returned None")
     return FigureData(bytes(data), "png")
