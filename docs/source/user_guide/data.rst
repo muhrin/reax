@@ -37,12 +37,15 @@ each batch directly on the device:
     x, y = jax.device_put((np.load("x.npy"), np.load("y.npy")), engine.device)
     loader = reax.data.ArrayLoader((x, y), batch_size=64, shuffle=True)
 
+Collation keeps data where it came from: NumPy samples are stacked with NumPy on the host, JAX
+samples are stacked with JAX on their device.
+
 .. note::
 
-    :class:`~reax.data.ReaxDataLoader` indexes one sample at a time and collates on the host
-    with NumPy.  Given a dataset of JAX arrays, it copies every sample back to the host and then
-    sends the batch to the device again, which is slower than either option above.  Use
-    :class:`~reax.data.ArrayLoader` for device-resident data.
+    :class:`~reax.data.ReaxDataLoader` also works with a dataset of JAX arrays, and the batches
+    stay on the device.  It does, however, index the dataset one sample at a time (one small
+    device operation each) before stacking, whereas :class:`~reax.data.ArrayLoader` gathers the
+    whole batch in one go.  Prefer :class:`~reax.data.ArrayLoader` for device-resident arrays.
 
 Inside a stage (e.g. in :meth:`~reax.DataModule.setup`), arrays created with ``jnp`` are placed on
 the engine's device, as the engine's device is the default JAX device while a stage runs.  This

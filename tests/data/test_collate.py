@@ -2,6 +2,7 @@ from collections import OrderedDict, namedtuple
 from collections.abc import Mapping
 import dataclasses
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -27,8 +28,15 @@ def test_collate_registered_type(collator):
 def test_collate_jax_array():
     batch = [jnp.array([1, 2]), jnp.array([3, 4])]
     result = collate.default_collate(batch)
-    assert isinstance(result, np.ndarray)
+    # JAX samples are collated with JAX, so the batch stays where the samples are
+    assert isinstance(result, jax.Array)
+    assert result.devices() == batch[0].devices()
     assert result.tolist() == [[1, 2], [3, 4]]
+
+
+def test_collate_numpy_array_stays_numpy():
+    result = collate.default_collate([np.array([1, 2]), np.array([3, 4])])
+    assert type(result) is np.ndarray
 
 
 def test_collate_numpy_array():

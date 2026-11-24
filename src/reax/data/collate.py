@@ -4,6 +4,7 @@ import copy
 from typing import Any, TypeVar
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 
 from reax.utils import containers
@@ -97,8 +98,8 @@ class Collator:
 
 
 def collate_jax_array_fn(batch: Sequence[jax.Array]):
-    """Collate jax array fn."""
-    return np.stack(batch)
+    """Collate JAX arrays, keeping the batch on the device the samples are on."""
+    return jnp.stack(batch)
 
 
 def collate_numpy_scalar_fn(batch):

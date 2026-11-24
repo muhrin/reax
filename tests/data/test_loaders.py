@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+import reax
 from reax.data import _loaders, dataloaders, samplers
 
 
@@ -277,3 +278,14 @@ def test_generic_dataloader_default():
 def test_generic_dataloader_custom_collate():
     custom = _ConcreteGeneric([1, 2], batch_size=1, collate_fn=lambda b: sum(b))
     assert list(custom) == [1, 2]
+
+
+def test_reax_dataloader_keeps_device_arrays_on_device():
+    # A dataset of JAX arrays shouldn't make a round trip through the host when collated
+    device = jax.devices()[0]
+    x = jax.device_put(np.arange(20, dtype=np.float32).reshape(10, 2), device)
+    loader = reax.data.ReaxDataLoader(reax.data.ArrayDataset(x), batch_size=4)
+    batch = next(iter(loader))[0]
+    assert isinstance(batch, jax.Array)
+    assert batch.devices() == {device}
+    assert batch.tolist() == [[0, 1], [2, 3], [4, 5], [6, 7]]
