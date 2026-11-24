@@ -242,7 +242,8 @@ class EarlyStopping(hooks.TrainerListener):
                 stop_reason = reason
             else:
                 stop_reason = f"Early stopping on {self._monitor!r} requested by another process."
-            trainer.stage.stop(f"EarlyStopping: {stop_reason}")
+            if trainer.stage is not None:
+                trainer.stage.stop(f"EarlyStopping: {stop_reason}")
             self._stopped_epoch = trainer.current_epoch
         if reason and self._verbose:
             self._log_info(trainer, reason, self._log_rank_zero_only)

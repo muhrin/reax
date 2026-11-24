@@ -16,7 +16,7 @@ def test_concatdataset_init_non_sequence_raises():
     # a non-Sequence is rejected (by beartype's typechecker, which raises a
     # TypeCheckError that is a subclass of TypeError)
     with pytest.raises(TypeError):
-        datasets.ConcatDataset([iter([1, 2, 3])])
+        datasets.ConcatDataset([iter([1, 2, 3])])  # ty: ignore[invalid-argument-type]
 
 
 def test_concatdataset_len_and_getitem():

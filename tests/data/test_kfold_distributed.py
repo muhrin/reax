@@ -13,7 +13,7 @@ def kfold_distributed_test():
     strategy = JaxDdpStrategy(platform="cpu", devices=1)
     engine = Engine(strategy=strategy)
 
-    assert engine.strategy.process_count == 1
+    assert engine.process_count == 1
     assert engine.is_global_zero
 
     # Use KFold with None seed, expecting it to generate on rank 0 and broadcast

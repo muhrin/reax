@@ -9,6 +9,8 @@ __all__ = ("create",)
 
 
 def create(name: str, platform: str | None, **kwargs) -> "reax.Strategy":
+    if platform is None:
+        platform = "auto"
     if name == "auto":
         if "devices" not in kwargs or kwargs["devices"] == "auto":
             num_devices = _utils.probe_local_device_count(platform)

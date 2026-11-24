@@ -151,7 +151,7 @@ def test_array_loader_size_mismatch_raises():
 def test_array_loader_invalid_type_raises():
     # jaxtyping/beartype rejects the str before the manual check; both raise TypeError
     with pytest.raises(TypeError):
-        _loaders.ArrayLoader("not an array")
+        _loaders.ArrayLoader("not an array")  # ty: ignore[invalid-argument-type]
 
 
 def test_array_loader_with_new_sampler():
@@ -162,7 +162,7 @@ def test_array_loader_with_new_sampler():
     new_loader = loader.with_new_sampler(new_sampler)
     assert isinstance(new_loader, _loaders.ArrayLoader)
     assert new_loader.sampler is new_sampler
-    assert [b.tolist() for b in new_loader] == [[0, 1, 2], [3]]
+    assert [np.asarray(b).tolist() for b in new_loader] == [[0, 1, 2], [3]]
 
 
 @pytest.mark.parametrize("make_array", [np.arange, jnp.arange])

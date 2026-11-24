@@ -38,20 +38,21 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
             # Let JAX choose the platform, "auto" is not something it understands
             platform = None
         res = self._init(platform, devices)
-        self._process_id = res[0]
+        self._process_id: int = res[0]
         self._num_processes: int = res[1]
-        self._children = res[2]
+        self._children: Children = res[2]
+        self._torn_down = False
         self._device = jax.local_devices()[0]
 
     @override
     def teardown(self):
         # Wait for all children to finish
-        if self._process_id is not None:
+        if not self._torn_down:
             jax.distributed.shutdown()
             for child in self._children:
                 child.wait()
-            self._children = None
-            self._process_id = None
+            self._children = []
+            self._torn_down = True
 
     @staticmethod
     def probe_local_device_count() -> int:
@@ -103,7 +104,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
             if devices == "auto":
                 num_processes = _utils.probe_local_device_count(platform or "auto")
             else:
-                num_processes = devices
+                num_processes = int(devices)
 
             # Launch the other processes
             children = self._launch_children(platform, num_processes, coordinator_address)
