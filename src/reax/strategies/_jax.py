@@ -14,7 +14,7 @@ import jaxtyping as jt
 from typing_extensions import override
 
 from .. import pytree
-from . import _parallel
+from . import _parallel, _utils
 
 if TYPE_CHECKING:
     import reax
@@ -34,6 +34,9 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
 
     def __init__(self, platform: str | None = None, devices: int | str = "auto"):
         _LOGGER.info("Starting JAX DDP strategy...")
+        if platform == "auto":
+            # Let JAX choose the platform, "auto" is not something it understands
+            platform = None
         res = self._init(platform, devices)
         self._process_id = res[0]
         self._num_processes: int = res[1]
@@ -98,7 +101,7 @@ class JaxDdpStrategy(_parallel.ParallelStrategy):
             port = self.get_available_port()
             coordinator_address = f"localhost:{port}"
             if devices == "auto":
-                num_processes = self.probe_local_device_count()
+                num_processes = _utils.probe_local_device_count(platform or "auto")
             else:
                 num_processes = devices
 
