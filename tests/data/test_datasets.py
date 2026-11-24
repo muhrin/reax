@@ -1,4 +1,5 @@
 from flax import nnx
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -147,3 +148,24 @@ def test_len_dataset_unsized_returns_inf():
         yield 2
 
     assert datasets.len_dataset(gen()) == float("inf")
+
+
+def test_random_split_is_reproducible():
+    ds = list(range(20))
+    split1 = datasets.random_split(nnx.Rngs(data=3), ds, [0.5, 0.5])
+    split2 = datasets.random_split(nnx.Rngs(data=3), ds, [0.5, 0.5])
+    assert [list(s) for s in split1] == [list(s) for s in split2]
+    # Integer seeds and keys are equivalent
+    split3 = datasets.random_split(jax.random.key(11), ds, [0.5, 0.5])
+    split4 = datasets.random_split(11, ds, [0.5, 0.5])
+    assert [list(s) for s in split3] == [list(s) for s in split4]
+
+
+def test_random_split_does_not_use_jax_permutation(monkeypatch):
+    # Data-side randomness is done with NumPy on the host
+    def fail(*_args, **_kwargs):
+        raise AssertionError("jax.random.permutation should not be used")
+
+    monkeypatch.setattr(jax.random, "permutation", fail)
+    splits = datasets.random_split(nnx.Rngs(0), list(range(10)), [4, 6])
+    assert sorted(item for s in splits for item in s) == list(range(10))

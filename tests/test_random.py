@@ -150,3 +150,53 @@ def test_trainer_seed_reproducible_fit(tmp_path):
     params3 = _fit_params(22, tmp_path / "c")
     assert all(np.array_equal(a, b) for a, b in zip(params1, params2, strict=True))
     assert not all(np.array_equal(a, b) for a, b in zip(params1, params3, strict=True))
+
+
+def test_numpy_rng_is_deterministic():
+    key = jax.random.key(7)
+    assert (
+        reax.random.numpy_rng(key).permutation(100) == reax.random.numpy_rng(key).permutation(100)
+    ).all()
+    # The integer seed and the corresponding key give the same generator
+    assert (
+        reax.random.numpy_rng(7).permutation(100) == reax.random.numpy_rng(key).permutation(100)
+    ).all()
+    # Different keys, or extra entropy, give different generators
+    assert (
+        reax.random.numpy_rng(key).permutation(100)
+        != reax.random.numpy_rng(jax.random.key(8)).permutation(100)
+    ).any()
+    assert (
+        reax.random.numpy_rng(key).permutation(100)
+        != reax.random.numpy_rng(key, 1).permutation(100)
+    ).any()
+
+
+def test_numpy_rng_draws_from_data_stream():
+    rngs1 = reax.random.create_rngs(3)
+    rngs2 = reax.random.create_rngs(3)
+    expected = reax.random.numpy_rng(rngs2.data()).permutation(50)
+    assert (reax.random.numpy_rng(rngs1).permutation(50) == expected).all()
+    # Drawing advanced only the `data` stream
+    assert int(rngs1.data.count.get_value()) == 1
+    assert int(rngs1.params.count.get_value()) == 0
+
+
+def test_numpy_rng_is_the_same_across_processes():
+    # Shared streams don't depend on the process index, so neither do splits drawn from them
+    perms = [
+        reax.random.numpy_rng(reax.random.create_rngs(5, process_index=idx)).permutation(50)
+        for idx in range(3)
+    ]
+    for perm in perms[1:]:
+        assert (perm == perms[0]).all()
+
+
+def test_numpy_rng_uses_whole_key():
+    key = jax.random.key(0)
+    # Keys that differ only in their first word must give different generators
+    data = jax.random.key_data(key)
+    other = jax.random.wrap_key_data(data.at[0].add(1))
+    assert (
+        reax.random.numpy_rng(key).permutation(100) != reax.random.numpy_rng(other).permutation(100)
+    ).any()

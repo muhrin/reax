@@ -34,7 +34,7 @@ class KFold:
 
         if seed is None and engine is not None and shuffle:
             # The engine's ``data`` stream is identical on all processes, so no syncing is needed
-            seed = random_.key_to_seed(engine.rngs.data())
+            seed = int(random_.numpy_rng(engine.rngs).integers(2**31))
         self.seed = seed if seed is not None else 42
 
     # -- public API ----------------------------------------------------------

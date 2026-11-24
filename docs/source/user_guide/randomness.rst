@@ -52,6 +52,16 @@ What REAX does for you
   stream.
 * Resuming ``fit`` from a checkpoint restores the RNG state.
 
+All of this data-side randomness is *seeded* from the JAX ``data`` stream but *computed* with
+NumPy on the host, where the data lives.  This avoids device round trips and recompilation for
+every new dataset size, and keeps data handling independent of the accelerator backend.  If you
+write your own data utilities, do the same with :func:`reax.random.numpy_rng`:
+
+.. code-block:: python
+
+    rng = reax.random.numpy_rng(engine.rngs)  # A numpy.random.Generator from the `data` stream
+    indices = rng.permutation(len(dataset))
+
 Using the RNGs in your code
 ---------------------------
 

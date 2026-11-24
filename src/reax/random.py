@@ -10,6 +10,10 @@ REAX roots all randomness in a single integer seed held by the :class:`reax.Engi
 
 Because each stream is derived from the root key independently, drawing from one never shifts
 the sequence of another; e.g. adding a dropout layer won't change how the data is split.
+
+Model-side randomness (parameter initialisation, dropout, anything inside ``jit``) uses JAX.
+Data-side randomness (splitting, shuffling, k-fold partitioning) is drawn from the JAX keys but
+done with NumPy on the host, see :func:`numpy_rng`.  New data utilities should follow this rule.
 """
 
 import os
@@ -123,11 +127,37 @@ def to_key(rng: "nnx.Rngs | nnx.RngStream | jax.Array | int", stream: str = "def
     return rng
 
 
-def key_to_seed(key: jax.Array) -> int:
-    """Turn a JAX key into an integer seed, e.g. for :func:`numpy.random.default_rng`."""
+def _key_words(key: jax.Array) -> list[int]:
+    """Get all the words making up a JAX key as python integers (on the host)."""
     if jax.dtypes.issubdtype(key.dtype, jax.dtypes.prng_key):
         key = jax.random.key_data(key)
-    return int(numpy.asarray(key).ravel()[-1]) & _MAX_SEED
+    return [int(word) for word in numpy.asarray(key).ravel()]
+
+
+def numpy_rng(
+    rng: "nnx.Rngs | nnx.RngStream | jax.Array | int", *extra: int, stream: str = "data"
+) -> numpy.random.Generator:
+    """Get a NumPy generator, seeded from a JAX key, for host-side (data) randomness.
+
+    REAX does all data-side randomness (splitting, shuffling, k-fold partitioning) with NumPy on
+    the host.  The work happens where the data lives, without device round trips, XLA compilation
+    or accelerator-backend quirks, while the seed still comes from the engine's RNGs.
+
+    Args:
+        rng: An :class:`flax.nnx.Rngs` (a key is drawn from ``stream``), an
+            :class:`flax.nnx.RngStream` (a key is drawn from it), a JAX key, or an integer seed.
+        *extra: Additional integers mixed into the seed, e.g. an epoch number.
+        stream: The stream to draw from if ``rng`` is an :class:`flax.nnx.Rngs`.
+
+    Returns:
+        A NumPy generator.
+
+    Note:
+        Prefer using the generator directly.  If something really needs a plain integer seed
+        (e.g. a sampler that stores it), draw one from the generator:
+        ``numpy_rng(rngs).integers(2**31)``.
+    """
+    return numpy.random.default_rng([*_key_words(to_key(rng, stream=stream)), *extra])
 
 
 def rngs_state_dict(rngs: nnx.Rngs) -> dict[str, dict[str, Any]]:

@@ -149,8 +149,9 @@ def random_split(
     distributed in round-robin fashion to the lengths
     until there are no remainders left.
 
-    The split is drawn from ``rngs``; pass ``engine.rngs`` to have it follow the engine seed (and
-    be identical on all processes).
+    The split is seeded from ``rngs``; pass ``engine.rngs`` to have it follow the engine seed (and
+    be identical on all processes).  The permutation itself is computed with NumPy on the host
+    (see :func:`reax.random.numpy_rng`).
 
     Example:
         >>> rngs = nnx.Rngs(data=42)
@@ -187,8 +188,7 @@ def random_split(
     if sum(lengths) != len(dataset):
         raise ValueError("Sum of input lengths does not equal the length of the input dataset!")
 
-    key = random_.to_key(rngs, stream="data")
-    indices = jax.random.permutation(key, sum(lengths)).tolist()
+    indices = random_.numpy_rng(rngs, stream="data").permutation(sum(lengths)).tolist()
     lengths = cast(Sequence[int], lengths)
     return [
         Subset(dataset, indices[offset - length : offset])

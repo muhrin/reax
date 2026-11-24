@@ -483,7 +483,7 @@ class Engine:
             inner = inner.parent
         for sub in data_.samplers.iter_samplers(getattr(inner, "sampler", None)):
             if isinstance(sub, data_.samplers.RandomSampler) and sub.seed is None:
-                sub.seed = random_.key_to_seed(self._rngs.data())
+                sub.seed = int(random_.numpy_rng(self._rngs).integers(2**31))
 
         return loader
 
