@@ -31,19 +31,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import datetime
 import logging
+import math
+import operator
 import os
 import pathlib
 import re
 import shutil
 import time
-from typing import TYPE_CHECKING, Final, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal
 import weakref
 
 import jax
-from jax import numpy as jnp
+import numpy as np
 from typing_extensions import override
 
 from reax import exceptions, stages
@@ -299,18 +300,18 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         self._every_n_epochs: Final[int] = every_n_epochs
 
         # State
-        self._kth_value: jax.Array = self.__init_monitor_mode(mode)
+        self._kth_value: float = self.__init_monitor_mode(mode)
         self._dirpath: str | None = (
             os.path.realpath(os.path.expanduser(dirpath)) if dirpath else dirpath
         )
         self.last_model_path = ""
         self._last_time_checked: float | None = None
-        self._current_score: jax.Array | None = None
+        self._current_score: float | None = None
         self._last_checkpoint_saved = ""
         self._best_model_path = ""
-        self._best_k_models: dict[str, jax.Array] = {}
+        self._best_k_models: dict[str, float] = {}
         self._kth_best_model_path = ""
-        self._best_model_score: jax.Array | None = None
+        self._best_model_score: float | None = None
         # Keep track of the global number of optimizer steps
         self._last_global_step_saved = 0
         # De-duplicate warnings so the same message is only emitted once
@@ -340,8 +341,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     @staticmethod
     def __init_monitor_mode(mode: str) -> float:
         """Init monitor mode."""
-        jnp_info = float("inf" if mode == "min" else "-inf")
-        mode_dict = {"min": jnp_info, "max": -jnp_info}
+        mode_dict = {"min": math.inf, "max": -math.inf}
 
         if mode not in mode_dict:
             raise exceptions.MisconfigurationException(
@@ -361,7 +361,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         return self._best_model_path
 
     @property
-    def best_model_score(self) -> jax.Array | None:
+    def best_model_score(self) -> float | None:
         """Best model score."""
         return self._best_model_score
 
@@ -436,24 +436,25 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         ) and not self._should_save_on_train_epoch_end(stage):
             self._do_save(trainer, self._monitor_candidates(trainer))
 
-    def _monitor_candidates(self, trainer: "reax.Trainer", /) -> dict[str, jax.Array]:
+    def _monitor_candidates(self, trainer: "reax.Trainer", /) -> dict[str, Any]:
         """Monitor candidates.
 
         Read the metrics from the trainer rather than a single stage so that metrics logged during
         training (e.g. an on-epoch training loss) are still visible after the nested validation loop
         has overwritten the stage's own metric view.
         """
-        monitor_candidates: dict = copy.deepcopy(trainer.listener_metrics)
+        # Listener metrics are device arrays, get them all onto the host in one go (this also
+        # copies them, so later changes to the trainer's metrics don't affect us)
+        monitor_candidates: dict[str, Any] = {
+            name: _to_python(value)
+            for name, value in jax.device_get(trainer.listener_metrics).items()
+        }
 
-        monitor_candidates["epoch"] = as_jax_int(
-            monitor_candidates.get("epoch", trainer.current_epoch)
-        )
-        monitor_candidates["step"] = as_jax_int(
-            monitor_candidates.get("step", trainer.global_updates)
-        )
+        monitor_candidates["epoch"] = int(monitor_candidates.get("epoch", trainer.current_epoch))
+        monitor_candidates["step"] = int(monitor_candidates.get("step", trainer.global_updates))
         return monitor_candidates
 
-    def check_monitor_top_k(self, current: jax.Array | None = None) -> bool:
+    def check_monitor_top_k(self, current: float | None = None) -> bool:
         """Check monitor top k."""
         if current is None:
             return False
@@ -465,14 +466,14 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         if less_than_k_models:
             return True
 
-        monitor_op = {"min": jnp.less, "max": jnp.greater}[self._mode]
+        monitor_op = {"min": operator.lt, "max": operator.gt}[self._mode]
         should_update_best_and_save = monitor_op(
             current, self._best_k_models[self._kth_best_model_path]
         )
 
         return should_update_best_and_save
 
-    def _do_save(self, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]):
+    def _do_save(self, trainer: "reax.Trainer", monitor_candidates: dict[str, Any]):
         """Do save."""
         if self._every_n_epochs >= 1 and (trainer.current_epoch + 1) % self._every_n_epochs == 0:
             self._save_topk_checkpoint(trainer, monitor_candidates)
@@ -534,7 +535,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def _save_topk_checkpoint(
         self,
         trainer: "reax.Trainer",
-        monitor_candidates: dict[str, jax.Array],
+        monitor_candidates: dict[str, Any],
     ) -> None:
         """Save topk checkpoint."""
         if self._save_top_k == 0:
@@ -546,7 +547,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             self._save_monitor_checkpoint(trainer, monitor_candidates)
 
     def _save_last_checkpoint(
-        self, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
+        self, trainer: "reax.Trainer", monitor_candidates: dict[str, Any]
     ) -> None:
         """Save last checkpoint."""
         if not self._save_last:
@@ -575,7 +576,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             self._remove_checkpoint(trainer, previous)
 
     def _save_monitor_checkpoint(
-        self, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
+        self, trainer: "reax.Trainer", monitor_candidates: dict[str, Any]
     ) -> None:
         """Save monitor checkpoint."""
         assert self._monitor is not None
@@ -590,6 +591,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             )
             return
 
+        current = float(current)
         if self.check_monitor_top_k(current):
             self._update_best_and_save(current, trainer, monitor_candidates)
         elif self._verbose:
@@ -601,7 +603,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             )
 
     def _save_none_monitor_checkpoint(
-        self, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
+        self, trainer: "reax.Trainer", monitor_candidates: dict[str, Any]
     ) -> None:
         """Save none monitor checkpoint."""
         filepath = self._get_metric_interpolated_filepath_name(
@@ -619,7 +621,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             self._remove_checkpoint(trainer, previous)
 
     def _update_best_and_save(
-        self, current: jax.Array, trainer: "reax.Trainer", monitor_candidates: dict[str, jax.Array]
+        self, current: float, trainer: "reax.Trainer", monitor_candidates: dict[str, Any]
     ) -> None:
         """Update best and save."""
         k = len(self._best_k_models) + 1 if self._save_top_k == -1 else self._save_top_k
@@ -630,8 +632,8 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             self._best_k_models.pop(del_filepath)
 
         # do not save nan, replace with +/- inf
-        if isinstance(current, jax.Array) and jnp.isnan(current):
-            current = jnp.array(float("inf" if self._mode == "min" else "-inf"))
+        if math.isnan(current):
+            current = math.inf if self._mode == "min" else -math.inf
 
         filepath: Final[str] = self._get_metric_interpolated_filepath_name(
             trainer, monitor_candidates, del_filepath
@@ -667,7 +669,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
 
     def format_checkpoint_name(
         self,
-        metrics: dict[str, jax.Array],
+        metrics: dict[str, Any],
         filename: str | None = None,
         version: int | None = None,
     ) -> str:
@@ -686,7 +688,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def _get_checkpoint_filepath(
         self,
         trainer: "reax.Trainer",
-        metrics: dict[str, jax.Array],
+        metrics: dict[str, Any],
         filename: str | None = None,
         version: int | None = None,
     ) -> str:
@@ -707,7 +709,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def _get_metric_interpolated_filepath_name(
         self,
         trainer: "reax.Trainer",
-        monitor_candidates: dict[str, jax.Array],
+        monitor_candidates: dict[str, Any],
         del_filepath: str | None = None,
     ) -> str:
         """Get metric interpolated filepath name."""
@@ -726,7 +728,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
     def _format_checkpoint_name(
         self,
         filename: str | None,
-        metrics: dict[str, jax.Array],
+        metrics: dict[str, Any],
         prefix: str = "",
         auto_insert_metric_name: bool = True,
     ) -> str:
@@ -752,7 +754,7 @@ class ModelCheckpoint(checkpointer.Checkpointer):
             filename = filename.replace(group, f"{{0[{name}]")
 
             if name not in metrics:
-                metrics[name] = jnp.array(0)
+                metrics[name] = 0
 
         filename = filename.format(metrics)
 
@@ -867,5 +869,8 @@ class ModelCheckpoint(checkpointer.Checkpointer):
         return ckpt_path
 
 
-def as_jax_int(val) -> jax.Array:
-    return jnp.array(val).astype(jnp.int32)
+def _to_python(value: Any) -> Any:
+    """Turn a host array holding a single value into a python scalar, leave anything else."""
+    if isinstance(value, (np.ndarray, np.generic)) and value.size == 1:
+        return value.item()
+    return value

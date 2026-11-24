@@ -70,7 +70,7 @@ class TestInit:
 
     def test_monitor_mode_starts(self):
         assert ModelCheckpoint(mode="min")._kth_value == float("inf")
-        assert ModelCheckpoint(mode="max")._kth_value == float("inf")  # -(-inf)
+        assert ModelCheckpoint(mode="max")._kth_value == float("-inf")
 
     def test_properties(self, tmp_path):
         dirpath = str(tmp_path / "ckpt")
@@ -520,3 +520,32 @@ def test_on_train_batch_end_time_interval(tmp_path):
     trainer.global_updates = 1
     ckpt.on_train_batch_end(trainer, stage, Mock())
     assert any(p.endswith(".ckpt") for p in os.listdir(ckpt.dirpath))
+
+
+def test_monitor_candidates_are_host_values(tmp_path):
+    ckpt = ModelCheckpoint(dirpath=str(tmp_path), monitor="val_loss")
+    trainer = _make_trainer(tmp_path)
+    trainer.current_epoch = 3
+    trainer.global_updates = 42
+    trainer.listener_metrics = {"val_loss": jnp.array(0.5), "per_class": jnp.array([1.0, 2.0])}
+
+    candidates = ckpt._monitor_candidates(trainer)
+    assert candidates["val_loss"] == 0.5 and type(candidates["val_loss"]) is float
+    assert candidates["epoch"] == 3 and type(candidates["epoch"]) is int
+    assert candidates["step"] == 42 and type(candidates["step"]) is int
+    # Non-scalar metrics are left as (host) arrays
+    assert candidates["per_class"].tolist() == [1.0, 2.0]
+
+
+@pytest.mark.parametrize("nan", [float("nan"), jnp.array(float("nan"))])
+def test_nan_monitor_is_never_best(tmp_path, nan):
+    # NaN must be replaced whatever type it arrives as, otherwise the top-k bookkeeping breaks
+    ckpt = ModelCheckpoint(dirpath=str(tmp_path), monitor="val_loss", save_top_k=2, mode="min")
+    trainer = _make_trainer(tmp_path)
+    os.makedirs(ckpt.dirpath, exist_ok=True)
+
+    ckpt._save_monitor_checkpoint(trainer, {"val_loss": nan, "epoch": 0, "step": 0})
+    assert ckpt.best_model_score == float("inf")
+    ckpt._save_monitor_checkpoint(trainer, {"val_loss": 0.5, "epoch": 1, "step": 1})
+    assert ckpt.best_model_score == 0.5
+    assert type(ckpt.best_model_score) is float

@@ -639,7 +639,9 @@ def test_early_stopping_squeezes():
         stage = mock.Mock(spec=reax.stages.ModuleStage, fast_dev_run=False)
         early_stopping._run_early_stopping_check(trainer, stage)
 
-    es_mock.assert_called_once_with(jnp.array(0))
+    es_mock.assert_called_once_with(0.0)
+    # The monitored value is brought to the host as a plain python float
+    assert type(es_mock.call_args.args[0]) is float
 
 
 @pytest.mark.parametrize(
@@ -729,3 +731,36 @@ def test_early_stopping_start_from_epoch_param(tmp_path):
     # Epochs 0-2 are below start_from_epoch, so the check is skipped entirely.
     # It runs at epochs 3 and 4; the loss is flat, so patience=1 trips at the end of 4.
     assert early_stop_listener._run_early_stopping_check.call_count == 2
+
+
+def test_early_stopping_max_mode_tracks_improvement():
+    # Previously the best score always started at +inf, so nothing ever improved in "max" mode
+    early_stopping = listeners.EarlyStopping(monitor="acc", mode="max", patience=1)
+    assert early_stopping.best_score == -math.inf
+    for value in (0.1, 0.2, 0.3):
+        should_stop, _ = early_stopping._evaluate_stopping_criteria(value)
+        assert not should_stop
+        assert early_stopping.best_score == value
+        assert type(early_stopping.best_score) is float
+
+    should_stop, _ = early_stopping._evaluate_stopping_criteria(0.25)
+    assert should_stop
+
+
+def test_early_stopping_records_stop_reason(tmp_path):
+    loss_values = [6, 5, 5, 5, 5, 5]
+
+    class Model(boring_classes.BoringModel):
+        @override
+        def on_validation_epoch_end(
+            self, stage: "reax.Stage", loop: "reax.stages.ValidationEpoch", /
+        ) -> None:
+            self.log("test_val_loss", jnp.array(loss_values[self._trainer.current_epoch]))
+
+    early_stopping = listeners.EarlyStopping(monitor="test_val_loss", patience=1)
+    trainer = reax.Trainer(
+        default_root_dir=tmp_path, listeners=[early_stopping], enable_progress_bar=False
+    )
+    fit = trainer.fit(Model(), num_sanity_val_steps=0, max_epochs=len(loss_values))
+    assert fit.stop_reason.startswith("EarlyStopping: Monitored metric test_val_loss did not")
+    assert type(early_stopping.best_score) is float

@@ -39,12 +39,15 @@ Monitor a metric and stop training when it stops improving.
 
 from collections.abc import Callable
 import logging
+import math
+import operator
 from typing import TYPE_CHECKING, Final, Literal
 
 import beartype
 import jax.numpy as jnp
 import jax.typing
 import jaxtyping as jt
+import numpy as np
 from typing_extensions import override
 
 from reax import hooks, stages
@@ -57,7 +60,7 @@ _LOGGER = logging.getLogger(__name__)
 
 __all__ = ("EarlyStopping",)
 
-MonitorOp = Callable[[jax.typing.ArrayLike, jax.typing.ArrayLike], jax.typing.ArrayLike]
+MonitorOp = Callable[[float, float], bool]
 
 
 class EarlyStopping(hooks.TrainerListener):
@@ -125,7 +128,7 @@ class EarlyStopping(hooks.TrainerListener):
         >>> trainer = Trainer(listeners=[early_stopping])
     """
 
-    mode_dict: dict[str, MonitorOp] = {"min": jnp.less, "max": jnp.greater}
+    mode_dict: dict[str, MonitorOp] = {"min": operator.lt, "max": operator.gt}
     order_dict = {"min": "<", "max": ">"}
 
     @jt.jaxtyped(typechecker=beartype.beartype)
@@ -162,7 +165,7 @@ class EarlyStopping(hooks.TrainerListener):
 
         # State
         self._check_on_train_epoch_end = check_on_train_epoch_end
-        self._best_score = float("inf")
+        self._best_score: float = math.inf if mode == "min" else -math.inf
         self._wait_count: int = 0
         self._stopped_epoch = 0
 
@@ -227,13 +230,19 @@ class EarlyStopping(hooks.TrainerListener):
             # disable early_stopping with fast_dev_run or short circuit if metric not present
             return
 
-        current = jnp.squeeze(logs[self._monitor])
+        # Listener metrics are device arrays, get the monitored value onto the host once, here,
+        # and do all the bookkeeping in plain python
+        current = float(np.squeeze(jax.device_get(logs[self._monitor])))
         should_stop, reason = self._evaluate_stopping_criteria(current)
 
         # stop every ddp process if any process decides to stop
-        should_stop = trainer.strategy.all_reduce(jnp.array(should_stop), reduce_op="any")
-        if should_stop:
-            trainer.should_stop = should_stop
+        any_stop = bool(trainer.strategy.all_reduce(jnp.asarray(should_stop), reduce_op="any"))
+        if any_stop:
+            if should_stop and reason is not None:
+                stop_reason = reason
+            else:
+                stop_reason = f"Early stopping on {self._monitor!r} requested by another process."
+            trainer.stage.stop(f"EarlyStopping: {stop_reason}")
             self._stopped_epoch = trainer.current_epoch
         if reason and self._verbose:
             self._log_info(trainer, reason, self._log_rank_zero_only)
@@ -258,11 +267,11 @@ class EarlyStopping(hooks.TrainerListener):
 
         return True
 
-    def _evaluate_stopping_criteria(self, current: jax.typing.ArrayLike) -> tuple[bool, str | None]:
+    def _evaluate_stopping_criteria(self, current: float) -> tuple[bool, str | None]:
         """Evaluate stopping criteria."""
         should_stop = False
         reason = None
-        if self._check_finite and not jnp.isfinite(current):
+        if self._check_finite and not math.isfinite(current):
             should_stop = True
             reason = (
                 f"Monitored metric {self._monitor} = {current} is not finite."
@@ -304,11 +313,11 @@ class EarlyStopping(hooks.TrainerListener):
 
         return should_stop, reason
 
-    def _improvement_message(self, current: jax.typing.ArrayLike) -> str:
+    def _improvement_message(self, current: float) -> str:
         """Formats a log message that informs the user about an improvement in the monitored
         score.
         """
-        if jnp.isfinite(self.best_score):
+        if math.isfinite(self.best_score):
             msg = (
                 f"Metric {self._monitor} improved by {abs(self.best_score - current):.3f} >="
                 f" min_delta = {abs(self._min_delta)}. New best score: {current:.3f}"

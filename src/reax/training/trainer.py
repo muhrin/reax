@@ -255,9 +255,12 @@ class Trainer(stages.StageListener):
 
     @should_stop.setter
     def should_stop(self, stop: bool):
-        """Should stop."""
+        """Request that the current stage stop.
+
+        To give a reason for stopping, call ``trainer.stage.stop(reason)`` instead.
+        """
         if stop and self._stage is not None:
-            self._stage.stop("None")
+            self._stage.stop("Stop requested via `Trainer.should_stop`")
 
     @property
     def sanity_checking(self) -> bool:
