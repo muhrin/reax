@@ -532,7 +532,9 @@ class LoopOverBatches(Loop[_DataStageT]):
             # Exhausted all the data
             raise StopIteration
 
-        # Move the next into the current
+        # Move the next into the current.  Loaders handed out by the data manager are already
+        # wrapped in a `DeviceDataLoader` (see `Engine.setup_dataloaders`), so this is normally a
+        # cheap no-op.  It is kept as a safety net for loaders that bypass the engine.
         self._batch = self._stage.engine.to_device(self._next_batch)
         self._next_batch = None
         super()._on_iteration_starting()
