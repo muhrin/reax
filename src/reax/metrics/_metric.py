@@ -2,10 +2,11 @@ import abc
 from collections.abc import Callable
 import functools
 import types
-from typing import Any, ClassVar, Generic, Self, TypeVar, cast
+from typing import Any, ClassVar, Generic, Protocol, Self, TypeVar, cast
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 from typing_extensions import override
 
 from .. import pytree
@@ -14,6 +15,19 @@ __all__ = ("Metric", "FromFun")
 
 _OutT = TypeVar("_OutT")
 _R = TypeVar("_R")
+
+
+class ReduceFn(Protocol):
+    def __call__(
+        self, values: ArrayLike, /, axis: Any = None, *, where: ArrayLike | None = None
+    ) -> jax.Array:
+        """Perform reduction on the passed values (e.g. :func:`jax.numpy.sum`)."""
+
+
+def _default_reduce_fn(
+    values: ArrayLike, axis: Any = 0, *, where: ArrayLike | None = None
+) -> jax.Array:
+    return jnp.sum(values, axis=axis, where=where)
 
 
 class hybrid_method(Generic[_R]):  # pylint: disable=invalid-name
@@ -42,6 +56,8 @@ class Metric(pytree.PyTree, Generic[_OutT], metaclass=abc.ABCMeta):
     Updating can be done either with the ``.update()`` call when updating from raw data, or the
     ``.merge()`` call when merging an existing metric instance.
     """
+
+    reduce_fn: ClassVar[ReduceFn] = staticmethod(_default_reduce_fn)
 
     @classmethod
     def from_fun(cls, function: Callable, name: str | None = None) -> type["FromFun[_OutT]"]:
@@ -126,17 +142,17 @@ class Metric(pytree.PyTree, Generic[_OutT], metaclass=abc.ABCMeta):
 
         return jax.tree_util.tree_map(_apply, self)
 
-    @staticmethod
-    def reduce_fn(x: jax.Array, axis: int = 0) -> jax.Array:
-        return jnp.sum(x, axis=axis)
-
 
 class FromFun(Metric[_OutT]):
     """Helper class apply a function before passing the result to an existing metric."""
 
     metric: type[Metric[_OutT]]
-    func: ClassVar[Callable]
     _state: Metric[_OutT]
+
+    @classmethod
+    @abc.abstractmethod
+    def func(cls, *args, **kwargs) -> Any:
+        """The function applied to the inputs before they are passed on to the wrapped metric."""
 
     def __init__(self, *args, state: Metric[_OutT] | None = None, **kwargs):
         super().__init__()

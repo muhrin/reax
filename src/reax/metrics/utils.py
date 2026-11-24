@@ -1,17 +1,16 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
 import beartype
 import jax
 import jax.numpy as jnp
 import jaxtyping as jt
-from jaxtyping import ArrayLike
 from typing_extensions import override
 
 from reax.utils import masking
 
 from .. import pytree
-from ._metric import Metric
+from ._metric import Metric, ReduceFn
 
 if TYPE_CHECKING:
     import reax
@@ -25,13 +24,6 @@ __all__ = tuple()
 M = TypeVar("M", bound=Metric)
 _WithAccT = TypeVar("_WithAccT", bound="WithAccumulator")
 _WithAccCountT = TypeVar("_WithAccCountT", bound="WithAccumulatorAndCount")
-
-
-class ReduceFn(Protocol):
-    def __call__(
-        self, values: ArrayLike, /, axis: Any = None, *, where: ArrayLike | None = None
-    ) -> jax.Array:
-        """Perform reduction on the passed values (e.g. :func:`jax.numpy.sum`)."""
 
 
 def concat(tensors: tuple[jax.Array]) -> jax.Array:

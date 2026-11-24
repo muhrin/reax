@@ -277,7 +277,7 @@ class TestMutablePytree:
         foo.x = 2
 
         with pytest.raises(AttributeError, match=r"Cannot add new fields to"):
-            foo.y = 2  # ty: ignore[unresolved-attribute]
+            foo.y = 2  # ty: ignore[missing-attribute]
 
     def test_pytree_dataclass(self):
         @dataclasses.dataclass
@@ -385,7 +385,7 @@ class TestPyTree:
 
         class Foo(pytree.PyTree):
             a: int = 0
-            b: int  # ty: ignore[dataclass-field-order]
+            b: int  # ty: ignore[invalid-dataclass-field-order]
 
             def __init__(self):
                 self.a = 1
@@ -472,12 +472,12 @@ def test_optimizer_update_jit():
     # up with two steps to see all combinations of int/array count and `None`/float value
     for _ in range(2):
         params, optimizer = step(params, optimizer)
-    cache_size = reax.Optimizer.update._cache_size()  # ty: ignore[unresolved-attribute]  # pylint: disable=protected-access
+    cache_size = reax.Optimizer.update._cache_size()  # ty: ignore[missing-attribute]  # pylint: disable=protected-access
     for _ in range(3):
         params, optimizer = step(params, optimizer)
 
     assert optimizer.update_count == 10
-    assert reax.Optimizer.update._cache_size() == cache_size  # ty: ignore[unresolved-attribute]  # pylint: disable=protected-access
+    assert reax.Optimizer.update._cache_size() == cache_size  # ty: ignore[missing-attribute]  # pylint: disable=protected-access
 
 
 def test_distributed_optimizer_constructs():

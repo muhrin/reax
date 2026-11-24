@@ -1,10 +1,17 @@
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 from typing_extensions import override
 
 from . import _metric, aggregation
 
-__all__ = "MeanSquaredError", "RootMeanSquareError", "MeanAbsoluteError", "LeastSquaresEstimate"
+__all__ = (
+    "MeanSquaredError",
+    "RootMeanSquareError",
+    "MeanAbsoluteError",
+    "LeastSquaresEstimate",
+)
 
 MeanSquaredError = aggregation.Average.from_fun(
     lambda values, targets, mask=None: (jnp.square(values - targets), mask),
@@ -75,6 +82,14 @@ class RootMeanSquareError(_metric.Metric[jax.Array]):
         return jnp.sqrt(self.mse.compute())
 
 
+def _concat_reduce(
+    x: Any, /, axis: int = 0, *, where: jax.typing.ArrayLike | None = None
+) -> jax.Array:
+    # Flatten the batch dimension into the data dimension: (Batch, N, D) -> (Batch * N, D)
+    del where  # accepted to match the ReduceFn protocol, masking isn't supported here
+    return jnp.concatenate(x, axis=axis)
+
+
 class LeastSquaresEstimate(_metric.Metric[jax.Array]):
     values: jax.Array | None
     targets: jax.Array | None
@@ -127,8 +142,4 @@ class LeastSquaresEstimate(_metric.Metric[jax.Array]):
             raise RuntimeError("Nothing to compute, metric is empty!")
         return jnp.linalg.lstsq(self.values, self.targets)[0]
 
-    @staticmethod
-    def reduce_fn(x, axis=0):
-        # We need to flatten the batch dimension into the data dimension
-        # (Batch, N, D) -> (Batch * N, D)
-        return jnp.concatenate(x, axis=axis)
+    reduce_fn = staticmethod(_concat_reduce)

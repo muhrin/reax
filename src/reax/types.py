@@ -1,5 +1,5 @@
 import pathlib
-from typing import Literal, Protocol, TypeVar, runtime_checkable
+from typing import Literal, Protocol, Self, TypeVar, runtime_checkable
 
 import jax.typing
 import jaxtyping as jt
@@ -43,10 +43,10 @@ class MetricInstance(MetricType[_OutT], Protocol[_OutT]):
     """A protocol that defines a metric instance that can be updated with new data,
     merged with another instance of the same type or be used to compute the value of the metric."""
 
-    def update(self, *args, **kwargs) -> "MetricInstance[_OutT]":
+    def update(self, *args, **kwargs) -> Self:
         """Update the metric from new data and return a new instance."""
 
-    def merge(self, other: "MetricInstance[_OutT]") -> "MetricInstance[_OutT]":
+    def merge(self, other: Self) -> Self:
         """Merge the metric with data from another metric instance of the same type."""
 
     def compute(self) -> _OutT:
