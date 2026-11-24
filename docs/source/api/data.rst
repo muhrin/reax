@@ -12,6 +12,7 @@ Core abstractions
    reax.data.Dataset
    reax.DataLoader
    reax.data.ReaxDataLoader
+   reax.data.ArrayLoader
    reax.DataModule
 
 Datasets

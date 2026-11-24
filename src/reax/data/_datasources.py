@@ -93,8 +93,10 @@ class DataSource(Generic[_T_co, U]):
 
         Args:
             engine: The :class:`reax.Engine` providing device, RNG and distributed primitives.
-                Use ``engine.rngs`` for reproducible splits or ``engine.default_device()`` for
-                device placement.
+                Use ``engine.rngs`` for reproducible splits.  Build datasets from NumPy arrays to
+                keep them on the host (REAX moves each batch to ``engine.device``), or from JAX
+                arrays to keep them on the device (see the "Where your data lives" section of the
+                data user guide).
             stage: Optional name of the stage being set up (e.g. ``"fit"``, ``"validate"``,
                 ``"test"``, ``"predict"``).
 

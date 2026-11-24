@@ -11,6 +11,46 @@ REAX works seamlessly with JAX data. Use :class:`~reax.data.ReaxDataLoader` toge
 :class:`~reax.data.ArrayDataset` (or your own :class:`~reax.data.Dataset`), or any iterable that
 yields batches of numpy/JAX arrays.
 
+Where your data lives
+---------------------
+
+REAX moves every batch to the engine's device for you, so you only need to decide where the
+*dataset* lives.  The rule is simple: **NumPy arrays live on the host, JAX arrays live on the
+engine's device.**
+
+**On the host (the default choice).**  Build your dataset from NumPy arrays.  Sampling,
+indexing and collation then all happen on the CPU, and REAX copies each batch to the device
+once, just before the step.  This works for datasets of any size and keeps accelerator memory
+free for the model.
+
+.. code-block:: python
+
+    dataset = reax.data.ArrayDataset(np.load("x.npy"), np.load("y.npy"))
+    loader = reax.data.ReaxDataLoader(dataset, batch_size=64, shuffle=True)
+
+**On the device.**  If the whole dataset fits in accelerator memory, keeping it there avoids the
+per-batch copy.  Create it as JAX arrays and use :class:`~reax.data.ArrayLoader`, which gathers
+each batch directly on the device:
+
+.. code-block:: python
+
+    x, y = jax.device_put((np.load("x.npy"), np.load("y.npy")), engine.device)
+    loader = reax.data.ArrayLoader((x, y), batch_size=64, shuffle=True)
+
+.. note::
+
+    :class:`~reax.data.ReaxDataLoader` indexes one sample at a time and collates on the host
+    with NumPy.  Given a dataset of JAX arrays, it copies every sample back to the host and then
+    sends the batch to the device again, which is slower than either option above.  Use
+    :class:`~reax.data.ArrayLoader` for device-resident data.
+
+Inside a stage (e.g. in :meth:`~reax.DataModule.setup`), arrays created with ``jnp`` are placed on
+the engine's device, as the engine's device is the default JAX device while a stage runs.  This
+matters when it differs from JAX's own default, e.g. ``accelerator="cpu"`` on a GPU machine.
+
+Randomness used for data (splits, shuffling, k-fold partitions) is always computed with NumPy on
+the host, whichever option you choose, see :doc:`randomness`.
+
 DataModules
 -----------
 
